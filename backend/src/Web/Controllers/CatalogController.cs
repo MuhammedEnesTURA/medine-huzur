@@ -1,4 +1,5 @@
 using System.Text.Json;
+using MedineHuzur.Domain.Entities;
 using MedineHuzur.Infrastructure;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -55,7 +56,7 @@ public class CatalogController : ControllerBase
 
         if (!string.IsNullOrWhiteSpace(q))
         {
-            var search = q.Trim().ToLower();
+            var search = q.Trim().ToLowerInvariant();
 
             query = query.Where(x =>
                 x.Name.ToLower().Contains(search) ||
@@ -114,15 +115,20 @@ public class CatalogController : ControllerBase
         Guid id,
         CancellationToken cancellationToken)
     {
-        var product = await BuildProductDetailQuery()
-            .FirstOrDefaultAsync(x => x.Id == id, cancellationToken);
+        var query = _db.Products
+            .AsNoTracking()
+            .Where(x => x.IsActive)
+            .Where(x => x.Id == id);
+
+        var product = await BuildProductDetailQuery(query)
+            .FirstOrDefaultAsync(cancellationToken);
 
         if (product is null)
         {
             return NotFound(new { message = "Ürün bulunamadı." });
         }
 
-        return Ok(product);
+        return Ok(HydrateVariantAttributes(product));
     }
 
     [HttpGet("products/by-slug/{slug}")]
@@ -135,69 +141,84 @@ public class CatalogController : ControllerBase
             return BadRequest(new { message = "Ürün slug bilgisi eksik." });
         }
 
-        var normalizedSlug = slug.Trim().ToLower();
+        var normalizedSlug = slug.Trim().ToLowerInvariant();
 
-        var product = await BuildProductDetailQuery()
-            .FirstOrDefaultAsync(x => x.Slug.ToLower() == normalizedSlug, cancellationToken);
+        var query = _db.Products
+            .AsNoTracking()
+            .Where(x => x.IsActive)
+            .Where(x => x.Slug.ToLower() == normalizedSlug);
+
+        var product = await BuildProductDetailQuery(query)
+            .FirstOrDefaultAsync(cancellationToken);
 
         if (product is null)
         {
             return NotFound(new { message = "Ürün bulunamadı." });
         }
 
-        return Ok(product);
+        return Ok(HydrateVariantAttributes(product));
     }
 
-    private IQueryable<ProductDetailDto> BuildProductDetailQuery()
+    private static IQueryable<ProductDetailDto> BuildProductDetailQuery(
+        IQueryable<Product> products)
     {
-        return _db.Products
-            .AsNoTracking()
-            .Where(x => x.IsActive)
-            .Select(x => new ProductDetailDto(
-                x.Id,
-                x.Sku,
-                x.Name,
-                x.Slug,
-                x.Description,
-                x.ImageUrl,
-                x.BasePrice,
-                x.Stock,
-                x.HasVariants,
-                x.IsFeatured,
-                x.Images
-                    .OrderBy(i => i.SortOrder)
-                    .ThenByDescending(i => i.IsPrimary)
-                    .Select(i => new ProductImageDto(
-                        i.Id,
-                        i.ImageUrl,
-                        i.SortOrder,
-                        i.IsPrimary
-                    ))
-                    .ToList(),
-                x.Variants
-                    .Where(v => v.IsActive)
-                    .OrderBy(v => v.Price)
-                    .Select(v => new ProductVariantDto(
-                        v.Id,
-                        v.AttributesJson,
-                        ParseVariantAttributes(v.AttributesJson),
-                        v.Price,
-                        v.Stock
-                    ))
-                    .ToList(),
-                x.ProductCategories
-                    .Where(pc => pc.Category != null && pc.Category.IsActive)
-                    .OrderBy(pc => pc.Category!.SortOrder)
-                    .ThenBy(pc => pc.Category!.Name)
-                    .Select(pc => new CategoryDto(
-                        pc.Category!.Id,
-                        pc.Category.Name,
-                        pc.Category.Slug,
-                        pc.Category.ParentId,
-                        pc.Category.SortOrder
-                    ))
-                    .ToList()
-            ));
+        return products.Select(x => new ProductDetailDto(
+            x.Id,
+            x.Sku,
+            x.Name,
+            x.Slug,
+            x.Description,
+            x.ImageUrl,
+            x.BasePrice,
+            x.Stock,
+            x.HasVariants,
+            x.IsFeatured,
+            x.Images
+                .OrderBy(i => i.SortOrder)
+                .ThenByDescending(i => i.IsPrimary)
+                .Select(i => new ProductImageDto(
+                    i.Id,
+                    i.ImageUrl,
+                    i.SortOrder,
+                    i.IsPrimary
+                ))
+                .ToList(),
+            x.Variants
+                .Where(v => v.IsActive)
+                .OrderBy(v => v.Price)
+                .Select(v => new ProductVariantDto(
+                    v.Id,
+                    v.AttributesJson,
+                    new Dictionary<string, string>(),
+                    v.Price,
+                    v.Stock
+                ))
+                .ToList(),
+            x.ProductCategories
+                .Where(pc => pc.Category != null && pc.Category.IsActive)
+                .OrderBy(pc => pc.Category!.SortOrder)
+                .ThenBy(pc => pc.Category!.Name)
+                .Select(pc => new CategoryDto(
+                    pc.Category!.Id,
+                    pc.Category.Name,
+                    pc.Category.Slug,
+                    pc.Category.ParentId,
+                    pc.Category.SortOrder
+                ))
+                .ToList()
+        ));
+    }
+
+    private static ProductDetailDto HydrateVariantAttributes(ProductDetailDto product)
+    {
+        var variants = product.Variants
+            .Select(v => v with
+            {
+                Attributes = ParseVariantAttributes(v.AttributesJson)
+            })
+            .ToList();
+
+        return product with { Variants = variants };
     }
 
     private static Dictionary<string, string> ParseVariantAttributes(string attributesJson)
