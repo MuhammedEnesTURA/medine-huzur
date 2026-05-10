@@ -29,9 +29,12 @@ builder.Services.AddDbContext<ECommerceContext>(options =>
 builder.Services.AddControllers();
 builder.Services.Configure<JwtSettings>(configuration.GetSection("Jwt"));
 builder.Services.Configure<EmailSettings>(configuration.GetSection("Email"));
+builder.Services.Configure<AdminSeedSettings>(configuration.GetSection("AdminSeed"));
 
 builder.Services.AddScoped<IJwtTokenService, JwtTokenService>();
 builder.Services.AddScoped<IEmailService, SmtpEmailService>();
+
+builder.Services.AddHostedService<AdminSeedService>();
 
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
