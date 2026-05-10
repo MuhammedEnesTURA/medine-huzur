@@ -4,6 +4,8 @@ public class Order
 {
     public Guid Id { get; set; } = Guid.NewGuid();
 
+    public string OrderNumber { get; set; } = string.Empty;
+
     public Guid? UserId { get; set; }
 
     public User? User { get; set; }
