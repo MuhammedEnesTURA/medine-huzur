@@ -1,0 +1,275 @@
+using System.Text.Json;
+using MedineHuzur.Infrastructure;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
+
+namespace MedineHuzur.Web.Controllers;
+
+[ApiController]
+[Route("api/catalog")]
+public class CatalogController : ControllerBase
+{
+    private readonly ECommerceContext _db;
+
+    public CatalogController(ECommerceContext db)
+    {
+        _db = db;
+    }
+
+    [HttpGet("categories")]
+    public async Task<ActionResult<List<CategoryDto>>> GetCategories(
+        CancellationToken cancellationToken)
+    {
+        var categories = await _db.Categories
+            .AsNoTracking()
+            .Where(x => x.IsActive)
+            .OrderBy(x => x.SortOrder)
+            .ThenBy(x => x.Name)
+            .Select(x => new CategoryDto(
+                x.Id,
+                x.Name,
+                x.Slug,
+                x.ParentId,
+                x.SortOrder
+            ))
+            .ToListAsync(cancellationToken);
+
+        return Ok(categories);
+    }
+
+    [HttpGet("products")]
+    public async Task<ActionResult<ProductListResponse>> GetProducts(
+        [FromQuery] string? q,
+        [FromQuery] Guid? categoryId,
+        [FromQuery] bool? featured,
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 24,
+        CancellationToken cancellationToken = default)
+    {
+        page = Math.Max(1, page);
+        pageSize = Math.Clamp(pageSize, 1, 60);
+
+        var query = _db.Products
+            .AsNoTracking()
+            .Where(x => x.IsActive);
+
+        if (!string.IsNullOrWhiteSpace(q))
+        {
+            var search = q.Trim().ToLower();
+
+            query = query.Where(x =>
+                x.Name.ToLower().Contains(search) ||
+                x.Slug.ToLower().Contains(search) ||
+                x.Sku.ToLower().Contains(search) ||
+                (x.Description != null && x.Description.ToLower().Contains(search)));
+        }
+
+        if (categoryId.HasValue)
+        {
+            query = query.Where(x =>
+                x.ProductCategories.Any(pc => pc.CategoryId == categoryId.Value));
+        }
+
+        if (featured.HasValue)
+        {
+            query = query.Where(x => x.IsFeatured == featured.Value);
+        }
+
+        var totalCount = await query.CountAsync(cancellationToken);
+
+        var products = await query
+            .OrderByDescending(x => x.IsFeatured)
+            .ThenByDescending(x => x.CreatedAtUtc)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .Select(x => new ProductListItemDto(
+                x.Id,
+                x.Sku,
+                x.Name,
+                x.Slug,
+                x.ImageUrl,
+                x.BasePrice,
+                x.Stock,
+                x.HasVariants,
+                x.IsFeatured,
+                x.Images
+                    .OrderBy(i => i.SortOrder)
+                    .ThenByDescending(i => i.IsPrimary)
+                    .Select(i => i.ImageUrl)
+                    .FirstOrDefault()
+            ))
+            .ToListAsync(cancellationToken);
+
+        return Ok(new ProductListResponse(
+            products,
+            totalCount,
+            page,
+            pageSize,
+            (int)Math.Ceiling(totalCount / (double)pageSize)
+        ));
+    }
+
+    [HttpGet("products/{id:guid}")]
+    public async Task<ActionResult<ProductDetailDto>> GetProductById(
+        Guid id,
+        CancellationToken cancellationToken)
+    {
+        var product = await BuildProductDetailQuery()
+            .FirstOrDefaultAsync(x => x.Id == id, cancellationToken);
+
+        if (product is null)
+        {
+            return NotFound(new { message = "Ürün bulunamadı." });
+        }
+
+        return Ok(product);
+    }
+
+    [HttpGet("products/by-slug/{slug}")]
+    public async Task<ActionResult<ProductDetailDto>> GetProductBySlug(
+        string slug,
+        CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(slug))
+        {
+            return BadRequest(new { message = "Ürün slug bilgisi eksik." });
+        }
+
+        var normalizedSlug = slug.Trim().ToLower();
+
+        var product = await BuildProductDetailQuery()
+            .FirstOrDefaultAsync(x => x.Slug.ToLower() == normalizedSlug, cancellationToken);
+
+        if (product is null)
+        {
+            return NotFound(new { message = "Ürün bulunamadı." });
+        }
+
+        return Ok(product);
+    }
+
+    private IQueryable<ProductDetailDto> BuildProductDetailQuery()
+    {
+        return _db.Products
+            .AsNoTracking()
+            .Where(x => x.IsActive)
+            .Select(x => new ProductDetailDto(
+                x.Id,
+                x.Sku,
+                x.Name,
+                x.Slug,
+                x.Description,
+                x.ImageUrl,
+                x.BasePrice,
+                x.Stock,
+                x.HasVariants,
+                x.IsFeatured,
+                x.Images
+                    .OrderBy(i => i.SortOrder)
+                    .ThenByDescending(i => i.IsPrimary)
+                    .Select(i => new ProductImageDto(
+                        i.Id,
+                        i.ImageUrl,
+                        i.SortOrder,
+                        i.IsPrimary
+                    ))
+                    .ToList(),
+                x.Variants
+                    .Where(v => v.IsActive)
+                    .OrderBy(v => v.Price)
+                    .Select(v => new ProductVariantDto(
+                        v.Id,
+                        v.AttributesJson,
+                        ParseVariantAttributes(v.AttributesJson),
+                        v.Price,
+                        v.Stock
+                    ))
+                    .ToList(),
+                x.ProductCategories
+                    .Where(pc => pc.Category != null && pc.Category.IsActive)
+                    .OrderBy(pc => pc.Category!.SortOrder)
+                    .ThenBy(pc => pc.Category!.Name)
+                    .Select(pc => new CategoryDto(
+                        pc.Category!.Id,
+                        pc.Category.Name,
+                        pc.Category.Slug,
+                        pc.Category.ParentId,
+                        pc.Category.SortOrder
+                    ))
+                    .ToList()
+            ));
+    }
+
+    private static Dictionary<string, string> ParseVariantAttributes(string attributesJson)
+    {
+        if (string.IsNullOrWhiteSpace(attributesJson))
+        {
+            return new Dictionary<string, string>();
+        }
+
+        try
+        {
+            var parsed = JsonSerializer.Deserialize<Dictionary<string, string>>(attributesJson);
+
+            return parsed ?? new Dictionary<string, string>();
+        }
+        catch
+        {
+            return new Dictionary<string, string>();
+        }
+    }
+}
+
+public sealed record CategoryDto(
+    Guid Id,
+    string Name,
+    string Slug,
+    Guid? ParentId,
+    int SortOrder);
+
+public sealed record ProductListItemDto(
+    Guid Id,
+    string Sku,
+    string Name,
+    string Slug,
+    string? ImageUrl,
+    decimal BasePrice,
+    int Stock,
+    bool HasVariants,
+    bool IsFeatured,
+    string? PrimaryImageUrl);
+
+public sealed record ProductListResponse(
+    List<ProductListItemDto> Items,
+    int TotalCount,
+    int Page,
+    int PageSize,
+    int TotalPages);
+
+public sealed record ProductDetailDto(
+    Guid Id,
+    string Sku,
+    string Name,
+    string Slug,
+    string? Description,
+    string? ImageUrl,
+    decimal BasePrice,
+    int Stock,
+    bool HasVariants,
+    bool IsFeatured,
+    List<ProductImageDto> Images,
+    List<ProductVariantDto> Variants,
+    List<CategoryDto> Categories);
+
+public sealed record ProductImageDto(
+    Guid Id,
+    string ImageUrl,
+    int SortOrder,
+    bool IsPrimary);
+
+public sealed record ProductVariantDto(
+    Guid Id,
+    string AttributesJson,
+    Dictionary<string, string> Attributes,
+    decimal Price,
+    int Stock);
