@@ -3,6 +3,9 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { CartProvider } from "../context/CartContext";
 import { AuthProvider } from "../context/AuthContext";
+import SiteHeader from "../components/SiteHeader";
+import SiteFooter from "../components/SiteFooter";
+import EmailVerificationNotice from "../components/EmailVerificationNotice";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -70,12 +73,15 @@ export default function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} antialiased bg-background text-foreground`}
       >
         <AuthProvider>
-          <CartProvider>
-            <div className="min-h-screen flex flex-col">
-              <main className="flex-1">{children}</main>
-            </div>
-          </CartProvider>
-        </AuthProvider>
+  <CartProvider>
+    <SiteHeader />
+    <div className="min-h-screen flex flex-col pt-[134px] sm:pt-[136px] lg:pt-[98px] xl:pt-[98px]">
+      <EmailVerificationNotice />
+      <main className="flex-1">{children}</main>
+      <SiteFooter />
+    </div>
+  </CartProvider>
+</AuthProvider>
       </body>
     </html>
   );
