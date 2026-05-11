@@ -75,7 +75,7 @@ export default function RootLayout({
         <AuthProvider>
   <CartProvider>
     <SiteHeader />
-    <div className="min-h-screen flex flex-col pt-[134px] sm:pt-[136px] lg:pt-[98px] xl:pt-[98px]">
+    <div className="min-h-screen flex flex-col pt-[86px] sm:pt-[88px] lg:pt-[88px] xl:pt-[88px]">
       <EmailVerificationNotice />
       <main className="flex-1">{children}</main>
       <SiteFooter />

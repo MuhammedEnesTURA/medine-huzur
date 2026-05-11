@@ -1,12 +1,11 @@
 @import "tailwindcss";
 
 :root {
-  --background: #07110d;
   --foreground: #edf7f0;
-
-  --panel: #0e1a14;
-  --panel-2: #101f18;
-  --panel-3: #14271e;
+ --background: #020806;
+--panel: #06100b;
+--panel-2: #07120d;
+--panel-3: #0b1a12;
 
   --border-soft: rgba(132, 204, 22, 0.16);
   --border-strong: rgba(132, 204, 22, 0.28);
@@ -105,9 +104,9 @@ html[data-theme="light"] {
 body {
   min-height: 100vh;
   background:
-    radial-gradient(circle at 12% 0%, var(--surface-glow), transparent 28%),
-    radial-gradient(circle at 86% 6%, var(--surface-red-glow), transparent 24%),
-    linear-gradient(180deg, var(--background) 0%, var(--panel-2) 100%);
+    radial-gradient(circle at 12% 0%, var(--surface-glow), transparent 24%),
+    radial-gradient(circle at 86% 6%, var(--surface-red-glow), transparent 22%),
+    linear-gradient(180deg, var(--background) 0%, var(--panel-2) 52%, var(--background) 100%);
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
@@ -135,7 +134,7 @@ select {
 
 .page-container {
   width: 100%;
-  max-width: 1720px;
+  max-width: 1380px;
   margin-inline: auto;
   padding-inline: 0.75rem;
 }
@@ -160,7 +159,7 @@ select {
 
 @media (min-width: 1536px) {
   .page-container {
-    padding-inline: 2.5rem;
+    padding-inline: 1.5rem;
   }
 }
 

@@ -40,7 +40,7 @@ export default function ThemeToggle() {
     <button
       type="button"
       onClick={toggleTheme}
-      className="header-icon-btn relative inline-flex h-10 w-10 items-center justify-center rounded-2xl transition hover:-translate-y-0.5 lg:h-11 lg:w-11"
+      className="header-icon-btn relative inline-flex h-9 w-9 items-center justify-center rounded-xl transition hover:-translate-y-0.5"
       aria-label={theme === "dark" ? "Açık temaya geç" : "Koyu temaya geç"}
       title={theme === "dark" ? "Açık tema" : "Koyu tema"}
     >

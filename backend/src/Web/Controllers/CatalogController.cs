@@ -39,76 +39,105 @@ public class CatalogController : ControllerBase
     }
 
     [HttpGet("products")]
-    public async Task<ActionResult<ProductListResponse>> GetProducts(
-        [FromQuery] string? q,
-        [FromQuery] Guid? categoryId,
-        [FromQuery] bool? featured,
-        [FromQuery] int page = 1,
-        [FromQuery] int pageSize = 24,
-        CancellationToken cancellationToken = default)
+public async Task<ActionResult<ProductListResponse>> GetProducts(
+    [FromQuery] string? q,
+    [FromQuery] Guid? categoryId,
+    [FromQuery] bool? featured,
+    [FromQuery] bool? inStock,
+    [FromQuery] decimal? minPrice,
+    [FromQuery] decimal? maxPrice,
+    [FromQuery] string? sort,
+    [FromQuery] int page = 1,
+    [FromQuery] int pageSize = 24,
+    CancellationToken cancellationToken = default)
+{
+    page = Math.Max(1, page);
+    pageSize = Math.Clamp(pageSize, 1, 60);
+
+    var query = _db.Products
+        .AsNoTracking()
+        .Where(x => x.IsActive);
+
+    if (!string.IsNullOrWhiteSpace(q))
     {
-        page = Math.Max(1, page);
-        pageSize = Math.Clamp(pageSize, 1, 60);
+        var search = q.Trim().ToLowerInvariant();
 
-        var query = _db.Products
-            .AsNoTracking()
-            .Where(x => x.IsActive);
-
-        if (!string.IsNullOrWhiteSpace(q))
-        {
-            var search = q.Trim().ToLowerInvariant();
-
-            query = query.Where(x =>
-                x.Name.ToLower().Contains(search) ||
-                x.Slug.ToLower().Contains(search) ||
-                x.Sku.ToLower().Contains(search) ||
-                (x.Description != null && x.Description.ToLower().Contains(search)));
-        }
-
-        if (categoryId.HasValue)
-        {
-            query = query.Where(x =>
-                x.ProductCategories.Any(pc => pc.CategoryId == categoryId.Value));
-        }
-
-        if (featured.HasValue)
-        {
-            query = query.Where(x => x.IsFeatured == featured.Value);
-        }
-
-        var totalCount = await query.CountAsync(cancellationToken);
-
-        var products = await query
-            .OrderByDescending(x => x.IsFeatured)
-            .ThenByDescending(x => x.CreatedAtUtc)
-            .Skip((page - 1) * pageSize)
-            .Take(pageSize)
-            .Select(x => new ProductListItemDto(
-                x.Id,
-                x.Sku,
-                x.Name,
-                x.Slug,
-                x.ImageUrl,
-                x.BasePrice,
-                x.Stock,
-                x.HasVariants,
-                x.IsFeatured,
-                x.Images
-                    .OrderBy(i => i.SortOrder)
-                    .ThenByDescending(i => i.IsPrimary)
-                    .Select(i => i.ImageUrl)
-                    .FirstOrDefault()
-            ))
-            .ToListAsync(cancellationToken);
-
-        return Ok(new ProductListResponse(
-            products,
-            totalCount,
-            page,
-            pageSize,
-            (int)Math.Ceiling(totalCount / (double)pageSize)
-        ));
+        query = query.Where(x =>
+            x.Name.ToLower().Contains(search) ||
+            x.Slug.ToLower().Contains(search) ||
+            x.Sku.ToLower().Contains(search) ||
+            (x.Description != null && x.Description.ToLower().Contains(search)));
     }
+
+    if (categoryId.HasValue)
+    {
+        query = query.Where(x =>
+            x.ProductCategories.Any(pc => pc.CategoryId == categoryId.Value));
+    }
+
+    if (featured.HasValue)
+    {
+        query = query.Where(x => x.IsFeatured == featured.Value);
+    }
+
+    if (inStock.HasValue && inStock.Value)
+    {
+        query = query.Where(x =>
+            x.HasVariants
+                ? x.Variants.Any(v => v.IsActive && v.Stock > 0)
+                : x.Stock > 0);
+    }
+
+    if (minPrice.HasValue && minPrice.Value >= 0)
+    {
+        query = query.Where(x => x.BasePrice >= minPrice.Value);
+    }
+
+    if (maxPrice.HasValue && maxPrice.Value >= 0)
+    {
+        query = query.Where(x => x.BasePrice <= maxPrice.Value);
+    }
+
+    query = (sort ?? string.Empty).Trim().ToLowerInvariant() switch
+    {
+        "price-asc" => query.OrderBy(x => x.BasePrice).ThenBy(x => x.Name),
+        "price-desc" => query.OrderByDescending(x => x.BasePrice).ThenBy(x => x.Name),
+        "name-asc" => query.OrderBy(x => x.Name),
+        "featured" => query.OrderByDescending(x => x.IsFeatured).ThenByDescending(x => x.CreatedAtUtc),
+        _ => query.OrderByDescending(x => x.CreatedAtUtc)
+    };
+
+    var totalCount = await query.CountAsync(cancellationToken);
+
+    var products = await query
+        .Skip((page - 1) * pageSize)
+        .Take(pageSize)
+        .Select(x => new ProductListItemDto(
+            x.Id,
+            x.Sku,
+            x.Name,
+            x.Slug,
+            x.ImageUrl,
+            x.BasePrice,
+            x.Stock,
+            x.HasVariants,
+            x.IsFeatured,
+            x.Images
+                .OrderBy(i => i.SortOrder)
+                .ThenByDescending(i => i.IsPrimary)
+                .Select(i => i.ImageUrl)
+                .FirstOrDefault()
+        ))
+        .ToListAsync(cancellationToken);
+
+    return Ok(new ProductListResponse(
+        products,
+        totalCount,
+        page,
+        pageSize,
+        (int)Math.Ceiling(totalCount / (double)pageSize)
+    ));
+}
 
     [HttpGet("products/{id:guid}")]
     public async Task<ActionResult<ProductDetailDto>> GetProductById(
