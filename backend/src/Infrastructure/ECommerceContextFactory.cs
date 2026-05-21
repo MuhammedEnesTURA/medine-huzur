@@ -9,7 +9,9 @@ public class ECommerceContextFactory : IDesignTimeDbContextFactory<ECommerceCont
     {
         var connectionString =
             Environment.GetEnvironmentVariable("MEDINE_HUZUR_CONNECTION_STRING")
-            ?? "Server=localhost,1433;Database=MedineHuzurDb;User Id=sa;Password=YourStrong@Passw0rd;TrustServerCertificate=True;";
+            ?? Environment.GetEnvironmentVariable("ConnectionStrings__Default")
+            ?? Environment.GetEnvironmentVariable("ConnectionStrings__DefaultConnection")
+            ?? "Server=127.0.0.1,1433;Database=MedineHuzurDb;User Id=sa;Password=Your_strong_password123;TrustServerCertificate=True;";
 
         var optionsBuilder = new DbContextOptionsBuilder<ECommerceContext>();
         optionsBuilder.UseSqlServer(connectionString);

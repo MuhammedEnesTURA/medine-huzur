@@ -6,6 +6,8 @@ using Microsoft.IdentityModel.Tokens;
 using MedineHuzur.Web.Services;
 using MedineHuzur.Web.Settings;
 using Microsoft.OpenApi.Models;
+using MedineHuzur.Web.Payments;
+using System.Text.Json.Serialization;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -27,13 +29,30 @@ builder.Services.AddDbContext<ECommerceContext>(options =>
     options.UseSqlServer(connectionString);
 });
 
-builder.Services.AddControllers();
+builder.Services
+    .AddControllers()
+    .AddJsonOptions(options =>
+    {
+        options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());
+    });
+builder.Services.Configure<PaymentOptions>(
+    builder.Configuration.GetSection(PaymentOptions.SectionName));
+
+builder.Services.Configure<KuveytTurkOptions>(
+    builder.Configuration.GetSection(KuveytTurkOptions.SectionName));
+
+builder.Services.AddScoped<MockPaymentProvider>();
+builder.Services.AddScoped<KuveytTurkPaymentProvider>();
+builder.Services.AddScoped<PaymentProviderFactory>();
 builder.Services.Configure<JwtSettings>(configuration.GetSection("Jwt"));
 builder.Services.Configure<EmailSettings>(configuration.GetSection("Email"));
 builder.Services.Configure<AdminSeedSettings>(configuration.GetSection("AdminSeed"));
-
+builder.Services.Configure<KuveytTurkOptions>(
+    builder.Configuration.GetSection(KuveytTurkOptions.SectionName));
 builder.Services.AddScoped<IJwtTokenService, JwtTokenService>();
 builder.Services.AddScoped<IEmailService, SmtpEmailService>();
+
+
 
 builder.Services.AddHostedService<AdminSeedService>();
 

@@ -467,6 +467,63 @@ namespace Infrastructure.Migrations
                     b.ToTable("OrderStatusHistories");
                 });
 
+            modelBuilder.Entity("MedineHuzur.Domain.Entities.PaymentTransaction", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<decimal>("Amount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<DateTime?>("CompletedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("datetime2")
+                        .HasDefaultValueSql("SYSUTCDATETIME()");
+
+                    b.Property<Guid>("OrderId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("PaymentReference")
+                        .IsRequired()
+                        .HasMaxLength(180)
+                        .HasColumnType("nvarchar(180)");
+
+                    b.Property<string>("Provider")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("nvarchar(80)");
+
+                    b.Property<string>("RequestPayload")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("ResponsePayload")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CreatedAtUtc");
+
+                    b.HasIndex("OrderId");
+
+                    b.HasIndex("PaymentReference");
+
+                    b.HasIndex("Provider");
+
+                    b.HasIndex("Status");
+
+                    b.ToTable("PaymentTransactions");
+                });
+
             modelBuilder.Entity("MedineHuzur.Domain.Entities.Product", b =>
                 {
                     b.Property<Guid>("Id")
@@ -771,6 +828,17 @@ namespace Infrastructure.Migrations
                     b.Navigation("Order");
                 });
 
+            modelBuilder.Entity("MedineHuzur.Domain.Entities.PaymentTransaction", b =>
+                {
+                    b.HasOne("MedineHuzur.Domain.Entities.Order", "Order")
+                        .WithMany("PaymentTransactions")
+                        .HasForeignKey("OrderId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Order");
+                });
+
             modelBuilder.Entity("MedineHuzur.Domain.Entities.ProductCategory", b =>
                 {
                     b.HasOne("MedineHuzur.Domain.Entities.Category", "Category")
@@ -824,6 +892,8 @@ namespace Infrastructure.Migrations
                     b.Navigation("GiftPackageItems");
 
                     b.Navigation("Items");
+
+                    b.Navigation("PaymentTransactions");
 
                     b.Navigation("StatusHistory");
                 });

@@ -25,7 +25,7 @@ public class ECommerceContext : DbContext
     public DbSet<OrderItem> OrderItems => Set<OrderItem>();
     public DbSet<OrderGiftPackageItem> OrderGiftPackageItems => Set<OrderGiftPackageItem>();
     public DbSet<OrderStatusHistory> OrderStatusHistories => Set<OrderStatusHistory>();
-
+    public DbSet<PaymentTransaction> PaymentTransactions => Set<PaymentTransaction>();
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
@@ -42,6 +42,7 @@ public class ECommerceContext : DbContext
         ConfigureOrderItems(modelBuilder);
         ConfigureOrderGiftPackageItems(modelBuilder);
         ConfigureOrderStatusHistories(modelBuilder);
+        ConfigurePaymentTransactions(modelBuilder);
     }
 
     private static void ConfigureUsers(ModelBuilder modelBuilder)
@@ -414,6 +415,10 @@ entity.HasIndex(x => x.OrderNumber)
                 .WithOne(x => x.Order)
                 .HasForeignKey(x => x.OrderId)
                 .OnDelete(DeleteBehavior.Cascade);
+            entity.HasMany(x => x.PaymentTransactions)
+                .WithOne(x => x.Order)
+                .HasForeignKey(x => x.OrderId)
+                 .OnDelete(DeleteBehavior.Cascade);
 
             entity.HasIndex(x => x.CreatedAtUtc);
             entity.HasIndex(x => x.Status);
@@ -532,4 +537,47 @@ entity.HasIndex(x => x.OrderNumber)
             entity.HasIndex(x => x.ChangedAtUtc);
         });
     }
+    private static void ConfigurePaymentTransactions(ModelBuilder modelBuilder)
+{
+    modelBuilder.Entity<PaymentTransaction>(entity =>
+    {
+        entity.HasKey(x => x.Id);
+
+        entity.Property(x => x.Provider)
+            .HasMaxLength(80)
+            .IsRequired();
+
+        entity.Property(x => x.PaymentReference)
+            .HasMaxLength(180)
+            .IsRequired();
+
+        entity.Property(x => x.Amount)
+            .HasPrecision(18, 2);
+
+        entity.Property(x => x.Status)
+            .HasConversion<string>()
+            .HasMaxLength(32)
+            .IsRequired();
+
+        entity.Property(x => x.RequestPayload)
+            .HasColumnType("nvarchar(max)");
+
+        entity.Property(x => x.ResponsePayload)
+            .HasColumnType("nvarchar(max)");
+
+        entity.Property(x => x.CreatedAtUtc)
+            .HasDefaultValueSql("SYSUTCDATETIME()");
+
+        entity.HasOne(x => x.Order)
+            .WithMany(x => x.PaymentTransactions)
+            .HasForeignKey(x => x.OrderId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        entity.HasIndex(x => x.OrderId);
+        entity.HasIndex(x => x.PaymentReference);
+        entity.HasIndex(x => x.Provider);
+        entity.HasIndex(x => x.Status);
+        entity.HasIndex(x => x.CreatedAtUtc);
+    });
+}
 }

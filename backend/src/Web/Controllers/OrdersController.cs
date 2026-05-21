@@ -1,6 +1,5 @@
 using System.Security.Claims;
 using System.Security.Cryptography;
-using System.Text.Json;
 using MedineHuzur.Domain.Entities;
 using MedineHuzur.Infrastructure;
 using Microsoft.AspNetCore.Authorization;
@@ -225,6 +224,7 @@ public class OrdersController : ControllerBase
             .Include(x => x.Items)
             .Include(x => x.GiftPackageItems)
             .Include(x => x.StatusHistory)
+            .Include(x => x.PaymentTransactions)
             .FirstOrDefaultAsync(
                 x => x.Id == id && x.UserId == userId.Value,
                 cancellationToken);
@@ -257,6 +257,7 @@ public class OrdersController : ControllerBase
             .Include(x => x.Items)
             .Include(x => x.GiftPackageItems)
             .Include(x => x.StatusHistory)
+            .Include(x => x.PaymentTransactions)
             .FirstOrDefaultAsync(
                 x => x.OrderNumber == normalizedOrderNumber && x.Email == normalizedEmail,
                 cancellationToken);
@@ -267,6 +268,161 @@ public class OrdersController : ControllerBase
         }
 
         return Ok(ToDetailDto(order));
+    }
+
+    [Authorize]
+    [HttpPost("my/{id:guid}/cancel")]
+    public async Task<ActionResult<OrderDetailDto>> CancelMyOrder(
+        Guid id,
+        CancelMyOrderRequest request,
+        CancellationToken cancellationToken)
+    {
+        var userId = GetCurrentUserId();
+        if (userId is null)
+        {
+            return Unauthorized(new { message = "Oturum bilgisi bulunamadı." });
+        }
+
+        await using var transaction = await _db.Database.BeginTransactionAsync(cancellationToken);
+
+        try
+        {
+            var order = await _db.Orders
+                .Include(x => x.Items)
+                .Include(x => x.GiftPackageItems)
+                .Include(x => x.StatusHistory)
+                .Include(x => x.PaymentTransactions)
+                .FirstOrDefaultAsync(
+                    x => x.Id == id && x.UserId == userId.Value,
+                    cancellationToken);
+
+            if (order is null)
+            {
+                return NotFound(new { message = "Sipariş bulunamadı." });
+            }
+
+            if (order.Status == OrderStatus.Completed)
+            {
+                return BadRequest(new { message = "Tamamlanmış sipariş iptal edilemez." });
+            }
+
+            if (order.Status == OrderStatus.Shipped || order.Status == OrderStatus.Delivered)
+            {
+                return BadRequest(new { message = "Kargoya verilen veya teslim edilen sipariş iptal edilemez." });
+            }
+
+            if (order.Status == OrderStatus.Cancelled)
+            {
+                return BadRequest(new { message = "Sipariş zaten iptal edilmiş." });
+            }
+
+            var reason = NormalizeText(request.Reason);
+            var note = NormalizeOptionalText(request.Note);
+
+            if (string.IsNullOrWhiteSpace(reason))
+            {
+                return BadRequest(new { message = "İptal nedeni zorunludur." });
+            }
+
+            var previousStatus = order.Status;
+
+            order.Status = OrderStatus.Cancelled;
+            order.PaymentStatus = order.PaymentStatus == PaymentStatus.Paid
+                ? PaymentStatus.Paid
+                : PaymentStatus.Cancelled;
+            order.CancelledAtUtc = DateTime.UtcNow;
+            order.CancelReason = reason;
+            order.CancelledBy = "Customer";
+            order.CancelNote = note;
+
+            order.StatusHistory.Add(new OrderStatusHistory
+            {
+                OrderId = order.Id,
+                FromStatus = previousStatus,
+                ToStatus = OrderStatus.Cancelled,
+                Note = note is null
+                    ? $"Müşteri iptal nedeni: {reason}"
+                    : $"Müşteri iptal nedeni: {reason} | Not: {note}",
+                ChangedBy = "Customer",
+                ChangedAtUtc = DateTime.UtcNow
+            });
+
+            await RestoreStockForCancelledOrderAsync(order, cancellationToken);
+
+            await _db.SaveChangesAsync(cancellationToken);
+            await transaction.CommitAsync(cancellationToken);
+
+            return Ok(ToDetailDto(order));
+        }
+        catch
+        {
+            await transaction.RollbackAsync(cancellationToken);
+            throw;
+        }
+    }
+
+    private async Task RestoreStockForCancelledOrderAsync(
+        Order order,
+        CancellationToken cancellationToken)
+    {
+        var normalProductIds = order.Items.Select(x => x.ProductId);
+        var giftProductIds = order.GiftPackageItems.Select(x => x.ProductId);
+
+        var productIds = normalProductIds
+            .Concat(giftProductIds)
+            .Distinct()
+            .ToList();
+
+        if (productIds.Count == 0)
+        {
+            return;
+        }
+
+        var products = await _db.Products
+            .Include(x => x.Variants)
+            .Where(x => productIds.Contains(x.Id))
+            .ToDictionaryAsync(x => x.Id, cancellationToken);
+
+        foreach (var item in order.Items)
+        {
+            RestoreStock(item.ProductId, item.VariantId, item.Quantity, products);
+        }
+
+        foreach (var item in order.GiftPackageItems)
+        {
+            var quantity = item.Quantity * Math.Max(1, order.GiftPackageQuantity);
+            RestoreStock(item.ProductId, item.VariantId, quantity, products);
+        }
+    }
+
+    private static void RestoreStock(
+        Guid productId,
+        Guid? variantId,
+        int quantity,
+        Dictionary<Guid, Product> products)
+    {
+        if (quantity <= 0)
+        {
+            return;
+        }
+
+        if (!products.TryGetValue(productId, out var product))
+        {
+            return;
+        }
+
+        if (variantId.HasValue)
+        {
+            var variant = product.Variants.FirstOrDefault(x => x.Id == variantId.Value);
+            if (variant is not null)
+            {
+                variant.Stock += quantity;
+            }
+
+            return;
+        }
+
+        product.Stock += quantity;
     }
 
     private OrderItem BuildOrderItem(
@@ -519,6 +675,20 @@ public class OrdersController : ControllerBase
                     x.ChangedBy,
                     x.ChangedAtUtc
                 ))
+                .ToList(),
+            order.PaymentTransactions
+                .OrderByDescending(x => x.CreatedAtUtc)
+                .Select(x => new PaymentTransactionDto(
+                    x.Id,
+                    x.Provider,
+                    x.PaymentReference,
+                    x.Amount,
+                    x.Status.ToString(),
+                    x.RequestPayload,
+                    x.ResponsePayload,
+                    x.CreatedAtUtc,
+                    x.CompletedAtUtc
+                ))
                 .ToList()
         );
     }
@@ -582,6 +752,10 @@ public sealed record CheckoutResponse(
     bool IsGuestCheckout,
     string Message);
 
+public sealed record CancelMyOrderRequest(
+    string Reason,
+    string? Note);
+
 public sealed record OrderSummaryDto(
     Guid Id,
     string OrderNumber,
@@ -622,7 +796,8 @@ public sealed record OrderDetailDto(
     DateTime? LegalConsentsAcceptedAtUtc,
     List<OrderLineDto> Items,
     List<OrderLineDto> GiftPackageItems,
-    List<OrderStatusHistoryDto> StatusHistory);
+    List<OrderStatusHistoryDto> StatusHistory,
+    List<PaymentTransactionDto> PaymentTransactions);
 
 public sealed record OrderLineDto(
     Guid Id,
@@ -642,6 +817,17 @@ public sealed record OrderStatusHistoryDto(
     string? Note,
     string? ChangedBy,
     DateTime ChangedAtUtc);
+
+public sealed record PaymentTransactionDto(
+    Guid Id,
+    string Provider,
+    string PaymentReference,
+    decimal Amount,
+    string Status,
+    string? RequestPayload,
+    string? ResponsePayload,
+    DateTime CreatedAtUtc,
+    DateTime? CompletedAtUtc);
 
 public sealed record ProductPricing(
     Guid? VariantId,

@@ -77,4 +77,7 @@ public class Order
 
     public ICollection<OrderStatusHistory> StatusHistory { get; set; } =
         new List<OrderStatusHistory>();
+
+    public ICollection<PaymentTransaction> PaymentTransactions { get; set; } =
+    new List<PaymentTransaction>();    
 }

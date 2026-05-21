@@ -1,346 +1,318 @@
 "use client";
 
-import React, {
+import {
   createContext,
+  ReactNode,
   useCallback,
   useContext,
   useEffect,
   useMemo,
   useState,
 } from "react";
-import {
-  CartItem,
-  GiftPackageState,
-  cartItemKey,
-  emptyGiftPackage,
-} from "../lib/cartTypes";
+
+export type CartSelectedAttributes = Record<string, string> | null;
+
+export type CartItem = {
+  productId: string;
+  variantId?: string | null;
+  sku: string;
+  name: string;
+  slug: string;
+  imageUrl?: string | null;
+  unitPrice: number;
+  quantity: number;
+  selectedAttributes?: CartSelectedAttributes;
+};
+
+export type GiftPackageState = {
+  enabled: boolean;
+  title: string;
+  note: string;
+  items: CartItem[];
+};
 
 type CartContextValue = {
   items: CartItem[];
   giftPackage: GiftPackageState;
-  addItem: (item: CartItem) => void;
-  removeItem: (productId: string, variantId?: string | null) => void;
-  setQuantity: (
-    productId: string,
-    variantId: string | null | undefined,
-    quantity: number
-  ) => void;
-  clearCart: () => void;
-  enableGiftPackage: () => void;
-  disableGiftPackage: () => void;
-  setGiftPackageQuantity: (quantity: number) => void;
-  setGiftPackageNote: (note: string) => void;
-  setGiftPackageSampleImageUrl: (url: string | null) => void;
-  addGiftPackageItem: (item: CartItem) => void;
-  removeGiftPackageItem: (productId: string, variantId?: string | null) => void;
-  setGiftPackageItemQuantity: (
-    productId: string,
-    variantId: string | null | undefined,
-    quantity: number
-  ) => void;
-  clearGiftPackage: () => void;
   cartCount: number;
-  cartTotal: number;
-  giftPackageTotal: number;
-  grandTotal: number;
-};
+  normalItemCount: number;
+  giftItemCount: number;
+  subtotal: number;
+  giftSubtotal: number;
+  total: number;
 
-const STORAGE_KEY = "medine_huzur_cart";
+  addItem: (item: CartItem) => void;
+  addGiftPackageItem: (item: CartItem) => void;
+
+  increaseItem: (key: string) => void;
+  decreaseItem: (key: string) => void;
+  removeItem: (key: string) => void;
+
+  increaseGiftItem: (key: string) => void;
+  decreaseGiftItem: (key: string) => void;
+  removeGiftItem: (key: string) => void;
+
+  setGiftPackageEnabled: (enabled: boolean) => void;
+  updateGiftPackageInfo: (values: Partial<Pick<GiftPackageState, "title" | "note">>) => void;
+
+  clearCart: () => void;
+};
 
 const CartContext = createContext<CartContextValue | null>(null);
 
-function safeQuantity(value: number) {
+const STORAGE_KEY = "medine-huzur-cart-v1";
+
+type StoredCart = {
+  items: CartItem[];
+  giftPackage: GiftPackageState;
+};
+
+function lineKey(item: Pick<CartItem, "productId" | "variantId">) {
+  return `${item.productId}:${item.variantId ?? "base"}`;
+}
+
+function normalizeQuantity(value: number) {
   if (!Number.isFinite(value)) return 1;
   return Math.max(1, Math.floor(value));
 }
 
-function calculateItemsTotal(items: CartItem[]) {
-  return items.reduce((acc, item) => acc + item.unitPrice * item.quantity, 0);
-}
+function mergeLine(items: CartItem[], incoming: CartItem) {
+  const key = lineKey(incoming);
+  const quantity = normalizeQuantity(incoming.quantity);
 
-function normalizeGiftPackage(giftPackage?: Partial<GiftPackageState>) {
-  return {
-    ...emptyGiftPackage,
-    ...giftPackage,
-    quantity: safeQuantity(giftPackage?.quantity ?? 1),
-    items: Array.isArray(giftPackage?.items) ? giftPackage.items : [],
-  };
-}
+  const existingIndex = items.findIndex((item) => lineKey(item) === key);
 
-function loadInitialCart(): {
-  items: CartItem[];
-  giftPackage: GiftPackageState;
-} {
-  if (typeof window === "undefined") {
-    return {
-      items: [],
-      giftPackage: emptyGiftPackage,
-    };
-  }
-
-  try {
-    const raw = window.localStorage.getItem(STORAGE_KEY);
-    if (!raw) {
-      return {
-        items: [],
-        giftPackage: emptyGiftPackage,
-      };
-    }
-
-    const parsed = JSON.parse(raw) as {
-      items?: CartItem[];
-      giftPackage?: Partial<GiftPackageState>;
-    };
-
-    return {
-      items: Array.isArray(parsed.items) ? parsed.items : [],
-      giftPackage: normalizeGiftPackage(parsed.giftPackage),
-    };
-  } catch {
-    return {
-      items: [],
-      giftPackage: emptyGiftPackage,
-    };
-  }
-}
-
-function upsertItem(list: CartItem[], item: CartItem) {
-  const key = cartItemKey(item.productId, item.variantId);
-  const existing = list.find(
-    (x) => cartItemKey(x.productId, x.variantId) === key
-  );
-
-  if (!existing) {
+  if (existingIndex === -1) {
     return [
-      ...list,
+      ...items,
       {
-        ...item,
-        quantity: safeQuantity(item.quantity),
+        ...incoming,
+        quantity,
       },
     ];
   }
 
-  return list.map((x) =>
-    cartItemKey(x.productId, x.variantId) === key
+  return items.map((item, index) =>
+    index === existingIndex
       ? {
-          ...x,
-          quantity: safeQuantity(x.quantity + item.quantity),
+          ...item,
+          quantity: item.quantity + quantity,
         }
-      : x
+      : item
   );
 }
 
-export function CartProvider({ children }: { children: React.ReactNode }) {
-  const initial = useMemo(loadInitialCart, []);
+function updateLineQuantity(items: CartItem[], key: string, diff: number) {
+  return items
+    .map((item) =>
+      lineKey(item) === key
+        ? {
+            ...item,
+            quantity: Math.max(1, item.quantity + diff),
+          }
+        : item
+    )
+    .filter((item) => item.quantity > 0);
+}
 
-  const [items, setItems] = useState<CartItem[]>(initial.items);
-  const [giftPackage, setGiftPackage] = useState<GiftPackageState>(
-    initial.giftPackage
-  );
+function removeLine(items: CartItem[], key: string) {
+  return items.filter((item) => lineKey(item) !== key);
+}
+
+function calcSubtotal(items: CartItem[]) {
+  return items.reduce((sum, item) => sum + item.unitPrice * item.quantity, 0);
+}
+
+function readStoredCart(): StoredCart | null {
+  if (typeof window === "undefined") return null;
+
+  try {
+    const raw = window.localStorage.getItem(STORAGE_KEY);
+    if (!raw) return null;
+
+    const parsed = JSON.parse(raw) as StoredCart;
+
+    return {
+      items: Array.isArray(parsed.items) ? parsed.items : [],
+      giftPackage: {
+        enabled: Boolean(parsed.giftPackage?.enabled),
+        title: parsed.giftPackage?.title ?? "",
+        note: parsed.giftPackage?.note ?? "",
+        items: Array.isArray(parsed.giftPackage?.items)
+          ? parsed.giftPackage.items
+          : [],
+      },
+    };
+  } catch {
+    return null;
+  }
+}
+
+export function CartProvider({ children }: { children: ReactNode }) {
+  const [items, setItems] = useState<CartItem[]>([]);
+  const [giftPackage, setGiftPackage] = useState<GiftPackageState>({
+    enabled: false,
+    title: "",
+    note: "",
+    items: [],
+  });
+  const [hydrated, setHydrated] = useState(false);
 
   useEffect(() => {
-    if (typeof window === "undefined") return;
+    const stored = readStoredCart();
 
-    window.localStorage.setItem(
-      STORAGE_KEY,
-      JSON.stringify({
-        items,
-        giftPackage,
-      })
-    );
-  }, [items, giftPackage]);
+    if (stored) {
+      setItems(stored.items);
+      setGiftPackage(stored.giftPackage);
+    }
+
+    setHydrated(true);
+  }, []);
+
+  useEffect(() => {
+    if (!hydrated) return;
+
+    const payload: StoredCart = {
+      items,
+      giftPackage,
+    };
+
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
+  }, [items, giftPackage, hydrated]);
 
   const addItem = useCallback((item: CartItem) => {
-    setItems((current) => upsertItem(current, item));
-  }, []);
-
-  const removeItem = useCallback(
-    (productId: string, variantId?: string | null) => {
-      const key = cartItemKey(productId, variantId);
-
-      setItems((current) =>
-        current.filter((item) => cartItemKey(item.productId, item.variantId) !== key)
-      );
-    },
-    []
-  );
-
-  const setQuantity = useCallback(
-    (productId: string, variantId: string | null | undefined, quantity: number) => {
-      const key = cartItemKey(productId, variantId);
-
-      setItems((current) =>
-        current.map((item) =>
-          cartItemKey(item.productId, item.variantId) === key
-            ? {
-                ...item,
-                quantity: safeQuantity(quantity),
-              }
-            : item
-        )
-      );
-    },
-    []
-  );
-
-  const clearCart = useCallback(() => {
-    setItems([]);
-    setGiftPackage(emptyGiftPackage);
-  }, []);
-
-  const enableGiftPackage = useCallback(() => {
-    setGiftPackage((current) => ({
-      ...current,
-      enabled: true,
-      quantity: safeQuantity(current.quantity),
-    }));
-  }, []);
-
-  const disableGiftPackage = useCallback(() => {
-    setGiftPackage((current) => ({
-      ...current,
-      enabled: false,
-    }));
-  }, []);
-
-  const setGiftPackageQuantity = useCallback((quantity: number) => {
-    setGiftPackage((current) => ({
-      ...current,
-      quantity: safeQuantity(quantity),
-    }));
-  }, []);
-
-  const setGiftPackageNote = useCallback((note: string) => {
-    setGiftPackage((current) => ({
-      ...current,
-      note,
-    }));
-  }, []);
-
-  const setGiftPackageSampleImageUrl = useCallback((url: string | null) => {
-    setGiftPackage((current) => ({
-      ...current,
-      sampleImageUrl: url,
-    }));
+    setItems((current) => mergeLine(current, item));
   }, []);
 
   const addGiftPackageItem = useCallback((item: CartItem) => {
     setGiftPackage((current) => ({
       ...current,
       enabled: true,
-      items: upsertItem(current.items, item),
+      items: mergeLine(current.items, item),
     }));
   }, []);
 
-  const removeGiftPackageItem = useCallback(
-    (productId: string, variantId?: string | null) => {
-      const key = cartItemKey(productId, variantId);
-
-      setGiftPackage((current) => ({
-        ...current,
-        items: current.items.filter(
-          (item) => cartItemKey(item.productId, item.variantId) !== key
-        ),
-      }));
-    },
-    []
-  );
-
-  const setGiftPackageItemQuantity = useCallback(
-    (
-      productId: string,
-      variantId: string | null | undefined,
-      quantity: number
-    ) => {
-      const key = cartItemKey(productId, variantId);
-
-      setGiftPackage((current) => ({
-        ...current,
-        items: current.items.map((item) =>
-          cartItemKey(item.productId, item.variantId) === key
-            ? {
-                ...item,
-                quantity: safeQuantity(quantity),
-              }
-            : item
-        ),
-      }));
-    },
-    []
-  );
-
-  const clearGiftPackage = useCallback(() => {
-    setGiftPackage(emptyGiftPackage);
+  const increaseItem = useCallback((key: string) => {
+    setItems((current) => updateLineQuantity(current, key, 1));
   }, []);
 
-  const cartCount = useMemo(() => {
-    const normalCount = items.reduce((acc, item) => acc + item.quantity, 0);
+  const decreaseItem = useCallback((key: string) => {
+    setItems((current) => updateLineQuantity(current, key, -1));
+  }, []);
 
-    const giftSingleBoxCount = giftPackage.enabled
-      ? giftPackage.items.reduce((acc, item) => acc + item.quantity, 0)
-      : 0;
+  const removeItem = useCallback((key: string) => {
+    setItems((current) => removeLine(current, key));
+  }, []);
 
-    const giftTotalCount =
-      giftSingleBoxCount * Math.max(1, giftPackage.quantity || 1);
+  const increaseGiftItem = useCallback((key: string) => {
+    setGiftPackage((current) => ({
+      ...current,
+      items: updateLineQuantity(current.items, key, 1),
+    }));
+  }, []);
 
-    return normalCount + giftTotalCount;
-  }, [items, giftPackage]);
+  const decreaseGiftItem = useCallback((key: string) => {
+    setGiftPackage((current) => ({
+      ...current,
+      items: updateLineQuantity(current.items, key, -1),
+    }));
+  }, []);
 
-  const cartTotal = useMemo(() => calculateItemsTotal(items), [items]);
+  const removeGiftItem = useCallback((key: string) => {
+    setGiftPackage((current) => ({
+      ...current,
+      items: removeLine(current.items, key),
+    }));
+  }, []);
 
-  const giftPackageTotal = useMemo(() => {
-    if (!giftPackage.enabled) return 0;
+  const setGiftPackageEnabled = useCallback((enabled: boolean) => {
+    setGiftPackage((current) => ({
+      ...current,
+      enabled,
+    }));
+  }, []);
 
-    return (
-      calculateItemsTotal(giftPackage.items) *
-      Math.max(1, giftPackage.quantity || 1)
-    );
-  }, [giftPackage]);
+  const updateGiftPackageInfo = useCallback(
+    (values: Partial<Pick<GiftPackageState, "title" | "note">>) => {
+      setGiftPackage((current) => ({
+        ...current,
+        ...values,
+      }));
+    },
+    []
+  );
 
-  const grandTotal = cartTotal + giftPackageTotal;
+  const clearCart = useCallback(() => {
+    setItems([]);
+    setGiftPackage({
+      enabled: false,
+      title: "",
+      note: "",
+      items: [],
+    });
+  }, []);
+
+  const subtotal = useMemo(() => calcSubtotal(items), [items]);
+  const giftSubtotal = useMemo(
+    () => calcSubtotal(giftPackage.items),
+    [giftPackage.items]
+  );
+
+  const normalItemCount = useMemo(
+    () => items.reduce((sum, item) => sum + item.quantity, 0),
+    [items]
+  );
+
+  const giftItemCount = useMemo(
+    () => giftPackage.items.reduce((sum, item) => sum + item.quantity, 0),
+    [giftPackage.items]
+  );
 
   const value = useMemo<CartContextValue>(
     () => ({
       items,
       giftPackage,
+      cartCount: normalItemCount + giftItemCount,
+      normalItemCount,
+      giftItemCount,
+      subtotal,
+      giftSubtotal,
+      total: subtotal + giftSubtotal,
+
       addItem,
-      removeItem,
-      setQuantity,
-      clearCart,
-      enableGiftPackage,
-      disableGiftPackage,
-      setGiftPackageQuantity,
-      setGiftPackageNote,
-      setGiftPackageSampleImageUrl,
       addGiftPackageItem,
-      removeGiftPackageItem,
-      setGiftPackageItemQuantity,
-      clearGiftPackage,
-      cartCount,
-      cartTotal,
-      giftPackageTotal,
-      grandTotal,
+
+      increaseItem,
+      decreaseItem,
+      removeItem,
+
+      increaseGiftItem,
+      decreaseGiftItem,
+      removeGiftItem,
+
+      setGiftPackageEnabled,
+      updateGiftPackageInfo,
+
+      clearCart,
     }),
     [
       items,
       giftPackage,
+      normalItemCount,
+      giftItemCount,
+      subtotal,
+      giftSubtotal,
       addItem,
-      removeItem,
-      setQuantity,
-      clearCart,
-      enableGiftPackage,
-      disableGiftPackage,
-      setGiftPackageQuantity,
-      setGiftPackageNote,
-      setGiftPackageSampleImageUrl,
       addGiftPackageItem,
-      removeGiftPackageItem,
-      setGiftPackageItemQuantity,
-      clearGiftPackage,
-      cartCount,
-      cartTotal,
-      giftPackageTotal,
-      grandTotal,
+      increaseItem,
+      decreaseItem,
+      removeItem,
+      increaseGiftItem,
+      decreaseGiftItem,
+      removeGiftItem,
+      setGiftPackageEnabled,
+      updateGiftPackageInfo,
+      clearCart,
     ]
   );
 
@@ -355,4 +327,8 @@ export function useCart() {
   }
 
   return value;
+}
+
+export function getCartLineKey(item: Pick<CartItem, "productId" | "variantId">) {
+  return lineKey(item);
 }

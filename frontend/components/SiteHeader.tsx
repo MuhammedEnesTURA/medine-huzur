@@ -14,7 +14,6 @@ import {
   Settings,
   Shield,
   ShoppingCart,
-  UserRound,
   X,
 } from "lucide-react";
 import { apiUrl } from "../lib/api";
@@ -67,6 +66,11 @@ export default function SiteHeader() {
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   useEffect(() => {
     let ignore = false;
@@ -174,9 +178,13 @@ export default function SiteHeader() {
 
   return (
     <header className="fixed inset-x-0 top-3 z-50 px-2 sm:px-3">
-  <div className="page-container rounded-[1.5rem] border border-border-soft bg-panel-2/90 shadow-[0_18px_60px_rgba(0,0,0,0.32)] backdrop-blur-xl">
+      <div className="page-container rounded-[1.5rem] border border-border-soft bg-panel-2/90 shadow-[0_18px_60px_rgba(0,0,0,0.32)] backdrop-blur-xl">
         <div className="flex min-h-[56px] items-center gap-2 py-1.5 lg:min-h-[60px] lg:gap-3">
-          <Link href="/" className="shrink-0" aria-label="Medine Huzur Ana Sayfa">
+          <Link
+            href="/"
+            className="shrink-0"
+            aria-label="Medine Huzur Ana Sayfa"
+          >
             <div className="header-brand-card flex items-center gap-2 rounded-2xl px-2 py-1.5 pr-3">
               <div className="relative h-9 w-9 shrink-0 overflow-hidden rounded-xl border border-mhgreen/25 bg-mhgreen/10">
                 <Image
@@ -287,7 +295,10 @@ export default function SiteHeader() {
               )}
             </div>
 
-            <Link href="/products" className={navLinkClass(isActive("/products"))}>
+            <Link
+              href="/products"
+              className={navLinkClass(isActive("/products"))}
+            >
               Ürünler
             </Link>
 
@@ -297,6 +308,28 @@ export default function SiteHeader() {
             >
               Sipariş Sorgula
             </Link>
+
+            <Link
+  href="/contact"
+  className={navLinkClass(isActive("/contact"))}
+>
+  İletişim
+</Link>
+
+            {isReady && isAuthenticated && (
+              <Link
+                href="/account/orders"
+                className={navLinkClass(isActive("/account/orders"))}
+              >
+                Siparişlerim
+              </Link>
+            )}
+
+            {isReady && isAdmin && (
+              <Link href="/admin" className={navLinkClass(isActive("/admin"))}>
+                Admin Panel
+              </Link>
+            )}
           </nav>
 
           <form
@@ -342,7 +375,7 @@ export default function SiteHeader() {
             >
               <ShoppingCart className="h-4.5 w-4.5 text-foreground" />
 
-              {cartCount > 0 && (
+              {mounted && cartCount > 0 && (
                 <span className="absolute -right-1.5 -top-1.5 flex h-5 min-w-5 items-center justify-center rounded-full bg-danger px-1 text-[10px] font-black text-white">
                   {cartCount > 99 ? "99+" : cartCount}
                 </span>
@@ -387,6 +420,7 @@ export default function SiteHeader() {
                       isActive={isActive}
                       onLogout={onLogout}
                       email={user?.email}
+                      role={user?.role}
                     />
                   )}
                 </div>
@@ -428,6 +462,7 @@ export default function SiteHeader() {
           <form onSubmit={onSearchSubmit} className="pb-2 xl:hidden">
             <div className="header-search-shell flex h-10 items-center rounded-2xl px-3">
               <Search className="mr-2 h-4 w-4 shrink-0 text-muted-2" />
+
               <input
                 type="text"
                 value={search}
@@ -435,6 +470,7 @@ export default function SiteHeader() {
                 placeholder="Ürün ara..."
                 className="w-full bg-transparent text-[13px] text-foreground placeholder:text-muted-2 focus:outline-none"
               />
+
               <button
                 type="submit"
                 className="ml-2 inline-flex h-8 shrink-0 items-center justify-center rounded-xl bg-mhgreen px-4 text-xs font-black text-mhwhite"
@@ -468,7 +504,10 @@ export default function SiteHeader() {
                   Ürünler
                 </Link>
 
-                <Link href="/cart" className={mobilePillClass(isActive("/cart"))}>
+                <Link
+                  href="/cart"
+                  className={mobilePillClass(isActive("/cart"))}
+                >
                   Sepet
                 </Link>
 
@@ -478,6 +517,13 @@ export default function SiteHeader() {
                 >
                   Sipariş Sorgula
                 </Link>
+
+                <Link
+  href="/contact"
+  className={mobilePillClass(isActive("/contact"))}
+>
+  İletişim
+</Link>
               </div>
 
               {categoriesOpen && (
@@ -513,9 +559,22 @@ export default function SiteHeader() {
                       <p className="text-[11px] font-bold text-muted-2">
                         Giriş yapan
                       </p>
+
                       <p className="mt-1 truncate text-sm font-bold text-foreground">
                         {user?.email}
                       </p>
+
+                      <div className="mt-2 flex flex-wrap gap-1.5">
+                        <span className="rounded-full border border-border-soft bg-panel-2 px-2 py-1 text-[11px] font-bold text-muted">
+                          {user?.role ?? "User"}
+                        </span>
+
+                        {isAdmin && (
+                          <span className="rounded-full border border-mhgreen/30 bg-mhgreen/10 px-2 py-1 text-[11px] font-bold text-mhgreen">
+                            Admin yetkisi
+                          </span>
+                        )}
+                      </div>
                     </div>
 
                     <div className="grid gap-1">
@@ -544,11 +603,48 @@ export default function SiteHeader() {
                       </Link>
 
                       {isAdmin && (
-                        <Link href="/admin" className={menuItemClass(isActive("/admin"))}>
-                          <Shield className="h-4 w-4" />
-                          Admin Panel
-                        </Link>
+                        <>
+                          <div className="my-2 border-t border-border-soft" />
+
+                          <Link
+                            href="/admin"
+                            className={menuItemClass(isActive("/admin"))}
+                          >
+                            <Shield className="h-4 w-4" />
+                            Admin Panel
+                          </Link>
+
+                          <Link
+                            href="/admin/orders"
+                            className={menuItemClass(isActive("/admin/orders"))}
+                          >
+                            <Package className="h-4 w-4" />
+                            Admin Siparişler
+                          </Link>
+
+                          <Link
+                            href="/admin/products"
+                            className={menuItemClass(
+                              isActive("/admin/products")
+                            )}
+                          >
+                            <Package className="h-4 w-4" />
+                            Admin Ürünler
+                          </Link>
+
+                          <Link
+                            href="/admin/categories"
+                            className={menuItemClass(
+                              isActive("/admin/categories")
+                            )}
+                          >
+                            <Settings className="h-4 w-4" />
+                            Admin Kategoriler
+                          </Link>
+                        </>
                       )}
+
+                      <div className="my-2 border-t border-border-soft" />
 
                       <button
                         type="button"
@@ -591,27 +687,41 @@ function UserMenu({
   isActive,
   onLogout,
   email,
+  role,
 }: {
   isAdmin: boolean;
   isActive: (href: string) => boolean;
   onLogout: () => void;
   email?: string;
+  role?: string;
 }) {
   return (
-    <div className="absolute right-0 top-[calc(100%+10px)] z-[70] w-[270px] rounded-3xl border border-border-soft bg-panel-2/98 p-3 shadow-[0_24px_80px_rgba(0,0,0,0.45)] backdrop-blur-xl">
+    <div className="absolute right-0 top-[calc(100%+10px)] z-[70] w-[280px] rounded-3xl border border-border-soft bg-panel-2/98 p-3 shadow-[0_24px_80px_rgba(0,0,0,0.45)] backdrop-blur-xl">
       <div className="mb-2 rounded-2xl border border-border-soft bg-panel/70 p-3">
         <p className="text-[11px] font-bold text-muted-2">Giriş yapan</p>
-        <p className="mt-1 truncate text-sm font-bold text-foreground">{email}</p>
 
-        {isAdmin && (
-          <p className="mt-2 inline-flex rounded-full border border-mhgreen/30 bg-mhgreen/10 px-2 py-1 text-[11px] font-bold text-mhgreen">
-            Admin yetkisi
+        <p className="mt-1 truncate text-sm font-bold text-foreground">
+          {email}
+        </p>
+
+        <div className="mt-2 flex flex-wrap gap-1.5">
+          <p className="inline-flex rounded-full border border-border-soft bg-panel-2 px-2 py-1 text-[11px] font-bold text-muted">
+            {role ?? "User"}
           </p>
-        )}
+
+          {isAdmin && (
+            <p className="inline-flex rounded-full border border-mhgreen/30 bg-mhgreen/10 px-2 py-1 text-[11px] font-bold text-mhgreen">
+              Admin yetkisi
+            </p>
+          )}
+        </div>
       </div>
 
       <div className="grid gap-1">
-        <Link href="/account/orders" className={menuItemClass(isActive("/account/orders"))}>
+        <Link
+          href="/account/orders"
+          className={menuItemClass(isActive("/account/orders"))}
+        >
           <Package className="h-4 w-4" />
           Siparişlerim
         </Link>
@@ -628,15 +738,43 @@ function UserMenu({
           href="/account/settings"
           className={menuItemClass(isActive("/account/settings"))}
         >
-          <UserRound className="h-4 w-4" />
-          Hesabım
+          <Settings className="h-4 w-4" />
+          Hesap Ayarları
         </Link>
 
         {isAdmin && (
-          <Link href="/admin" className={menuItemClass(isActive("/admin"))}>
-            <Shield className="h-4 w-4" />
-            Admin Panel
-          </Link>
+          <>
+            <div className="my-2 border-t border-border-soft" />
+
+            <Link href="/admin" className={menuItemClass(isActive("/admin"))}>
+              <Shield className="h-4 w-4" />
+              Admin Panel
+            </Link>
+
+            <Link
+              href="/admin/orders"
+              className={menuItemClass(isActive("/admin/orders"))}
+            >
+              <Package className="h-4 w-4" />
+              Admin Siparişler
+            </Link>
+
+            <Link
+              href="/admin/products"
+              className={menuItemClass(isActive("/admin/products"))}
+            >
+              <Package className="h-4 w-4" />
+              Admin Ürünler
+            </Link>
+
+            <Link
+              href="/admin/categories"
+              className={menuItemClass(isActive("/admin/categories"))}
+            >
+              <Settings className="h-4 w-4" />
+              Admin Kategoriler
+            </Link>
+          </>
         )}
 
         <div className="my-2 border-t border-border-soft" />

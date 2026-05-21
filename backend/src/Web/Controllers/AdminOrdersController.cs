@@ -95,6 +95,7 @@ public class AdminOrdersController : ControllerBase
             .Include(x => x.Items)
             .Include(x => x.GiftPackageItems)
             .Include(x => x.StatusHistory)
+            .Include(x => x.PaymentTransactions)
             .FirstOrDefaultAsync(x => x.Id == id, cancellationToken);
 
         if (order is null)
@@ -106,104 +107,198 @@ public class AdminOrdersController : ControllerBase
     }
 
     [HttpPut("{id:guid}/status")]
-    public async Task<ActionResult<AdminOrderDetailDto>> UpdateStatus(
-        Guid id,
-        UpdateOrderStatusRequest request,
-        CancellationToken cancellationToken)
+public async Task<ActionResult<AdminOrderDetailDto>> UpdateStatus(
+    Guid id,
+    UpdateOrderStatusRequest request,
+    CancellationToken cancellationToken)
+{
+    var existingOrder = await _db.Orders
+        .AsNoTracking()
+        .FirstOrDefaultAsync(x => x.Id == id, cancellationToken);
+
+    if (existingOrder is null)
     {
-        var order = await _db.Orders
+        return NotFound(new { message = "Sipariş bulunamadı." });
+    }
+
+    if (existingOrder.Status == OrderStatus.Cancelled)
+    {
+        return BadRequest(new { message = "İptal edilmiş siparişin durumu değiştirilemez." });
+    }
+
+    var oldStatus = existingOrder.Status;
+    var newStatus = request.Status;
+
+    if (oldStatus == newStatus)
+    {
+        var sameOrder = await _db.Orders
+            .AsNoTracking()
             .Include(x => x.Items)
             .Include(x => x.GiftPackageItems)
             .Include(x => x.StatusHistory)
+            .Include(x => x.PaymentTransactions)
             .FirstOrDefaultAsync(x => x.Id == id, cancellationToken);
 
-        if (order is null)
+        if (sameOrder is null)
         {
             return NotFound(new { message = "Sipariş bulunamadı." });
         }
 
-        if (order.Status == OrderStatus.Cancelled)
+        return Ok(ToDetailDto(sameOrder));
+    }
+
+    var now = DateTime.UtcNow;
+
+    var affectedRows = newStatus switch
+    {
+        OrderStatus.Shipped => await _db.Orders
+            .Where(x => x.Id == id)
+            .ExecuteUpdateAsync(setters => setters
+                .SetProperty(x => x.Status, newStatus)
+                .SetProperty(x => x.ShippedAtUtc, x => x.ShippedAtUtc ?? now),
+                cancellationToken),
+
+        OrderStatus.Delivered => await _db.Orders
+            .Where(x => x.Id == id)
+            .ExecuteUpdateAsync(setters => setters
+                .SetProperty(x => x.Status, newStatus)
+                .SetProperty(x => x.DeliveredAtUtc, x => x.DeliveredAtUtc ?? now),
+                cancellationToken),
+
+        OrderStatus.Completed => await _db.Orders
+            .Where(x => x.Id == id)
+            .ExecuteUpdateAsync(setters => setters
+                .SetProperty(x => x.Status, newStatus)
+                .SetProperty(x => x.CompletedAtUtc, x => x.CompletedAtUtc ?? now)
+                .SetProperty(x => x.DeliveredAtUtc, x => x.DeliveredAtUtc ?? now),
+                cancellationToken),
+
+        _ => await _db.Orders
+            .Where(x => x.Id == id)
+            .ExecuteUpdateAsync(setters => setters
+                .SetProperty(x => x.Status, newStatus),
+                cancellationToken)
+    };
+
+    if (affectedRows == 0)
+    {
+        return NotFound(new { message = "Sipariş güncellenemedi veya artık mevcut değil." });
+    }
+
+    _db.OrderStatusHistories.Add(new OrderStatusHistory
+    {
+        OrderId = id,
+        FromStatus = oldStatus,
+        ToStatus = newStatus,
+        Note = NormalizeOptionalText(request.Note),
+        ChangedBy = "Admin",
+        ChangedAtUtc = now
+    });
+
+    await _db.SaveChangesAsync(cancellationToken);
+
+    var updatedOrder = await _db.Orders
+        .AsNoTracking()
+        .Include(x => x.Items)
+        .Include(x => x.GiftPackageItems)
+        .Include(x => x.StatusHistory)
+        .Include(x => x.PaymentTransactions)
+        .FirstOrDefaultAsync(x => x.Id == id, cancellationToken);
+
+    if (updatedOrder is null)
+    {
+        return NotFound(new { message = "Sipariş güncellendi fakat tekrar okunamadı." });
+    }
+
+    return Ok(ToDetailDto(updatedOrder));
+}
+
+    [HttpPut("{id:guid}/shipping")]
+public async Task<ActionResult<AdminOrderDetailDto>> UpdateShipping(
+    Guid id,
+    UpdateShippingRequest request,
+    CancellationToken cancellationToken)
+{
+    var existingOrder = await _db.Orders
+        .AsNoTracking()
+        .FirstOrDefaultAsync(x => x.Id == id, cancellationToken);
+
+    if (existingOrder is null)
+    {
+        return NotFound(new { message = "Sipariş bulunamadı." });
+    }
+
+    if (existingOrder.Status == OrderStatus.Cancelled)
+    {
+        return BadRequest(new { message = "İptal edilmiş siparişe kargo bilgisi girilemez." });
+    }
+
+    var shippingCompany = NormalizeOptionalText(request.ShippingCompany);
+    var trackingNumber = NormalizeOptionalText(request.TrackingNumber);
+
+    var shouldMoveToShipped =
+        (!string.IsNullOrWhiteSpace(shippingCompany) ||
+         !string.IsNullOrWhiteSpace(trackingNumber)) &&
+        existingOrder.Status is OrderStatus.Pending or OrderStatus.Preparing;
+
+    var now = DateTime.UtcNow;
+
+    var oldStatus = existingOrder.Status;
+    var newStatus = shouldMoveToShipped
+        ? OrderStatus.Shipped
+        : existingOrder.Status;
+
+    var affectedRows = shouldMoveToShipped
+        ? await _db.Orders
+            .Where(x => x.Id == id)
+            .ExecuteUpdateAsync(setters => setters
+                .SetProperty(x => x.ShippingCompany, shippingCompany)
+                .SetProperty(x => x.TrackingNumber, trackingNumber)
+                .SetProperty(x => x.Status, OrderStatus.Shipped)
+                .SetProperty(x => x.ShippedAtUtc, x => x.ShippedAtUtc ?? now),
+                cancellationToken)
+        : await _db.Orders
+            .Where(x => x.Id == id)
+            .ExecuteUpdateAsync(setters => setters
+                .SetProperty(x => x.ShippingCompany, shippingCompany)
+                .SetProperty(x => x.TrackingNumber, trackingNumber),
+                cancellationToken);
+
+    if (affectedRows == 0)
+    {
+        return NotFound(new { message = "Sipariş güncellenemedi veya artık mevcut değil." });
+    }
+
+    if (shouldMoveToShipped)
+    {
+        _db.OrderStatusHistories.Add(new OrderStatusHistory
         {
-            return BadRequest(new { message = "İptal edilmiş siparişin durumu değiştirilemez." });
-        }
-
-        var oldStatus = order.Status;
-        var newStatus = request.Status;
-
-        if (oldStatus == newStatus)
-        {
-            return Ok(ToDetailDto(order));
-        }
-
-        ApplyStatusDates(order, newStatus);
-
-        order.Status = newStatus;
-
-        order.StatusHistory.Add(new OrderStatusHistory
-        {
-            OrderId = order.Id,
+            OrderId = id,
             FromStatus = oldStatus,
             ToStatus = newStatus,
-            Note = NormalizeOptionalText(request.Note),
+            Note = "Kargo bilgisi girildi.",
             ChangedBy = "Admin",
-            ChangedAtUtc = DateTime.UtcNow
+            ChangedAtUtc = now
         });
 
         await _db.SaveChangesAsync(cancellationToken);
-
-        return Ok(ToDetailDto(order));
     }
 
-    [HttpPut("{id:guid}/shipping")]
-    public async Task<ActionResult<AdminOrderDetailDto>> UpdateShipping(
-        Guid id,
-        UpdateShippingRequest request,
-        CancellationToken cancellationToken)
+    var updatedOrder = await _db.Orders
+        .AsNoTracking()
+        .Include(x => x.Items)
+        .Include(x => x.GiftPackageItems)
+        .Include(x => x.StatusHistory)
+        .Include(x => x.PaymentTransactions)
+        .FirstOrDefaultAsync(x => x.Id == id, cancellationToken);
+
+    if (updatedOrder is null)
     {
-        var order = await _db.Orders
-            .Include(x => x.Items)
-            .Include(x => x.GiftPackageItems)
-            .Include(x => x.StatusHistory)
-            .FirstOrDefaultAsync(x => x.Id == id, cancellationToken);
-
-        if (order is null)
-        {
-            return NotFound(new { message = "Sipariş bulunamadı." });
-        }
-
-        if (order.Status == OrderStatus.Cancelled)
-        {
-            return BadRequest(new { message = "İptal edilmiş siparişe kargo bilgisi girilemez." });
-        }
-
-        order.ShippingCompany = NormalizeOptionalText(request.ShippingCompany);
-        order.TrackingNumber = NormalizeOptionalText(request.TrackingNumber);
-
-        if (!string.IsNullOrWhiteSpace(order.ShippingCompany) ||
-            !string.IsNullOrWhiteSpace(order.TrackingNumber))
-        {
-            if (order.Status is OrderStatus.Pending or OrderStatus.Preparing)
-            {
-                var oldStatus = order.Status;
-                order.Status = OrderStatus.Shipped;
-                order.ShippedAtUtc ??= DateTime.UtcNow;
-
-                order.StatusHistory.Add(new OrderStatusHistory
-                {
-                    OrderId = order.Id,
-                    FromStatus = oldStatus,
-                    ToStatus = OrderStatus.Shipped,
-                    Note = "Kargo bilgisi girildi.",
-                    ChangedBy = "Admin",
-                    ChangedAtUtc = DateTime.UtcNow
-                });
-            }
-        }
-
-        await _db.SaveChangesAsync(cancellationToken);
-
-        return Ok(ToDetailDto(order));
+        return NotFound(new { message = "Sipariş güncellendi fakat tekrar okunamadı." });
     }
+
+    return Ok(ToDetailDto(updatedOrder));
+}
 
     [HttpPut("{id:guid}/payment-status")]
     public async Task<ActionResult<AdminOrderDetailDto>> UpdatePaymentStatus(
@@ -215,6 +310,7 @@ public class AdminOrdersController : ControllerBase
             .Include(x => x.Items)
             .Include(x => x.GiftPackageItems)
             .Include(x => x.StatusHistory)
+            .Include(x => x.PaymentTransactions)
             .FirstOrDefaultAsync(x => x.Id == id, cancellationToken);
 
         if (order is null)
@@ -226,15 +322,53 @@ public class AdminOrdersController : ControllerBase
 
         if (request.PaymentStatus == PaymentStatus.Paid)
         {
-            order.PaidAtUtc ??= DateTime.UtcNow;
+            var now = DateTime.UtcNow;
+
+            order.PaidAtUtc ??= now;
             order.PaymentProvider = string.IsNullOrWhiteSpace(order.PaymentProvider)
                 ? "Manual"
                 : order.PaymentProvider;
+
+            var reference = string.IsNullOrWhiteSpace(order.PaymentReference)
+                ? $"MANUAL-{now:yyyyMMddHHmmss}-{Guid.NewGuid().ToString("N")[..8].ToUpperInvariant()}"
+                : order.PaymentReference;
+
+            order.PaymentReference ??= reference;
+
+            _db.PaymentTransactions.Add(new PaymentTransaction
+            {
+                OrderId = order.Id,
+                Provider = order.PaymentProvider,
+                PaymentReference = reference,
+                Amount = order.Total,
+                Status = PaymentStatus.Paid,
+                RequestPayload = "Manual admin payment status update.",
+                ResponsePayload = "PaymentStatus=Paid",
+                CreatedAtUtc = now,
+                CompletedAtUtc = now
+            });
         }
 
         if (request.PaymentStatus is PaymentStatus.Failed or PaymentStatus.Cancelled)
         {
             order.PaidAtUtc = null;
+
+            _db.PaymentTransactions.Add(new PaymentTransaction
+            {
+                OrderId = order.Id,
+                Provider = string.IsNullOrWhiteSpace(order.PaymentProvider)
+                    ? "Manual"
+                    : order.PaymentProvider,
+                PaymentReference = string.IsNullOrWhiteSpace(order.PaymentReference)
+                    ? $"MANUAL-{DateTime.UtcNow:yyyyMMddHHmmss}-{Guid.NewGuid().ToString("N")[..8].ToUpperInvariant()}"
+                    : order.PaymentReference,
+                Amount = order.Total,
+                Status = request.PaymentStatus,
+                RequestPayload = "Manual admin payment status update.",
+                ResponsePayload = $"PaymentStatus={request.PaymentStatus}",
+                CreatedAtUtc = DateTime.UtcNow,
+                CompletedAtUtc = DateTime.UtcNow
+            });
         }
 
         await _db.SaveChangesAsync(cancellationToken);
@@ -252,6 +386,7 @@ public class AdminOrdersController : ControllerBase
             .Include(x => x.Items)
             .Include(x => x.GiftPackageItems)
             .Include(x => x.StatusHistory)
+            .Include(x => x.PaymentTransactions)
             .FirstOrDefaultAsync(x => x.Id == id, cancellationToken);
 
         if (order is null)
@@ -429,6 +564,20 @@ public class AdminOrdersController : ControllerBase
                     x.ChangedBy,
                     x.ChangedAtUtc
                 ))
+                .ToList(),
+            order.PaymentTransactions
+                .OrderByDescending(x => x.CreatedAtUtc)
+                .Select(x => new AdminPaymentTransactionDto(
+                    x.Id,
+                    x.Provider,
+                    x.PaymentReference,
+                    x.Amount,
+                    x.Status.ToString(),
+                    x.RequestPayload,
+                    x.ResponsePayload,
+                    x.CreatedAtUtc,
+                    x.CompletedAtUtc
+                ))
                 .ToList()
         );
     }
@@ -538,7 +687,8 @@ public sealed record AdminOrderDetailDto(
     DateTime? LegalConsentsAcceptedAtUtc,
     List<AdminOrderLineDto> Items,
     List<AdminOrderLineDto> GiftPackageItems,
-    List<AdminOrderStatusHistoryDto> StatusHistory);
+    List<AdminOrderStatusHistoryDto> StatusHistory,
+    List<AdminPaymentTransactionDto> PaymentTransactions);
 
 public sealed record AdminOrderLineDto(
     Guid Id,
@@ -558,6 +708,17 @@ public sealed record AdminOrderStatusHistoryDto(
     string? Note,
     string? ChangedBy,
     DateTime ChangedAtUtc);
+
+public sealed record AdminPaymentTransactionDto(
+    Guid Id,
+    string Provider,
+    string PaymentReference,
+    decimal Amount,
+    string Status,
+    string? RequestPayload,
+    string? ResponsePayload,
+    DateTime CreatedAtUtc,
+    DateTime? CompletedAtUtc);
 
 public sealed record UpdateOrderStatusRequest(
     OrderStatus Status,
