@@ -26,8 +26,10 @@ export type CartItem = {
 
 export type GiftPackageState = {
   enabled: boolean;
+  quantity: number;
   title: string;
   note: string;
+  sampleImageUrl?: string | null;
   items: CartItem[];
 };
 
@@ -38,6 +40,7 @@ type CartContextValue = {
   normalItemCount: number;
   giftItemCount: number;
   subtotal: number;
+  giftUnitSubtotal: number;
   giftSubtotal: number;
   total: number;
 
@@ -53,7 +56,10 @@ type CartContextValue = {
   removeGiftItem: (key: string) => void;
 
   setGiftPackageEnabled: (enabled: boolean) => void;
-  updateGiftPackageInfo: (values: Partial<Pick<GiftPackageState, "title" | "note">>) => void;
+  setGiftPackageQuantity: (quantity: number) => void;
+  increaseGiftPackageQuantity: () => void;
+  decreaseGiftPackageQuantity: () => void;
+  updateGiftPackageInfo: (values: Partial<Pick<GiftPackageState, "title" | "note" | "sampleImageUrl">>) => void;
 
   clearCart: () => void;
 };
@@ -136,8 +142,10 @@ function readStoredCart(): StoredCart | null {
       items: Array.isArray(parsed.items) ? parsed.items : [],
       giftPackage: {
         enabled: Boolean(parsed.giftPackage?.enabled),
+        quantity: normalizeQuantity(parsed.giftPackage?.quantity ?? 1),
         title: parsed.giftPackage?.title ?? "",
         note: parsed.giftPackage?.note ?? "",
+        sampleImageUrl: parsed.giftPackage?.sampleImageUrl ?? null,
         items: Array.isArray(parsed.giftPackage?.items)
           ? parsed.giftPackage.items
           : [],
@@ -152,8 +160,10 @@ export function CartProvider({ children }: { children: ReactNode }) {
   const [items, setItems] = useState<CartItem[]>([]);
   const [giftPackage, setGiftPackage] = useState<GiftPackageState>({
     enabled: false,
+    quantity: 1,
     title: "",
     note: "",
+    sampleImageUrl: null,
     items: [],
   });
   const [hydrated, setHydrated] = useState(false);
@@ -188,6 +198,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
     setGiftPackage((current) => ({
       ...current,
       enabled: true,
+      quantity: normalizeQuantity(current.quantity),
       items: mergeLine(current.items, item),
     }));
   }, []);
@@ -232,8 +243,31 @@ export function CartProvider({ children }: { children: ReactNode }) {
     }));
   }, []);
 
+  const setGiftPackageQuantity = useCallback((quantity: number) => {
+    setGiftPackage((current) => ({
+      ...current,
+      enabled: true,
+      quantity: normalizeQuantity(quantity),
+    }));
+  }, []);
+
+  const increaseGiftPackageQuantity = useCallback(() => {
+    setGiftPackage((current) => ({
+      ...current,
+      enabled: true,
+      quantity: normalizeQuantity(current.quantity + 1),
+    }));
+  }, []);
+
+  const decreaseGiftPackageQuantity = useCallback(() => {
+    setGiftPackage((current) => ({
+      ...current,
+      quantity: Math.max(1, normalizeQuantity(current.quantity) - 1),
+    }));
+  }, []);
+
   const updateGiftPackageInfo = useCallback(
-    (values: Partial<Pick<GiftPackageState, "title" | "note">>) => {
+    (values: Partial<Pick<GiftPackageState, "title" | "note" | "sampleImageUrl">>) => {
       setGiftPackage((current) => ({
         ...current,
         ...values,
@@ -246,16 +280,23 @@ export function CartProvider({ children }: { children: ReactNode }) {
     setItems([]);
     setGiftPackage({
       enabled: false,
+      quantity: 1,
       title: "",
       note: "",
+      sampleImageUrl: null,
       items: [],
     });
   }, []);
 
   const subtotal = useMemo(() => calcSubtotal(items), [items]);
-  const giftSubtotal = useMemo(
+  const giftUnitSubtotal = useMemo(
     () => calcSubtotal(giftPackage.items),
     [giftPackage.items]
+  );
+
+  const giftSubtotal = useMemo(
+    () => giftUnitSubtotal * normalizeQuantity(giftPackage.quantity),
+    [giftUnitSubtotal, giftPackage.quantity]
   );
 
   const normalItemCount = useMemo(
@@ -264,8 +305,10 @@ export function CartProvider({ children }: { children: ReactNode }) {
   );
 
   const giftItemCount = useMemo(
-    () => giftPackage.items.reduce((sum, item) => sum + item.quantity, 0),
-    [giftPackage.items]
+    () =>
+      giftPackage.items.reduce((sum, item) => sum + item.quantity, 0) *
+      normalizeQuantity(giftPackage.quantity),
+    [giftPackage.items, giftPackage.quantity]
   );
 
   const value = useMemo<CartContextValue>(
@@ -276,6 +319,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
       normalItemCount,
       giftItemCount,
       subtotal,
+      giftUnitSubtotal,
       giftSubtotal,
       total: subtotal + giftSubtotal,
 
@@ -291,6 +335,9 @@ export function CartProvider({ children }: { children: ReactNode }) {
       removeGiftItem,
 
       setGiftPackageEnabled,
+      setGiftPackageQuantity,
+      increaseGiftPackageQuantity,
+      decreaseGiftPackageQuantity,
       updateGiftPackageInfo,
 
       clearCart,
@@ -301,6 +348,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
       normalItemCount,
       giftItemCount,
       subtotal,
+      giftUnitSubtotal,
       giftSubtotal,
       addItem,
       addGiftPackageItem,
@@ -311,6 +359,9 @@ export function CartProvider({ children }: { children: ReactNode }) {
       decreaseGiftItem,
       removeGiftItem,
       setGiftPackageEnabled,
+      setGiftPackageQuantity,
+      increaseGiftPackageQuantity,
+      decreaseGiftPackageQuantity,
       updateGiftPackageInfo,
       clearCart,
     ]

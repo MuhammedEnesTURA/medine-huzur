@@ -196,6 +196,9 @@ public class ECommerceContext : DbContext
             entity.Property(x => x.IsFeatured)
                 .HasDefaultValue(false);
 
+            entity.Property(x => x.IsGiftBoxEligible)
+                .HasDefaultValue(true);
+
             entity.Property(x => x.CreatedAtUtc)
                 .HasDefaultValueSql("SYSUTCDATETIME()");
 

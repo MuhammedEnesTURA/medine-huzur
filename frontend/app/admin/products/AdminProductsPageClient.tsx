@@ -15,6 +15,7 @@ import {
   Star,
   Tags,
   Trash2,
+  Upload,
   X,
 } from "lucide-react";
 import { apiUrl, authHeaders, readJsonOrThrow } from "../../../lib/api";
@@ -43,6 +44,7 @@ type ProductListItemDto = {
   hasVariants: boolean;
   isActive: boolean;
   isFeatured: boolean;
+  isGiftBoxEligible: boolean;
   createdAtUtc: string;
   categoryCount: number;
   variantCount: number;
@@ -91,6 +93,7 @@ type ProductDetailDto = {
   hasVariants: boolean;
   isActive: boolean;
   isFeatured: boolean;
+  isGiftBoxEligible: boolean;
   createdAtUtc: string;
   updatedAtUtc?: string | null;
   categories: ProductCategoryDto[];
@@ -124,6 +127,7 @@ type ProductForm = {
   hasVariants: boolean;
   isActive: boolean;
   isFeatured: boolean;
+  isGiftBoxEligible: boolean;
   categoryIds: string[];
   images: ProductImageForm[];
   variants: ProductVariantForm[];
@@ -147,6 +151,7 @@ const emptyForm: ProductForm = {
   hasVariants: false,
   isActive: true,
   isFeatured: false,
+  isGiftBoxEligible: true,
   categoryIds: [],
   images: [
     { imageUrl: "", sortOrder: "1", isPrimary: true },
@@ -271,6 +276,7 @@ function buildFormFromProduct(product: ProductDetailDto): ProductForm {
     hasVariants: product.hasVariants,
     isActive: product.isActive,
     isFeatured: product.isFeatured,
+    isGiftBoxEligible: product.isGiftBoxEligible,
     categoryIds: product.categories.map((category) => category.id),
     images: images.slice(0, 6),
     variants: product.variants.map((variant) => ({
@@ -322,6 +328,7 @@ function buildPayload(form: ProductForm) {
     hasVariants: form.hasVariants,
     isActive: form.isActive,
     isFeatured: form.isFeatured,
+    isGiftBoxEligible: form.isGiftBoxEligible,
     categoryIds: form.categoryIds,
     images,
     variants,
@@ -347,6 +354,11 @@ export default function AdminProductsPageClient() {
   const [isLoadingDetail, setIsLoadingDetail] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [notice, setNotice] = useState<Notice>(null);
+
+  const [uploadingImageIndex, setUploadingImageIndex] = useState<number | null>(
+    null
+  );
+  const [isUploadingCoverImage, setIsUploadingCoverImage] = useState(false);
 
   const canUseAdmin = isReady && isAuthenticated && isAdmin;
   const isEditing = Boolean(editingId);
@@ -566,6 +578,135 @@ export default function AdminProductsPageClient() {
       };
     });
   };
+
+  const uploadProductImage = async (
+  file: File,
+  options?: {
+    imageIndex?: number;
+    setAsCover?: boolean;
+  }
+) => {
+  if (!token || !canUseAdmin) return;
+
+  const allowedTypes = ["image/jpeg", "image/png", "image/webp", "image/gif"];
+
+  if (!allowedTypes.includes(file.type)) {
+    setNotice({
+      type: "error",
+      message: "Sadece JPG, PNG, WEBP veya GIF görsel yükleyebilirsin.",
+    });
+    return;
+  }
+
+  const maxSizeMb = 8;
+  const maxSizeBytes = maxSizeMb * 1024 * 1024;
+
+  if (file.size > maxSizeBytes) {
+    setNotice({
+      type: "error",
+      message: `Görsel boyutu en fazla ${maxSizeMb} MB olabilir.`,
+    });
+    return;
+  }
+
+  const imageIndex = options?.imageIndex;
+  const setAsCover = options?.setAsCover ?? false;
+
+  if (typeof imageIndex === "number") {
+    setUploadingImageIndex(imageIndex);
+  } else {
+    setIsUploadingCoverImage(true);
+  }
+
+  setNotice(null);
+
+  try {
+    const formData = new FormData();
+    formData.append("file", file);
+
+    const res = await fetch(apiUrl("/api/admin/uploads/product-image"), {
+      method: "POST",
+      headers: {
+        ...authHeaders(token),
+      },
+      body: formData,
+    });
+
+    const data = await readJsonOrThrow<{
+      url: string;
+      fileName?: string;
+    }>(res);
+
+    if (!data.url) {
+      throw new Error("Görsel yüklendi ancak URL alınamadı.");
+    }
+
+    if (typeof imageIndex === "number") {
+      setForm((current) => ({
+        ...current,
+        imageUrl:
+          setAsCover || current.images[imageIndex]?.isPrimary
+            ? data.url
+            : current.imageUrl,
+        images: current.images.map((image, currentIndex) => {
+          if (currentIndex !== imageIndex) return image;
+
+          return {
+            ...image,
+            imageUrl: data.url,
+            isPrimary: setAsCover ? true : image.isPrimary,
+          };
+        }),
+      }));
+
+      if (setAsCover) {
+        setPrimaryImage(imageIndex);
+      }
+    } else {
+      setForm((current) => ({
+        ...current,
+        imageUrl: data.url,
+        images:
+          current.images.length > 0
+            ? current.images.map((image, currentIndex) =>
+                currentIndex === 0
+                  ? {
+                      ...image,
+                      imageUrl: data.url,
+                      isPrimary: true,
+                    }
+                  : {
+                      ...image,
+                      isPrimary: false,
+                    }
+              )
+            : [
+                {
+                  imageUrl: data.url,
+                  sortOrder: "1",
+                  isPrimary: true,
+                },
+              ],
+      }));
+    }
+
+    setNotice({
+      type: "success",
+      message: "Görsel başarıyla yüklendi.",
+    });
+  } catch (error) {
+    setNotice({
+      type: "error",
+      message:
+        error instanceof Error
+          ? error.message
+          : "Görsel yüklenirken hata oluştu.",
+    });
+  } finally {
+    setUploadingImageIndex(null);
+    setIsUploadingCoverImage(false);
+  }
+};
 
   const addVariantRow = () => {
     setForm((current) => ({
@@ -1088,6 +1229,12 @@ export default function AdminProductsPageClient() {
                                   </span>
                                 )}
 
+                                {!product.isGiftBoxEligible && (
+                                  <span className="rounded-full border border-warning/30 bg-warning/10 px-2 py-0.5 text-[10px] font-black text-warning">
+                                    Kutuya eklenemez
+                                  </span>
+                                )}
+
                                 {product.hasVariants && (
                                   <span className="rounded-full border border-border-soft bg-panel-2 px-2 py-0.5 text-[10px] font-black text-muted">
                                     {product.variantCount} varyant
@@ -1265,19 +1412,72 @@ export default function AdminProductsPageClient() {
                       />
                     </label>
 
-                    <label>
+                    <label className="min-w-0">
                       <span className="text-xs font-black uppercase tracking-[0.12em] text-muted-2">
-                        Kapak görsel URL
+                        Kapak görsel
                       </span>
 
-                      <input
-                        value={form.imageUrl}
-                        onChange={(event) =>
-                          updateForm("imageUrl", event.target.value)
-                        }
-                        className="input-premium mt-2 min-h-10 text-sm"
-                        placeholder="https://..."
-                      />
+                      <div className="mt-2 grid min-w-0 gap-2">
+                        <div className="grid min-w-0 gap-2 sm:grid-cols-[minmax(0,1fr)_auto]">
+                          <input
+                            value={form.imageUrl}
+                            onChange={(event) =>
+                              updateForm("imageUrl", event.target.value)
+                            }
+                            className="input-premium min-h-10 min-w-0 text-sm"
+                            placeholder="Görsel URL veya yüklenen görsel yolu"
+                          />
+
+                          <label className="inline-flex min-h-10 shrink-0 cursor-pointer items-center justify-center gap-2 rounded-xl border border-mhgreen/30 bg-mhgreen/10 px-3 text-xs font-black text-mhgreen transition hover:bg-mhgreen/15">
+                            {isUploadingCoverImage ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                              <Upload className="h-4 w-4" />
+                            )}
+                            Görsel Seç
+
+                            <input
+                              type="file"
+                              accept="image/jpeg,image/png,image/webp,image/gif"
+                              className="hidden"
+                              disabled={isUploadingCoverImage || isSaving}
+                              onChange={(event) => {
+                                const file = event.target.files?.[0];
+                                event.target.value = "";
+
+                                if (!file) return;
+
+                                void uploadProductImage(file, {
+                                  setAsCover: true,
+                                });
+                              }}
+                            />
+                          </label>
+                        </div>
+
+                        {form.imageUrl && (
+                          <div className="grid min-w-0 grid-cols-[64px_minmax(0,1fr)] items-center gap-3 overflow-hidden rounded-xl border border-border-soft bg-panel/70 p-2">
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img
+                              src={form.imageUrl}
+                              alt="Kapak görsel önizleme"
+                              className="h-14 w-14 rounded-lg border border-border-soft bg-panel-3 object-contain p-1"
+                              onError={(event) => {
+                                event.currentTarget.style.display = "none";
+                              }}
+                            />
+
+                            <div className="min-w-0">
+                              <p className="text-xs font-black text-foreground">
+                                Kapak görsel
+                              </p>
+                              <p className="mt-1 truncate text-xs font-bold text-muted">
+                                {form.imageUrl}
+                              </p>
+                            </div>
+                          </div>
+                        )}
+                      </div>
                     </label>
 
                     <label>
@@ -1326,7 +1526,7 @@ export default function AdminProductsPageClient() {
                     </label>
                   </div>
 
-                  <div className="mt-4 grid gap-3 md:grid-cols-3">
+                  <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
                     <label className="flex cursor-pointer gap-3 rounded-2xl border border-border-soft bg-panel/65 p-3 transition hover:border-border-strong">
                       <input
                         type="checkbox"
@@ -1352,6 +1552,25 @@ export default function AdminProductsPageClient() {
                       />
                       <span className="text-sm font-bold text-muted">
                         Öne çıkan ürün
+                      </span>
+                    </label>
+
+                    <label className="flex cursor-pointer gap-3 rounded-2xl border border-border-soft bg-panel/65 p-3 transition hover:border-border-strong">
+                      <input
+                        type="checkbox"
+                        checked={form.isGiftBoxEligible}
+                        onChange={(event) =>
+                          updateForm("isGiftBoxEligible", event.target.checked)
+                        }
+                        className="mt-1 h-4 w-4 accent-mhgreen"
+                      />
+                      <span>
+                        <span className="block text-sm font-bold text-muted">
+                          Hediye kutusuna eklenebilir
+                        </span>
+                        <span className="mt-0.5 block text-[11px] font-semibold leading-4 text-muted-2">
+                          Kapalıysa ürün detayında kutuya ekleme kapatılır.
+                        </span>
                       </span>
                     </label>
 
@@ -1438,30 +1657,90 @@ export default function AdminProductsPageClient() {
                     {form.images.map((image, index) => (
                       <div
                         key={index}
-                        className="grid gap-2 rounded-2xl border border-border-soft bg-panel/70 p-3 md:grid-cols-[1fr_110px_auto_auto]"
+                        className="grid min-w-0 gap-2 overflow-hidden rounded-2xl border border-border-soft bg-panel/70 p-3 md:grid-cols-[minmax(0,1fr)_90px_auto_auto]"
                       >
-                        <input
-                          value={image.imageUrl}
-                          onChange={(event) =>
-                            updateImage(index, "imageUrl", event.target.value)
-                          }
-                          className="input-premium min-h-10 text-sm"
-                          placeholder="https://..."
-                        />
+                        <div className="grid min-w-0 gap-2">
+                          <div className="grid min-w-0 gap-2 sm:grid-cols-[minmax(0,1fr)_auto]">
+                            <input
+                              value={image.imageUrl}
+                              onChange={(event) =>
+                                updateImage(index, "imageUrl", event.target.value)
+                              }
+                              className="input-premium min-h-10 min-w-0 text-sm"
+                              placeholder="Görsel URL veya yüklenen görsel yolu"
+                            />
+
+                            <label className="inline-flex min-h-10 shrink-0 cursor-pointer items-center justify-center gap-2 rounded-xl border border-mhgreen/30 bg-mhgreen/10 px-3 text-xs font-black text-mhgreen transition hover:bg-mhgreen/15">
+                              {uploadingImageIndex === index ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                              ) : (
+                                <Upload className="h-4 w-4" />
+                              )}
+                              Görsel Seç
+
+                              <input
+                                type="file"
+                                accept="image/jpeg,image/png,image/webp,image/gif"
+                                className="hidden"
+                                disabled={uploadingImageIndex === index || isSaving}
+                                onChange={(event) => {
+                                  const file = event.target.files?.[0];
+                                  event.target.value = "";
+
+                                  if (!file) return;
+
+                                  void uploadProductImage(file, {
+                                    imageIndex: index,
+                                    setAsCover: image.isPrimary,
+                                  });
+                                }}
+                              />
+                            </label>
+                          </div>
+
+                          {image.imageUrl && (
+                            <div className="grid min-w-0 grid-cols-[64px_minmax(0,1fr)] items-center gap-3 overflow-hidden rounded-xl border border-border-soft bg-panel/70 p-2">
+                              {/* eslint-disable-next-line @next/next/no-img-element */}
+                              <img
+                                src={image.imageUrl}
+                                alt={`Ürün görseli ${index + 1}`}
+                                className="h-14 w-14 rounded-lg border border-border-soft bg-panel-3 object-contain p-1"
+                                onError={(event) => {
+                                  event.currentTarget.style.display = "none";
+                                }}
+                              />
+
+                              <div className="min-w-0">
+                                <p className="text-xs font-black text-foreground">
+                                  Görsel {index + 1}
+                                </p>
+                                <p className="mt-1 truncate text-xs font-bold text-muted">
+                                  {image.imageUrl}
+                                </p>
+                              </div>
+                            </div>
+                          )}
+                        </div>
 
                         <input
                           value={image.sortOrder}
                           onChange={(event) =>
                             updateImage(index, "sortOrder", event.target.value)
                           }
-                          className="input-premium min-h-10 text-sm"
+                          className="input-premium min-h-10 min-w-0 text-sm"
                           placeholder="Sıra"
                           inputMode="numeric"
                         />
 
                         <button
                           type="button"
-                          onClick={() => setPrimaryImage(index)}
+                          onClick={() => {
+                            setPrimaryImage(index);
+
+                            if (image.imageUrl) {
+                              updateForm("imageUrl", image.imageUrl);
+                            }
+                          }}
                           className={`inline-flex min-h-10 items-center justify-center gap-1.5 rounded-xl border px-3 text-xs font-black transition ${
                             image.isPrimary
                               ? "border-mhgreen/35 bg-mhgreen/10 text-mhgreen"

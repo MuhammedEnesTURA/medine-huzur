@@ -153,9 +153,11 @@ function StatusBadge({ value }: { value: string }) {
 function OrderLine({
   item,
   badge,
+  boxQuantity,
 }: {
   item: OrderLineDto;
   badge?: string;
+  boxQuantity?: number;
 }) {
   const attrs = parseAttributes(item.variantAttributesJson);
 
@@ -168,7 +170,11 @@ function OrderLine({
           </p>
 
           <p className="mt-1 text-xs font-semibold text-muted">
-            {item.quantity} adet · {item.sku}
+            {boxQuantity && boxQuantity > 1
+              ? `Kutu başına ${item.quantity} adet · toplam ${item.quantity * boxQuantity} adet`
+              : `${item.quantity} adet`}
+            {" · "}
+            {item.sku}
           </p>
 
           {attrs && (
@@ -305,7 +311,7 @@ export default function GuestOrdersPageClient() {
       setResult({
         type: "error",
         message:
-          "Sunucuya ulaşılamadı. Backend çalışıyor mu kontrol edip tekrar deneyin.",
+        "Şu anda sipariş sorgulama işlemi gerçekleştirilemiyor. Lütfen kısa bir süre sonra tekrar deneyin.",
       });
     } finally {
       setIsLoading(false);
@@ -508,7 +514,9 @@ export default function GuestOrdersPageClient() {
                         Hediye kutusu
                       </p>
                       <p className="mt-1 text-sm font-black text-foreground">
-                        {order.isGiftPackage ? "Aktif" : "Yok"}
+                        {order.isGiftPackage
+                          ? `${order.giftPackageQuantity} kutu`
+                          : "Yok"}
                       </p>
                     </div>
                   </div>
@@ -661,6 +669,10 @@ export default function GuestOrdersPageClient() {
                       Hediye kutusu ürünleri
                     </h2>
 
+                    <p className="mt-2 text-sm font-bold text-foreground">
+                      Kutu adedi: {order.giftPackageQuantity} kutu
+                    </p>
+
                     {order.giftPackageNote && (
                       <p className="mt-2 text-sm font-bold text-foreground">
                         Not: {order.giftPackageNote}
@@ -672,7 +684,8 @@ export default function GuestOrdersPageClient() {
                         <OrderLine
                           key={item.id}
                           item={item}
-                          badge="Hediye kutusu"
+                          badge="Kutu içeriği"
+                          boxQuantity={order.giftPackageQuantity}
                         />
                       ))}
                     </div>

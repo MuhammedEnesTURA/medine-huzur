@@ -5,6 +5,10 @@ import Link from "next/link";
 import {
   AlertTriangle,
   CheckCircle2,
+  ChevronDown,
+  ChevronUp,
+  Copy,
+  ExternalLink,
   CreditCard,
   Loader2,
   PackageCheck,
@@ -287,7 +291,8 @@ export default function AdminOrdersPageClient() {
   const [isLoadingDetail, setIsLoadingDetail] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [notice, setNotice] = useState<Notice>(null);
-
+  const [expandedPayloadIds, setExpandedPayloadIds] = useState<string[]>([]);
+  const [copiedPaymentLink, setCopiedPaymentLink] = useState(false);
   const canUseAdmin = isReady && isAuthenticated && isAdmin;
 
   const totalPages = list?.totalPages ?? 1;
@@ -364,6 +369,8 @@ export default function AdminOrdersPageClient() {
       setNewPaymentStatus(data.paymentStatus as PaymentStatus);
       setStatusNote("");
       setCancelReason("");
+      setExpandedPayloadIds([]);
+      setCopiedPaymentLink(false);
     } catch (error) {
       setNotice({
         type: "error",
@@ -396,6 +403,52 @@ export default function AdminOrdersPageClient() {
     setPage(1);
     void loadOrders();
   };
+
+  const togglePayload = (id: string) => {
+  setExpandedPayloadIds((current) =>
+    current.includes(id)
+      ? current.filter((item) => item !== id)
+      : [...current, id]
+  );
+};
+
+const buildCustomerPaymentLink = (order: AdminOrderDetailDto) => {
+  if (typeof window === "undefined") {
+    return "";
+  }
+
+  const params = new URLSearchParams();
+
+  params.set("orderNumber", order.orderNumber);
+
+  if (order.email) {
+    params.set("email", order.email);
+  }
+
+  return `${window.location.origin}/order-success?${params.toString()}`;
+};
+
+const copyPaymentLink = async () => {
+  if (!detail) return;
+
+  const paymentLink = buildCustomerPaymentLink(detail);
+
+  if (!paymentLink) return;
+
+  try {
+    await navigator.clipboard.writeText(paymentLink);
+    setCopiedPaymentLink(true);
+
+    window.setTimeout(() => {
+      setCopiedPaymentLink(false);
+    }, 1800);
+  } catch {
+    setNotice({
+      type: "error",
+      message: "Ödeme linki kopyalanamadı.",
+    });
+  }
+};
 
   const refreshAll = async () => {
     await loadOrders();
@@ -949,6 +1002,64 @@ export default function AdminOrdersPageClient() {
                   </div>
                 </section>
 
+                {detail.paymentStatus !== "Paid" && detail.status !== "Cancelled" && (
+  <section className="rounded-2xl border border-mhgreen/25 bg-mhgreen/10 p-4">
+    <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+      <div>
+        <p className="text-xs font-black uppercase tracking-[0.12em] text-mhgreen">
+          Müşteri Ödeme Linki
+        </p>
+
+        <h3 className="mt-1 text-lg font-black text-foreground">
+          Tekrar ödeme bağlantısı
+        </h3>
+
+        <p className="mt-1 text-sm leading-6 text-muted">
+          Ödeme bekleyen veya başarısız olan siparişlerde müşteriye bu linki
+          gönderebilirsin. Müşteri bu sayfadan tekrar ödeme başlatabilir.
+        </p>
+      </div>
+
+      <Badge tone={paymentStatusTone(detail.paymentStatus)}>
+        {paymentStatusLabel(detail.paymentStatus)}
+      </Badge>
+    </div>
+
+    <div className="mt-4 rounded-2xl border border-border-soft bg-panel/75 p-3">
+      <p className="text-xs font-black uppercase tracking-[0.12em] text-muted-2">
+        Link
+      </p>
+
+      <p className="mt-2 break-all text-xs font-bold leading-5 text-foreground">
+        {buildCustomerPaymentLink(detail)}
+      </p>
+    </div>
+
+    <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+      <button
+        type="button"
+        onClick={copyPaymentLink}
+        className="inline-flex min-h-10 items-center justify-center gap-2 rounded-2xl bg-mhgreen px-4 text-sm font-black text-white transition hover:bg-mhgreen-dark"
+      >
+        <Copy className="h-4 w-4" />
+        {copiedPaymentLink ? "Kopyalandı" : "Linki Kopyala"}
+      </button>
+
+      <Link
+        href={buildCustomerPaymentLink(detail).replace(
+          typeof window !== "undefined" ? window.location.origin : "",
+          ""
+        )}
+        target="_blank"
+        className="inline-flex min-h-10 items-center justify-center gap-2 rounded-2xl border border-border-soft bg-panel/75 px-4 text-sm font-black text-foreground transition hover:bg-panel-3"
+      >
+        <ExternalLink className="h-4 w-4" />
+        Linki Aç
+      </Link>
+    </div>
+  </section>
+)}
+
                 <section className="rounded-2xl border border-border-soft bg-panel/65 p-4">
                   <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
                     <div>
@@ -960,8 +1071,7 @@ export default function AdminOrdersPageClient() {
                       </div>
 
                       <p className="mt-1 text-sm leading-6 text-muted">
-                        Mock ödeme ve ileride Kuveyt Türk Sanal POS işlem
-                        kayıtları burada görünür.
+                        Ödeme hareketleri ve sağlayıcı işlem kayıtları burada görüntülenir.
                       </p>
                     </div>
 
@@ -1027,25 +1137,51 @@ export default function AdminOrdersPageClient() {
                             </div>
                           </div>
 
-                          <div className="mt-3 grid gap-3 lg:grid-cols-2">
-                            <div className="rounded-2xl border border-border-soft bg-panel/75 p-3">
-                              <p className="text-xs font-black uppercase tracking-[0.12em] text-muted-2">
-                                Request Özeti
-                              </p>
-                              <p className="mt-2 break-words text-xs leading-5 text-muted">
-                                {shortPayload(transaction.requestPayload)}
-                              </p>
-                            </div>
+                          <div className="mt-3">
+  <button
+    type="button"
+    onClick={() => togglePayload(transaction.id)}
+    className="inline-flex min-h-9 items-center justify-center gap-2 rounded-xl border border-border-soft bg-panel/75 px-3 text-xs font-black text-foreground transition hover:bg-panel-3"
+  >
+    {expandedPayloadIds.includes(transaction.id) ? (
+      <>
+        <ChevronUp className="h-4 w-4" />
+        Payload Gizle
+      </>
+    ) : (
+      <>
+        <ChevronDown className="h-4 w-4" />
+        Payload Göster
+      </>
+    )}
+  </button>
 
-                            <div className="rounded-2xl border border-border-soft bg-panel/75 p-3">
-                              <p className="text-xs font-black uppercase tracking-[0.12em] text-muted-2">
-                                Response Özeti
-                              </p>
-                              <p className="mt-2 break-words text-xs leading-5 text-muted">
-                                {shortPayload(transaction.responsePayload)}
-                              </p>
-                            </div>
-                          </div>
+  <div className="mt-3 grid gap-3 lg:grid-cols-2">
+    <div className="rounded-2xl border border-border-soft bg-panel/75 p-3">
+      <p className="text-xs font-black uppercase tracking-[0.12em] text-muted-2">
+        Request {expandedPayloadIds.includes(transaction.id) ? "Detayı" : "Özeti"}
+      </p>
+
+      <p className="mt-2 whitespace-pre-wrap break-words text-xs leading-5 text-muted">
+        {expandedPayloadIds.includes(transaction.id)
+          ? transaction.requestPayload || "-"
+          : shortPayload(transaction.requestPayload)}
+      </p>
+    </div>
+
+    <div className="rounded-2xl border border-border-soft bg-panel/75 p-3">
+      <p className="text-xs font-black uppercase tracking-[0.12em] text-muted-2">
+        Response {expandedPayloadIds.includes(transaction.id) ? "Detayı" : "Özeti"}
+      </p>
+
+      <p className="mt-2 whitespace-pre-wrap break-words text-xs leading-5 text-muted">
+        {expandedPayloadIds.includes(transaction.id)
+          ? transaction.responsePayload || "-"
+          : shortPayload(transaction.responsePayload)}
+      </p>
+    </div>
+  </div>
+</div>
                         </article>
                       ))
                     )}

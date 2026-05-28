@@ -6,7 +6,6 @@ import {
   Mail,
   MapPin,
   Phone,
-  ShieldCheck,
 } from "lucide-react";
 
 function InfoRow({
@@ -69,9 +68,8 @@ export default function MerchantInfoPage() {
 
               <p className="mt-4 max-w-3xl text-sm leading-7 text-muted md:text-base">
                 Medine Huzur e-ticaret sitesi üzerinden verilen siparişlerde
-                satıcıya ait temel iletişim ve ticari bilgiler bu sayfada
-                gösterilir. Yayına çıkmadan önce resmi işletme bilgileriyle
-                güncellenmelidir.
+satıcıya ait temel iletişim ve işletme bilgileri bu sayfada
+gösterilir.
               </p>
             </div>
 
@@ -82,13 +80,16 @@ export default function MerchantInfoPage() {
 
           <div className="mt-8 grid gap-4 md:grid-cols-2">
             <InfoRow label="Site / Marka" value="Medine Huzur" />
-            <InfoRow label="Ticari Unvan" value="Yayın öncesinde güncellenecektir." />
-            <InfoRow label="Vergi Dairesi" value="Yayın öncesinde güncellenecektir." />
-            <InfoRow label="Vergi / TCKN No" value="Yayın öncesinde güncellenecektir." />
-            <InfoRow label="Telefon" value="0 (545) 616 45 33" />
-            <InfoRow label="WhatsApp" value="0 (531) 161 01 55" />
-            <InfoRow label="E-posta" value="destek@medinehuzur.com" />
-            <InfoRow label="Adres" value="Çorum / Türkiye - açık adres yayın öncesinde güncellenecektir." />
+<InfoRow label="Ticari Unvan" value="Medine Huzur" />
+<InfoRow label="Vergi Dairesi" value="Çorum Vergi Dairesi" />
+<InfoRow label="Vergi / TCKN No" value="Resmi işlem ve başvuru süreçlerinde paylaşılır." />
+<InfoRow label="Telefon" value="0 (545) 616 45 33" />
+<InfoRow label="WhatsApp" value="0 (531) 161 01 55" />
+<InfoRow label="E-posta" value="corum.medinehuzur@gmail.com" />
+<InfoRow
+  label="Adres"
+  value="Üçtutlar Mah. Osmancık Cad. 10/A, Ulu Camii karşısı, Medine Huzur, Çorum/Merkez"
+/>
           </div>
 
           <section className="mt-6 rounded-2xl border border-border-soft bg-panel/65 p-4">
@@ -101,9 +102,7 @@ export default function MerchantInfoPage() {
                 </h2>
 
                 <p className="mt-2 text-sm leading-7 text-muted">
-                  Yayın ortamına geçmeden önce açık işletme adresi, il/ilçe,
-                  posta kodu ve varsa mağaza/ofis bilgisi bu alanda net şekilde
-                  gösterilmelidir.
+                  Üçtutlar Mah. Osmancık Cad. 10/A, Ulu Camii karşısı, Medine Huzur, Çorum/Merkez
                 </p>
               </div>
             </div>
@@ -131,29 +130,9 @@ export default function MerchantInfoPage() {
 
                   <div className="flex items-center gap-2 rounded-xl border border-border-soft bg-panel/70 p-3 text-sm text-muted">
                     <Mail className="h-4 w-4 text-mhgreen" />
-                    destek@medinehuzur.com
+                    corum.medinehuzur@gmail.com
                   </div>
                 </div>
-              </div>
-            </div>
-          </section>
-
-          <section className="mt-6 rounded-2xl border border-mhgreen/25 bg-mhgreen/10 p-4">
-            <div className="flex gap-3">
-              <ShieldCheck className="mt-1 h-5 w-5 shrink-0 text-mhgreen" />
-
-              <div>
-                <h2 className="text-lg font-black text-mhgreen">
-                  Sanal POS hazırlık notu
-                </h2>
-
-                <p className="mt-2 text-sm leading-7 text-muted">
-                  Bu sayfadaki ticari bilgiler, iletişim bilgileri, yasal
-                  metinler, iade/iptal ve teslimat sayfaları yayın öncesinde
-                  gerçek işletme bilgileriyle doldurulmalıdır. Banka veya ödeme
-                  kuruluşu incelemesinde eksik bilgi kalmaması için bu alanlar
-                  net ve erişilebilir olmalıdır.
-                </p>
               </div>
             </div>
           </section>

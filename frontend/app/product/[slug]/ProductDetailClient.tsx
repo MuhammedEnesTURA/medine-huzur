@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
+import type { ReactNode } from "react";
 import {
   CheckCircle2,
   Gift,
@@ -9,11 +10,12 @@ import {
   ShieldCheck,
   ShoppingBag,
   ShoppingCart,
+  Sparkles,
   Truck,
   X,
 } from "lucide-react";
 import { useCart } from "../../../context/CartContext";
-import type { ProductDetailDto, ProductVariantDto } from "./page";
+import type { ProductDetailDto } from "./page";
 
 type VariantAttributes = Record<string, string>;
 
@@ -90,13 +92,13 @@ function InfoCard({
 }: {
   title: string;
   text: string;
-  icon: React.ReactNode;
+  icon: ReactNode;
 }) {
   return (
-    <div className="rounded-2xl border border-border-soft bg-panel/65 p-4 transition hover:-translate-y-0.5 hover:border-border-strong">
+    <div className="rounded-2xl border border-border-soft bg-panel/68 p-3.5 shadow-[0_10px_26px_rgba(0,0,0,0.07)] transition hover:-translate-y-0.5 hover:border-mhgreen/25 hover:bg-panel/90">
       <div className="text-mhgreen">{icon}</div>
-      <p className="mt-3 text-sm font-black text-foreground">{title}</p>
-      <p className="mt-1 text-xs leading-5 text-muted">{text}</p>
+      <p className="mt-2.5 text-sm font-black text-foreground">{title}</p>
+      <p className="mt-1 text-xs font-medium leading-5 text-muted">{text}</p>
     </div>
   );
 }
@@ -109,6 +111,8 @@ export default function ProductDetailClient({
   initialGiftMode: boolean;
 }) {
   const { addItem, addGiftPackageItem } = useCart();
+
+  void initialGiftMode;
 
   const galleryImages = useMemo(() => getGalleryImages(product), [product]);
   const variants = useMemo(() => getActiveVariants(product), [product]);
@@ -155,9 +159,6 @@ export default function ProductDetailClient({
   const [selectedImage, setSelectedImage] = useState<string>("");
   const [selectedAttributes, setSelectedAttributes] =
     useState<VariantAttributes>({});
-  const [mode, setMode] = useState<"cart" | "gift">(
-    initialGiftMode ? "gift" : "cart"
-  );
   const [justAdded, setJustAdded] = useState(false);
   const [justAddedToGiftBox, setJustAddedToGiftBox] = useState(false);
   const [toast, setToast] = useState<ToastState>(null);
@@ -205,7 +206,9 @@ export default function ProductDetailClient({
   const displayPrice = selectedVariant?.price ?? product.basePrice;
   const displayStock = selectedVariant?.stock ?? product.stock ?? 0;
   const displaySku = selectedVariant?.sku || product.sku;
+  const isGiftBoxEligible = product.isGiftBoxEligible !== false;
   const canAddToCart = displayStock > 0;
+  const canAddToGiftBox = canAddToCart && isGiftBoxEligible;
 
   useEffect(() => {
     if (!toast) return;
@@ -253,6 +256,15 @@ export default function ProductDetailClient({
   };
 
   const handleAddToGiftBox = () => {
+    if (!isGiftBoxEligible) {
+      setToast({
+        type: "error",
+        title: "Hediye kutusuna uygun değil",
+        text: "Bu ürün hediye kutusuna eklenemez.",
+      });
+      return;
+    }
+
     if (!canAddToCart) {
       setToast({
         type: "error",
@@ -290,33 +302,52 @@ export default function ProductDetailClient({
             Ürünler
           </Link>
           <span>/</span>
-          <span className="text-foreground/70">{product.slug}</span>
+          <span className="max-w-[220px] truncate text-foreground/70">
+            {product.name}
+          </span>
         </nav>
 
-        <div className="grid grid-cols-1 items-start gap-5 xl:grid-cols-2 xl:gap-6">
-          <section className="rounded-[1.35rem] border border-border-soft bg-panel/72 p-3 shadow-[0_18px_50px_rgba(0,0,0,0.18)] md:p-4">
-            <div className="relative flex h-[300px] w-full items-center justify-center overflow-hidden rounded-[1.15rem] border border-border-soft bg-panel-3 sm:h-[390px] lg:h-[460px] xl:h-[520px]">
+        <div className="grid grid-cols-1 items-start gap-5 xl:grid-cols-[0.9fr_1fr] xl:gap-6">
+          <section className="rounded-[1.25rem] border border-border-soft bg-panel/76 p-3 shadow-[0_12px_34px_rgba(0,0,0,0.08)] backdrop-blur md:p-3.5">
+            <div className="relative flex h-[280px] w-full items-center justify-center overflow-hidden rounded-[1rem] border border-border-soft bg-panel-3/82 sm:h-[350px] lg:h-[410px] xl:h-[455px]">
+              <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_0%,rgba(34,197,94,0.10),transparent_35%)]" />
+
               {activeImage ? (
                 <img
                   src={activeImage}
                   alt={product.name}
-                  className="h-full w-full object-contain p-4 transition duration-300 hover:scale-[1.02]"
+                  className="relative h-full w-full object-contain p-5 transition duration-300 hover:scale-[1.015]"
                 />
               ) : (
-                <div className="flex h-full w-full flex-col items-center justify-center text-sm text-muted">
-                  <ShoppingBag className="h-12 w-12 text-mhgreen" />
+                <div className="relative flex h-full w-full flex-col items-center justify-center text-sm text-muted">
+                  <ShoppingBag className="h-10 w-10 text-mhgreen" />
                   <span className="mt-3">Ürün görseli burada yer alacak</span>
                 </div>
               )}
 
-              {product.isFeatured && (
-                <span className="absolute left-3 top-3 rounded-full border border-mhgreen/30 bg-background/80 px-2.5 py-1 text-[10px] font-black text-mhgreen backdrop-blur">
-                  Öne çıkan
-                </span>
-              )}
+              <div className="absolute left-3 top-3 flex flex-wrap gap-2">
+                {product.isFeatured && (
+                  <span className="inline-flex items-center gap-1 rounded-full border border-mhgreen/30 bg-background/84 px-2.5 py-1 text-[10px] font-black text-mhgreen shadow-[0_8px_18px_rgba(0,0,0,0.1)] backdrop-blur-md">
+                    <Sparkles className="h-3 w-3" />
+                    Öne çıkan
+                  </span>
+                )}
+
+                {hasVariants && (
+                  <span className="rounded-full border border-border-soft bg-background/84 px-2.5 py-1 text-[10px] font-black text-muted backdrop-blur-md">
+                    Varyantlı
+                  </span>
+                )}
+
+                {!isGiftBoxEligible && (
+                  <span className="rounded-full border border-warning/30 bg-background/84 px-2.5 py-1 text-[10px] font-black text-warning backdrop-blur-md">
+                    Kutuya uygun değil
+                  </span>
+                )}
+              </div>
 
               {!canAddToCart && (
-                <span className="absolute right-3 top-3 rounded-full border border-danger/30 bg-background/80 px-2.5 py-1 text-[10px] font-black text-danger backdrop-blur">
+                <span className="absolute right-3 top-3 rounded-full border border-danger/30 bg-background/84 px-2.5 py-1 text-[10px] font-black text-danger shadow-[0_8px_18px_rgba(0,0,0,0.1)] backdrop-blur-md">
                   Stokta yok
                 </span>
               )}
@@ -332,9 +363,9 @@ export default function ProductDetailClient({
                       key={`${imageUrl}-${index}`}
                       type="button"
                       onClick={() => setSelectedImage(imageUrl)}
-                      className={`relative h-16 overflow-hidden rounded-xl border bg-panel-3 transition hover:-translate-y-0.5 sm:h-20 ${
+                      className={`relative h-16 overflow-hidden rounded-xl border bg-panel-3/82 transition hover:-translate-y-0.5 sm:h-20 ${
                         active
-                          ? "border-mhgreen/45 shadow-[0_10px_26px_rgba(34,197,94,0.12)]"
+                          ? "border-mhgreen/45 shadow-[0_10px_24px_rgba(34,197,94,0.12)]"
                           : "border-border-soft hover:border-border-strong"
                       }`}
                     >
@@ -350,52 +381,64 @@ export default function ProductDetailClient({
             )}
           </section>
 
-          <section className="rounded-[1.35rem] border border-border-soft bg-panel/72 p-5 shadow-[0_18px_50px_rgba(0,0,0,0.18)] md:p-6">
+          <section className="rounded-[1.25rem] border border-border-soft bg-panel/80 p-4 shadow-[0_12px_34px_rgba(0,0,0,0.08)] backdrop-blur md:p-5 xl:p-6">
             <div className="flex flex-wrap items-center gap-2">
-              <span className="text-xs font-black uppercase tracking-[0.22em] text-muted">
-                Slug: {product.slug}
+              <span className="rounded-full border border-border-soft bg-panel-2/78 px-3 py-1 text-[10px] font-black uppercase tracking-[0.16em] text-muted">
+                SKU: {displaySku}
               </span>
+
+              {canAddToCart ? (
+                <span className="rounded-full border border-mhgreen/30 bg-mhgreen/10 px-3 py-1 text-[10px] font-black uppercase tracking-[0.12em] text-mhgreen">
+                  Stokta
+                </span>
+              ) : (
+                <span className="rounded-full border border-danger/30 bg-danger/10 px-3 py-1 text-[10px] font-black uppercase tracking-[0.12em] text-danger">
+                  Tükendi
+                </span>
+              )}
             </div>
 
-            <p className="mt-4 text-xs font-black uppercase tracking-[0.26em] text-mhgreen">
+            <p className="mt-3 text-[10px] font-black uppercase tracking-[0.22em] text-mhgreen">
               Medine Huzur
             </p>
 
-            <h1 className="mt-3 text-3xl font-black leading-tight tracking-[-0.04em] text-foreground md:text-4xl">
+           <h1 className="mt-2 max-w-2xl text-2xl font-black leading-[1.12] tracking-[-0.03em] text-foreground sm:text-[1.8rem] lg:text-[1.95rem] xl:text-[2.05rem]">
               {product.name}
             </h1>
 
-            <p className="mt-4 text-sm leading-7 text-muted">
-              {product.description ?? "Bu ürün için açıklama henüz eklenmemiş."}
+            <p className="mt-2.5 max-w-2xl text-[13px] font-medium leading-6 text-muted">
+              {product.description?.trim()
+                ? product.description
+                : "Bu ürün için detaylı bilgi almak istersen bizimle iletişime geçebilirsin."}
             </p>
 
-            <div className="mt-6 flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-              <div>
-                <p className="text-[11px] font-black uppercase tracking-[0.14em] text-muted-2">
-                  Fiyat
-                </p>
-                <p className="mt-1 text-3xl font-black text-mhgreen">
-                  {formatMoney(displayPrice)}
-                </p>
-
-                <p className="mt-2 text-xs font-semibold text-muted">
-                  SKU: {displaySku}
-                </p>
-
-                {selectedVariantLabel && (
-                  <p className="mt-2 text-xs font-semibold text-muted">
-                    Seçili varyant: {selectedVariantLabel}
+            <div className="mt-4 rounded-2xl border border-border-soft bg-panel-2/58 p-3.5">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+                <div>
+                  <p className="text-[10px] font-black uppercase tracking-[0.16em] text-muted-2">
+                    Fiyat
                   </p>
-                )}
-              </div>
 
-              <div className="flex items-start lg:items-end">
+                  <p className="mt-1 text-[1.55rem] font-black leading-none tracking-[-0.025em] text-mhgreen sm:text-[1.65rem]">
+                    {formatMoney(displayPrice)}
+                  </p>
+
+                  {selectedVariantLabel && (
+                    <p className="mt-2 text-xs font-semibold text-muted">
+                      Seçili varyant:{" "}
+                      <span className="text-foreground">
+                        {selectedVariantLabel}
+                      </span>
+                    </p>
+                  )}
+                </div>
+
                 {canAddToCart ? (
-                  <span className="rounded-full border border-mhgreen/30 bg-mhgreen/10 px-3 py-1 text-xs font-bold text-mhgreen">
-                    Stokta · {displayStock} adet
+                  <span className="w-fit rounded-full border border-mhgreen/30 bg-mhgreen/10 px-2.5 py-1 text-[11px] font-bold text-mhgreen">
+                    {displayStock} adet stok
                   </span>
                 ) : (
-                  <span className="rounded-full border border-danger/30 bg-danger/10 px-3 py-1 text-xs font-bold text-danger">
+                  <span className="w-fit rounded-full border border-danger/30 bg-danger/10 px-2.5 py-1 text-[11px] font-bold text-danger">
                     Stokta yok
                   </span>
                 )}
@@ -403,19 +446,19 @@ export default function ProductDetailClient({
             </div>
 
             {hasVariants && attributeMap.length > 0 && (
-              <div className="mt-7 space-y-4">
+              <div className="mt-5 space-y-4">
                 <div>
-                  <h2 className="text-base font-black text-foreground">
+                  <h2 className="text-sm font-black text-foreground">
                     Varyant Seçenekleri
                   </h2>
-                  <p className="mt-1 text-sm leading-6 text-muted">
-                    Ürünün size uygun seçeneğini belirleyin.
+                  <p className="mt-1 text-xs font-medium leading-5 text-muted">
+                    Ürünün sana uygun seçeneğini belirle.
                   </p>
                 </div>
 
                 {attributeMap.map((group) => (
                   <div key={group.key} className="space-y-2">
-                    <p className="text-sm font-bold text-foreground">
+                    <p className="text-xs font-black uppercase tracking-[0.12em] text-muted">
                       {group.key}
                     </p>
 
@@ -436,10 +479,10 @@ export default function ProductDetailClient({
                               setJustAdded(false);
                               setJustAddedToGiftBox(false);
                             }}
-                            className={`rounded-xl border px-3 py-2 text-sm font-semibold transition duration-200 hover:-translate-y-0.5 active:scale-[0.98] ${
+                            className={`rounded-xl border px-3 py-2 text-sm font-bold transition duration-200 hover:-translate-y-0.5 active:scale-[0.98] ${
                               active
                                 ? "border-mhgreen bg-mhgreen/10 text-mhgreen shadow-[0_10px_24px_rgba(34,197,94,0.12)]"
-                                : "border-border-soft bg-panel-2/60 text-muted hover:border-border-strong hover:text-foreground"
+                                : "border-border-soft bg-panel-2/66 text-muted hover:border-border-strong hover:text-foreground"
                             }`}
                           >
                             {value}
@@ -452,56 +495,64 @@ export default function ProductDetailClient({
               </div>
             )}
 
-            <div className="mt-7 grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div className="space-y-2">
                 <button
                   type="button"
                   disabled={!canAddToCart}
                   onClick={handleAddToCart}
-                  className={`w-full rounded-2xl px-6 py-3 text-sm font-black transition duration-200 active:scale-[0.98] ${
+                  className={`inline-flex w-full items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-black transition duration-200 active:scale-[0.98] ${
                     !canAddToCart
                       ? "cursor-not-allowed bg-panel-2 text-muted-2"
                       : justAdded
-                      ? "bg-emerald-600 text-white hover:bg-emerald-500"
-                      : "bg-mhgreen text-white shadow-[0_14px_30px_rgba(34,197,94,0.2)] hover:-translate-y-0.5 hover:bg-mhgreen-dark"
+                        ? "bg-emerald-600 text-white hover:bg-emerald-500"
+                        : "bg-mhgreen text-white shadow-[0_12px_24px_rgba(34,197,94,0.18)] hover:-translate-y-0.5 hover:bg-mhgreen-dark"
                   }`}
                 >
+                  <ShoppingCart className="h-4 w-4" />
                   {!canAddToCart
                     ? "Sepete Eklenemiyor"
                     : justAdded
-                    ? "Sepete Eklendi ✓"
-                    : "Sepete Ekle"}
+                      ? "Sepete Eklendi ✓"
+                      : "Sepete Ekle"}
                 </button>
 
-                <p className="text-xs leading-5 text-muted">
-                  Ürün adedini sepet sayfasından sonra düzenleyebilirsin.
+                <p className="text-[11px] leading-5 text-muted">
+                  Ürün adedini sepet sayfasından düzenleyebilirsin.
                 </p>
               </div>
 
               <div className="space-y-2">
                 <button
                   type="button"
-                  disabled={!canAddToCart}
+                  disabled={!canAddToGiftBox}
                   onClick={handleAddToGiftBox}
-                  className={`w-full rounded-2xl px-6 py-3 text-sm font-black transition duration-200 active:scale-[0.98] ${
-                    !canAddToCart
+                  className={`inline-flex w-full items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-black transition duration-200 active:scale-[0.98] ${
+                    !canAddToGiftBox
                       ? "cursor-not-allowed bg-panel-2 text-muted-2"
                       : justAddedToGiftBox
-                      ? "bg-emerald-600 text-white hover:bg-emerald-500"
-                      : "border border-border-soft bg-panel/70 text-foreground hover:-translate-y-0.5 hover:bg-panel-3"
+                        ? "bg-emerald-600 text-white hover:bg-emerald-500"
+                        : "border border-border-soft bg-panel/82 text-foreground shadow-[0_8px_20px_rgba(0,0,0,0.06)] hover:-translate-y-0.5 hover:bg-panel-3"
                   }`}
                 >
-                  {!canAddToCart
+                  <Gift className="h-4 w-4" />
+                  {!isGiftBoxEligible
                     ? "Kutuya Eklenemiyor"
-                    : justAddedToGiftBox
-                    ? "Kutuya Eklendi ✓"
-                    : mode === "gift"
-                    ? "Hediye Kutusuna Ekle"
-                    : "Hediye Kutusu Oluştur"}
+                    : !canAddToCart
+                      ? "Kutuya Eklenemiyor"
+                      : justAddedToGiftBox
+                        ? "Kutuya Eklendi ✓"
+                        : "Hediye Kutusuna Ekle"}
                 </button>
 
-                <p className="text-xs leading-5 text-muted">
-                  Ürün hediye kutusu bölümüne eklenir.
+                <p
+                  className={`text-[11px] leading-5 ${
+                    isGiftBoxEligible ? "text-muted" : "font-semibold text-warning"
+                  }`}
+                >
+                  {isGiftBoxEligible
+                    ? "Bu ürün kutu içeriğine eklenir. Kutu adedini sepet sayfasında belirleyebilirsin."
+                    : "Bu ürün hediye kutusuna eklenemez."}
                 </p>
               </div>
             </div>
@@ -514,12 +565,12 @@ export default function ProductDetailClient({
               </p>
             )}
 
-            <div className="mt-6 rounded-2xl border border-border-soft bg-panel/60 p-4">
+            <div className="mt-4 rounded-2xl border border-border-soft bg-panel/60 p-3.5">
               <p className="text-sm font-black text-foreground">
                 Sipariş ve Teslimat
               </p>
 
-              <ul className="mt-3 list-inside list-disc space-y-1.5 text-sm leading-6 text-muted">
+              <ul className="mt-2.5 list-inside list-disc space-y-1 text-[13px] leading-6 text-muted">
                 <li>
                   Minimum sepet tutarı:{" "}
                   <strong className="text-foreground">250 TL</strong>
@@ -531,7 +582,7 @@ export default function ProductDetailClient({
           </section>
         </div>
 
-        <section className="mt-5 grid grid-cols-1 gap-3 md:grid-cols-3">
+        <section className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-3">
           <InfoCard
             icon={<ShieldCheck className="h-5 w-5" />}
             title="%100 Orijinal Ürün"
@@ -553,7 +604,7 @@ export default function ProductDetailClient({
       </div>
 
       {toast && (
-        <div className="fixed bottom-4 left-1/2 z-[90] w-[calc(100%-1.5rem)] max-w-md -translate-x-1/2 sm:bottom-6 sm:right-6 sm:left-auto sm:w-full sm:translate-x-0">
+        <div className="fixed bottom-4 left-1/2 z-[90] w-[calc(100%-1.5rem)] max-w-md -translate-x-1/2 sm:bottom-6 sm:left-auto sm:right-6 sm:w-full sm:translate-x-0">
           <div
             className={`flex items-start gap-3 rounded-2xl border p-3.5 shadow-[0_18px_60px_rgba(0,0,0,0.32)] backdrop-blur-xl ${
               toast.type === "success"
@@ -576,8 +627,12 @@ export default function ProductDetailClient({
             </div>
 
             <div className="min-w-0 flex-1">
-              <p className="text-sm font-black text-foreground">{toast.title}</p>
-              <p className="mt-0.5 text-xs leading-5 text-muted">{toast.text}</p>
+              <p className="text-sm font-black text-foreground">
+                {toast.title}
+              </p>
+              <p className="mt-0.5 text-xs leading-5 text-muted">
+                {toast.text}
+              </p>
 
               <div className="mt-2 flex gap-2">
                 <Link

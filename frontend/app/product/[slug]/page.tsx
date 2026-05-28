@@ -31,6 +31,7 @@ export type ProductDetailDto = {
   stock: number;
   hasVariants: boolean;
   isFeatured?: boolean;
+  isGiftBoxEligible: boolean;
   images?: ProductImageDto[];
   variants?: ProductVariantDto[];
 };

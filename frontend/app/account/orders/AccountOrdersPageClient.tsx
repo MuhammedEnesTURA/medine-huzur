@@ -184,7 +184,15 @@ function Badge({
   );
 }
 
-function OrderLine({ item, badge }: { item: OrderLineDto; badge?: string }) {
+function OrderLine({
+  item,
+  badge,
+  boxQuantity,
+}: {
+  item: OrderLineDto;
+  badge?: string;
+  boxQuantity?: number;
+}) {
   const attrs = parseAttributes(item.variantAttributesJson);
 
   return (
@@ -196,7 +204,11 @@ function OrderLine({ item, badge }: { item: OrderLineDto; badge?: string }) {
           </p>
 
           <p className="mt-1 text-xs font-semibold text-muted">
-            {item.quantity} adet · {item.sku}
+            {boxQuantity && boxQuantity > 1
+              ? `Kutu başına ${item.quantity} adet · toplam ${item.quantity * boxQuantity} adet`
+              : `${item.quantity} adet`}
+            {" · "}
+            {item.sku}
           </p>
 
           {attrs && (
@@ -685,7 +697,9 @@ export default function AccountOrdersPageClient() {
                     </p>
 
                     <p className="mt-1 text-sm font-black text-foreground">
-                      {detail.isGiftPackage ? "Aktif" : "Yok"}
+                      {detail.isGiftPackage
+                        ? `${detail.giftPackageQuantity} kutu`
+                        : "Yok"}
                     </p>
                   </div>
                 </div>
@@ -886,6 +900,10 @@ export default function AccountOrdersPageClient() {
                       Hediye kutusu ürünleri
                     </h3>
 
+                    <p className="mt-2 text-sm font-bold text-foreground">
+                      Kutu adedi: {detail.giftPackageQuantity} kutu
+                    </p>
+
                     {detail.giftPackageNote && (
                       <p className="mt-2 text-sm font-bold text-foreground">
                         Not: {detail.giftPackageNote}
@@ -897,7 +915,8 @@ export default function AccountOrdersPageClient() {
                         <OrderLine
                           key={item.id}
                           item={item}
-                          badge="Hediye kutusu"
+                          badge="Kutu içeriği"
+                          boxQuantity={detail.giftPackageQuantity}
                         />
                       ))}
                     </div>

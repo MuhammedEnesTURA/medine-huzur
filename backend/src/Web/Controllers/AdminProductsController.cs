@@ -75,6 +75,7 @@ public class AdminProductsController : ControllerBase
                 x.HasVariants,
                 x.IsActive,
                 x.IsFeatured,
+                x.IsGiftBoxEligible,
                 x.CreatedAtUtc,
                 x.ProductCategories.Count(),
                 x.Variants.Count(v => v.IsActive),
@@ -174,6 +175,7 @@ public class AdminProductsController : ControllerBase
             HasVariants = request.HasVariants,
             IsActive = request.IsActive,
             IsFeatured = request.IsFeatured,
+            IsGiftBoxEligible = request.IsGiftBoxEligible,
             CreatedAtUtc = DateTime.UtcNow
         };
 
@@ -204,8 +206,6 @@ public class AdminProductsController : ControllerBase
         CancellationToken cancellationToken)
     {
         var product = await _db.Products
-            .Include(x => x.ProductCategories)
-            .Include(x => x.Images)
             .Include(x => x.Variants)
             .FirstOrDefaultAsync(x => x.Id == id, cancellationToken);
 
@@ -276,13 +276,24 @@ public class AdminProductsController : ControllerBase
         product.HasVariants = request.HasVariants;
         product.IsActive = request.IsActive;
         product.IsFeatured = request.IsFeatured;
+        product.IsGiftBoxEligible = request.IsGiftBoxEligible;
         product.UpdatedAtUtc = DateTime.UtcNow;
 
-        UpdateProductCategories(product, categoryIds);
-        UpdateImages(product, request.Images);
+        await UpdateProductCategoriesAsync(product.Id, categoryIds, cancellationToken);
+        await UpdateImagesAsync(product.Id, request.Images, cancellationToken);
         await UpdateVariantsAsync(product, request.Variants, cancellationToken);
 
-        await _db.SaveChangesAsync(cancellationToken);
+        try
+        {
+            await _db.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            return Conflict(new
+            {
+                message = "Ürün güncellenirken kayıt durumu değişmiş görünüyor. Sayfayı yenileyip tekrar deneyin."
+            });
+        }
 
         var dto = await GetProductDetailByIdAsync(product.Id, cancellationToken);
 
@@ -399,6 +410,7 @@ public class AdminProductsController : ControllerBase
                 x.HasVariants,
                 x.IsActive,
                 x.IsFeatured,
+                x.IsGiftBoxEligible,
                 x.CreatedAtUtc,
                 x.UpdatedAtUtc,
                 x.ProductCategories
@@ -450,17 +462,22 @@ public class AdminProductsController : ControllerBase
         }
     }
 
-    private static void UpdateImages(Product product, IReadOnlyCollection<UpsertProductImageRequest> images)
+    private async Task UpdateImagesAsync(
+        Guid productId,
+        IReadOnlyCollection<UpsertProductImageRequest> images,
+        CancellationToken cancellationToken)
     {
-        product.Images.Clear();
+        await _db.ProductImages
+            .Where(x => x.ProductId == productId)
+            .ExecuteDeleteAsync(cancellationToken);
 
         var normalizedImages = NormalizeImages(images);
 
         foreach (var image in normalizedImages)
         {
-            product.Images.Add(new ProductImage
+            _db.ProductImages.Add(new ProductImage
             {
-                ProductId = product.Id,
+                ProductId = productId,
                 ImageUrl = image.ImageUrl,
                 SortOrder = image.SortOrder,
                 IsPrimary = image.IsPrimary
@@ -609,15 +626,20 @@ public class AdminProductsController : ControllerBase
             .ToList();
     }
 
-    private static void UpdateProductCategories(Product product, IReadOnlyCollection<Guid> categoryIds)
+    private async Task UpdateProductCategoriesAsync(
+        Guid productId,
+        IReadOnlyCollection<Guid> categoryIds,
+        CancellationToken cancellationToken)
     {
-        product.ProductCategories.Clear();
+        await _db.ProductCategories
+            .Where(x => x.ProductId == productId)
+            .ExecuteDeleteAsync(cancellationToken);
 
-        foreach (var categoryId in categoryIds)
+        foreach (var categoryId in categoryIds.Distinct())
         {
-            product.ProductCategories.Add(new ProductCategory
+            _db.ProductCategories.Add(new ProductCategory
             {
-                ProductId = product.Id,
+                ProductId = productId,
                 CategoryId = categoryId
             });
         }
@@ -741,6 +763,7 @@ public sealed record UpsertProductRequest(
     bool HasVariants,
     bool IsActive,
     bool IsFeatured,
+    bool IsGiftBoxEligible,
     List<Guid> CategoryIds,
     List<UpsertProductImageRequest> Images,
     List<UpsertProductVariantRequest> Variants);
@@ -775,6 +798,7 @@ public sealed record AdminProductListItemDto(
     bool HasVariants,
     bool IsActive,
     bool IsFeatured,
+    bool IsGiftBoxEligible,
     DateTime CreatedAtUtc,
     int CategoryCount,
     int VariantCount,
@@ -792,6 +816,7 @@ public sealed record AdminProductDetailDto(
     bool HasVariants,
     bool IsActive,
     bool IsFeatured,
+    bool IsGiftBoxEligible,
     DateTime CreatedAtUtc,
     DateTime? UpdatedAtUtc,
     List<AdminProductCategoryDto> Categories,

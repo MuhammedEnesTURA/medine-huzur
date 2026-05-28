@@ -16,7 +16,11 @@ import {
 } from "lucide-react";
 import { apiUrl, authHeaders, readJsonOrThrow } from "../../lib/api";
 import { useAuth } from "../../context/AuthContext";
-import { CartItem, useCart } from "../../context/CartContext";
+import {
+  CartItem,
+  getCartLineKey,
+  useCart,
+} from "../../context/CartContext";
 
 const MIN_CART_TOTAL = 250;
 
@@ -118,43 +122,60 @@ function buildAddressText(form: CheckoutForm) {
   return `${address} | Sipariş notu: ${note}`;
 }
 
-function CheckoutLine({ item, badge }: { item: CartItem; badge?: string }) {
+function CheckoutLine({
+  item,
+  badge,
+  multiplier = 1,
+}: {
+  item: CartItem;
+  badge?: string;
+  multiplier?: number;
+}) {
   const attrs = formatAttributes(item.selectedAttributes);
+  const totalQuantity = item.quantity * Math.max(1, multiplier);
 
   return (
-    <div className="flex gap-3 rounded-2xl border border-border-soft bg-panel/65 p-3 transition hover:border-border-strong">
+    <div className="concept-corner flex gap-3 overflow-hidden rounded-2xl border border-border-soft bg-panel/72 p-3 shadow-[0_10px_28px_rgba(0,0,0,0.08)] transition hover:-translate-y-0.5 hover:border-mhgreen/30 hover:bg-panel/90">
       <Link
         href={`/product/${item.slug}`}
-        className="relative flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-border-soft bg-panel-3"
+        className="relative z-10 flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-border-soft bg-panel-3/86"
       >
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_0%,rgba(34,197,94,0.13),transparent_36%)]" />
+
         {item.imageUrl ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
             src={item.imageUrl}
             alt={item.name}
-            className="h-full w-full object-contain p-1.5"
+            className="relative h-full w-full object-contain p-1.5"
           />
         ) : (
-          <ShoppingBag className="h-6 w-6 text-mhgreen" />
+          <ShoppingBag className="relative h-6 w-6 text-mhgreen" />
         )}
       </Link>
 
-      <div className="min-w-0 flex-1">
+      <div className="relative z-10 min-w-0 flex-1">
         <div className="flex flex-wrap items-start justify-between gap-2">
           <div className="min-w-0">
             <Link
               href={`/product/${item.slug}`}
-              className="line-clamp-2 text-sm font-black text-foreground transition hover:text-mhgreen"
+              className="line-clamp-2 text-sm font-black leading-5 text-foreground transition hover:text-mhgreen"
             >
               {item.name}
             </Link>
 
             <p className="mt-1 text-xs font-semibold text-muted">
-              {item.quantity} adet · {item.sku}
+              {multiplier > 1
+                ? `Kutu başına ${item.quantity} adet · toplam ${totalQuantity} adet`
+                : `${item.quantity} adet`}
+              {" · "}
+              {item.sku}
             </p>
 
             {attrs && (
-              <p className="mt-1 text-xs font-semibold text-muted">{attrs}</p>
+              <p className="mt-1 text-xs font-semibold leading-5 text-muted">
+                {attrs}
+              </p>
             )}
           </div>
 
@@ -166,7 +187,7 @@ function CheckoutLine({ item, badge }: { item: CartItem; badge?: string }) {
         </div>
 
         <p className="mt-2 text-sm font-black text-mhgreen">
-          {formatPrice(item.unitPrice * item.quantity)}
+          {formatPrice(item.unitPrice * totalQuantity)}
         </p>
       </div>
     </div>
@@ -176,8 +197,15 @@ function CheckoutLine({ item, badge }: { item: CartItem; badge?: string }) {
 export default function CheckoutPageClient() {
   const router = useRouter();
   const { user, token } = useAuth();
-  const { items, giftPackage, subtotal, giftSubtotal, total, clearCart } =
-    useCart();
+  const {
+    items,
+    giftPackage,
+    subtotal,
+    giftUnitSubtotal,
+    giftSubtotal,
+    total,
+    clearCart,
+  } = useCart();
 
   const [form, setForm] = useState<CheckoutForm>({
     fullName: "",
@@ -346,7 +374,7 @@ export default function CheckoutPageClient() {
         giftPackage.enabled && giftItemsPayload.length > 0
           ? {
               enabled: true,
-              quantity: 1,
+              quantity: Math.max(1, giftPackage.quantity || 1),
               note: giftPackage.note.trim() || giftPackage.title.trim() || null,
               sampleImageUrl: null,
               items: giftItemsPayload,
@@ -402,7 +430,7 @@ export default function CheckoutPageClient() {
       setSubmitState({
         type: "error",
         message:
-          "Sunucuya ulaşılamadı. Backend çalışıyor mu kontrol edip tekrar deneyin.",
+  "Şu anda sipariş oluşturulamıyor. Lütfen bilgilerini kontrol edip kısa bir süre sonra tekrar deneyin.",
       });
     } finally {
       setIsSubmitting(false);
@@ -413,20 +441,23 @@ export default function CheckoutPageClient() {
     return (
       <main className="page-shell">
         <section className="page-container py-5 md:py-6">
-          <div className="rounded-[1.35rem] border border-border-soft bg-panel/72 p-8 text-center shadow-[0_18px_50px_rgba(0,0,0,0.18)]">
-            <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-3xl border border-border-soft bg-panel-3">
+          <div className="concept-surface rounded-[1.45rem] border border-border-soft bg-panel/76 p-8 text-center shadow-[0_18px_50px_rgba(0,0,0,0.16)] backdrop-blur">
+            <div className="relative z-10 mx-auto flex h-16 w-16 items-center justify-center rounded-3xl border border-border-soft bg-panel-3">
               <ShoppingBag className="h-8 w-8 text-mhgreen" />
             </div>
 
-            <h1 className="mt-5 text-2xl font-black text-foreground">
+            <h1 className="relative z-10 mt-5 text-2xl font-black text-foreground">
               Checkout için sepet boş
             </h1>
 
-            <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-muted">
+            <p className="relative z-10 mx-auto mt-2 max-w-md text-sm font-medium leading-6 text-muted">
               Sipariş oluşturmak için önce ürün eklemelisin.
             </p>
 
-            <Link href="/products" className="btn-premium mt-5 min-h-10 text-sm">
+            <Link
+              href="/products"
+              className="btn-premium relative z-10 mt-5 min-h-10 text-sm"
+            >
               Ürünlere Dön
             </Link>
           </div>
@@ -440,7 +471,7 @@ export default function CheckoutPageClient() {
       <section className="page-container py-5 md:py-6">
         <Link
           href="/cart"
-          className="inline-flex min-h-9 items-center gap-2 rounded-xl border border-border-soft bg-panel/70 px-3 text-sm font-bold text-muted transition hover:text-foreground"
+          className="inline-flex min-h-9 items-center gap-2 rounded-xl border border-border-soft bg-panel/70 px-3 text-sm font-bold text-muted transition hover:bg-panel-3 hover:text-foreground"
         >
           <ArrowLeft className="h-4 w-4" />
           Sepete dön
@@ -448,23 +479,25 @@ export default function CheckoutPageClient() {
 
         <div className="mt-5 grid gap-5 lg:grid-cols-[1fr_390px]">
           <div className="space-y-5">
-            <section className="rounded-[1.35rem] border border-border-soft bg-panel/72 p-4 shadow-[0_18px_50px_rgba(0,0,0,0.18)] md:p-5">
-              <p className="text-xs font-black uppercase tracking-[0.14em] text-mhgreen">
-                Checkout
-              </p>
+            <section className="concept-surface rounded-[1.45rem] border border-border-soft bg-panel/76 p-4 shadow-[0_18px_50px_rgba(0,0,0,0.16)] backdrop-blur md:p-5">
+              <div className="relative z-10">
+                <p className="text-xs font-black uppercase tracking-[0.14em] text-mhgreen">
+                  Checkout
+                </p>
 
-              <h1 className="mt-2 text-2xl font-black tracking-[-0.03em] text-foreground md:text-3xl">
-                Sipariş bilgileri
-              </h1>
+                <h1 className="mt-2 text-2xl font-black tracking-[-0.03em] text-foreground md:text-3xl">
+                  Sipariş bilgileri
+                </h1>
 
-              <p className="mt-2 max-w-2xl text-sm leading-6 text-muted">
-                Teslimat ve iletişim bilgilerini doldur. Sipariş oluşturulduktan
-                sonra güvenli ödeme adımına yönlendirileceksin.
-              </p>
+                <p className="mt-2 max-w-2xl text-sm font-medium leading-6 text-muted">
+                  Teslimat ve iletişim bilgilerini doldur. Sipariş oluşturulduktan
+                  sonra güvenli ödeme adımına yönlendirileceksin.
+                </p>
+              </div>
 
               {submitState && (
                 <div
-                  className={`mt-4 rounded-2xl border p-4 ${
+                  className={`relative z-10 mt-4 rounded-2xl border p-4 ${
                     submitState.type === "success"
                       ? "border-mhgreen/30 bg-mhgreen/10"
                       : "border-danger/30 bg-danger/10"
@@ -517,251 +550,248 @@ export default function CheckoutPageClient() {
               )}
             </section>
 
-            <section className="rounded-[1.35rem] border border-border-soft bg-panel/72 p-4 shadow-[0_18px_50px_rgba(0,0,0,0.18)] md:p-5">
-              <h2 className="text-xl font-black text-foreground">
-                Müşteri bilgileri
-              </h2>
+            <section className="concept-surface rounded-[1.45rem] border border-border-soft bg-panel/76 p-4 shadow-[0_18px_50px_rgba(0,0,0,0.16)] backdrop-blur md:p-5">
+              <div className="relative z-10">
+                <h2 className="text-xl font-black tracking-[-0.02em] text-foreground">
+                  Müşteri bilgileri
+                </h2>
 
-              <div className="mt-4 grid gap-3 md:grid-cols-2">
-                <label>
-                  <span className="text-xs font-black uppercase tracking-[0.12em] text-muted-2">
-                    Ad soyad
-                  </span>
-                  <input
-                    value={form.fullName}
-                    onChange={(event) =>
-                      updateForm("fullName", event.target.value)
-                    }
-                    className="input-premium mt-2 min-h-10 text-sm"
-                    placeholder="Ad Soyad"
-                  />
-                </label>
-
-                <label>
-                  <span className="text-xs font-black uppercase tracking-[0.12em] text-muted-2">
-                    Telefon
-                  </span>
-                  <input
-                    value={form.phone}
-                    onChange={(event) => updateForm("phone", event.target.value)}
-                    className="input-premium mt-2 min-h-10 text-sm"
-                    placeholder="05xx xxx xx xx"
-                  />
-                </label>
-
-                <label className="md:col-span-2">
-                  <span className="text-xs font-black uppercase tracking-[0.12em] text-muted-2">
-                    E-posta
-                  </span>
-                  <input
-                    value={form.email}
-                    onChange={(event) => updateForm("email", event.target.value)}
-                    className="input-premium mt-2 min-h-10 text-sm"
-                    placeholder="ornek@mail.com"
-                    type="email"
-                  />
-                </label>
-              </div>
-            </section>
-
-            <section className="rounded-[1.35rem] border border-border-soft bg-panel/72 p-4 shadow-[0_18px_50px_rgba(0,0,0,0.18)] md:p-5">
-              <h2 className="text-xl font-black text-foreground">
-                Teslimat adresi
-              </h2>
-
-              {token && (
-                <div className="mt-4 rounded-2xl border border-border-soft bg-panel/65 p-3">
-                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                    <div>
-                      <p className="text-sm font-black text-foreground">
-                        Kayıtlı adreslerim
-                      </p>
-
-                      <p className="mt-1 text-xs leading-5 text-muted">
-                        Hesabındaki adreslerden birini seçerek teslimat
-                        bilgilerini hızlıca doldurabilirsin.
-                      </p>
-                    </div>
-
-                    <Link
-                      href="/account/addresses"
-                      className="inline-flex min-h-9 items-center justify-center rounded-xl border border-border-soft bg-panel-2 px-3 text-xs font-black text-foreground transition hover:bg-panel-3"
-                    >
-                      Adresleri Yönet
-                    </Link>
-                  </div>
-
-                  {isLoadingAddresses ? (
-                    <div className="mt-3 text-sm font-bold text-muted">
-                      Adresler yükleniyor...
-                    </div>
-                  ) : savedAddresses.length > 0 ? (
-                    <select
-                      value={selectedAddressId}
+                <div className="mt-4 grid gap-3 md:grid-cols-2">
+                  <label className="rounded-2xl border border-border-soft bg-panel/64 p-3">
+                    <span className="text-xs font-black uppercase tracking-[0.12em] text-muted-2">
+                      Ad soyad
+                    </span>
+                    <input
+                      value={form.fullName}
                       onChange={(event) =>
-                        handleSavedAddressChange(event.target.value)
+                        updateForm("fullName", event.target.value)
                       }
-                      className="input-premium mt-3 min-h-10 text-sm"
-                    >
-                      <option value="">Adres seç</option>
+                      className="input-premium mt-2 min-h-10 text-sm"
+                      placeholder="Ad Soyad"
+                    />
+                  </label>
 
-                      {savedAddresses.map((address) => (
-                        <option key={address.id} value={address.id}>
-                          {address.title}
-                          {address.isDefault ? " - Varsayılan" : ""} /{" "}
-                          {address.district} / {address.city}
-                        </option>
-                      ))}
-                    </select>
-                  ) : (
-                    <div className="mt-3 rounded-xl border border-border-soft bg-panel/70 p-3 text-sm text-muted">
-                      Kayıtlı adresin yok. İstersen adres ekleyip checkout
-                      adımında hızlıca kullanabilirsin.
-                    </div>
-                  )}
+                  <label className="rounded-2xl border border-border-soft bg-panel/64 p-3">
+                    <span className="text-xs font-black uppercase tracking-[0.12em] text-muted-2">
+                      Telefon
+                    </span>
+                    <input
+                      value={form.phone}
+                      onChange={(event) =>
+                        updateForm("phone", event.target.value)
+                      }
+                      className="input-premium mt-2 min-h-10 text-sm"
+                      placeholder="05xx xxx xx xx"
+                    />
+                  </label>
+
+                  <label className="rounded-2xl border border-border-soft bg-panel/64 p-3 md:col-span-2">
+                    <span className="text-xs font-black uppercase tracking-[0.12em] text-muted-2">
+                      E-posta
+                    </span>
+                    <input
+                      value={form.email}
+                      onChange={(event) =>
+                        updateForm("email", event.target.value)
+                      }
+                      className="input-premium mt-2 min-h-10 text-sm"
+                      placeholder="ornek@mail.com"
+                      type="email"
+                    />
+                  </label>
                 </div>
-              )}
-
-              <div className="mt-4 grid gap-3 md:grid-cols-2">
-                <label>
-                  <span className="text-xs font-black uppercase tracking-[0.12em] text-muted-2">
-                    İl
-                  </span>
-                  <input
-                    value={form.city}
-                    onChange={(event) => updateForm("city", event.target.value)}
-                    className="input-premium mt-2 min-h-10 text-sm"
-                    placeholder="İstanbul"
-                  />
-                </label>
-
-                <label>
-                  <span className="text-xs font-black uppercase tracking-[0.12em] text-muted-2">
-                    İlçe
-                  </span>
-                  <input
-                    value={form.district}
-                    onChange={(event) =>
-                      updateForm("district", event.target.value)
-                    }
-                    className="input-premium mt-2 min-h-10 text-sm"
-                    placeholder="Üsküdar"
-                  />
-                </label>
-
-                <label>
-                  <span className="text-xs font-black uppercase tracking-[0.12em] text-muted-2">
-                    Posta kodu
-                  </span>
-                  <input
-                    value={form.postalCode}
-                    onChange={(event) =>
-                      updateForm("postalCode", event.target.value)
-                    }
-                    className="input-premium mt-2 min-h-10 text-sm"
-                    placeholder="Opsiyonel"
-                  />
-                </label>
-
-                <label className="md:col-span-2">
-                  <span className="text-xs font-black uppercase tracking-[0.12em] text-muted-2">
-                    Açık adres
-                  </span>
-                  <textarea
-                    value={form.addressLine}
-                    onChange={(event) =>
-                      updateForm("addressLine", event.target.value)
-                    }
-                    className="input-premium mt-2 min-h-24 resize-none py-3 text-sm"
-                    placeholder="Mahalle, cadde, sokak, bina, daire..."
-                  />
-                </label>
               </div>
             </section>
 
-            <section className="rounded-[1.35rem] border border-border-soft bg-panel/72 p-4 shadow-[0_18px_50px_rgba(0,0,0,0.18)] md:p-5">
-              <div className="flex items-start gap-3">
-                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-mhgreen/25 bg-mhgreen/10 text-mhgreen">
-                  <CreditCard className="h-5 w-5" />
-                </div>
+            <section className="concept-surface rounded-[1.45rem] border border-border-soft bg-panel/76 p-4 shadow-[0_18px_50px_rgba(0,0,0,0.16)] backdrop-blur md:p-5">
+              <div className="relative z-10">
+                <h2 className="text-xl font-black tracking-[-0.02em] text-foreground">
+                  Teslimat adresi
+                </h2>
 
-                <div>
-                  <h2 className="text-xl font-black text-foreground">
-                    Ödeme yöntemi
-                  </h2>
+                {token && (
+                  <div className="mt-4 rounded-2xl border border-border-soft bg-panel/65 p-3">
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                      <div>
+                        <p className="text-sm font-black text-foreground">
+                          Kayıtlı adreslerim
+                        </p>
 
-                  <p className="mt-1 text-sm leading-6 text-muted">
-                    Sipariş oluşturulduktan sonra güvenli ödeme adımına
-                    yönlendirileceksin.
-                  </p>
+                        <p className="mt-1 text-xs font-medium leading-5 text-muted">
+                          Hesabındaki adreslerden birini seçerek teslimat
+                          bilgilerini hızlıca doldurabilirsin.
+                        </p>
+                      </div>
+
+                      <Link
+                        href="/account/addresses"
+                        className="inline-flex min-h-9 items-center justify-center rounded-xl border border-border-soft bg-panel-2/82 px-3 text-xs font-black text-foreground transition hover:bg-panel-3"
+                      >
+                        Adresleri Yönet
+                      </Link>
+                    </div>
+
+                    {isLoadingAddresses ? (
+                      <div className="mt-3 text-sm font-bold text-muted">
+                        Adresler yükleniyor...
+                      </div>
+                    ) : savedAddresses.length > 0 ? (
+                      <select
+                        value={selectedAddressId}
+                        onChange={(event) =>
+                          handleSavedAddressChange(event.target.value)
+                        }
+                        className="input-premium mt-3 min-h-10 text-sm"
+                      >
+                        <option value="">Adres seç</option>
+
+                        {savedAddresses.map((address) => (
+                          <option key={address.id} value={address.id}>
+                            {address.title}
+                            {address.isDefault ? " - Varsayılan" : ""} /{" "}
+                            {address.district} / {address.city}
+                          </option>
+                        ))}
+                      </select>
+                    ) : (
+                      <div className="mt-3 rounded-xl border border-border-soft bg-panel/70 p-3 text-sm text-muted">
+                        Kayıtlı adresin yok. İstersen adres ekleyip checkout
+                        adımında hızlıca kullanabilirsin.
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                <div className="mt-4 grid gap-3 md:grid-cols-2">
+                  <label className="rounded-2xl border border-border-soft bg-panel/64 p-3">
+                    <span className="text-xs font-black uppercase tracking-[0.12em] text-muted-2">
+                      İl
+                    </span>
+                    <input
+                      value={form.city}
+                      onChange={(event) => updateForm("city", event.target.value)}
+                      className="input-premium mt-2 min-h-10 text-sm"
+                      placeholder="İstanbul"
+                    />
+                  </label>
+
+                  <label className="rounded-2xl border border-border-soft bg-panel/64 p-3">
+                    <span className="text-xs font-black uppercase tracking-[0.12em] text-muted-2">
+                      İlçe
+                    </span>
+                    <input
+                      value={form.district}
+                      onChange={(event) =>
+                        updateForm("district", event.target.value)
+                      }
+                      className="input-premium mt-2 min-h-10 text-sm"
+                      placeholder="Üsküdar"
+                    />
+                  </label>
+
+                  <label className="rounded-2xl border border-border-soft bg-panel/64 p-3">
+                    <span className="text-xs font-black uppercase tracking-[0.12em] text-muted-2">
+                      Posta kodu
+                    </span>
+                    <input
+                      value={form.postalCode}
+                      onChange={(event) =>
+                        updateForm("postalCode", event.target.value)
+                      }
+                      className="input-premium mt-2 min-h-10 text-sm"
+                      placeholder="Opsiyonel"
+                    />
+                  </label>
+
+                  <label className="rounded-2xl border border-border-soft bg-panel/64 p-3 md:col-span-2">
+                    <span className="text-xs font-black uppercase tracking-[0.12em] text-muted-2">
+                      Açık adres
+                    </span>
+                    <textarea
+                      value={form.addressLine}
+                      onChange={(event) =>
+                        updateForm("addressLine", event.target.value)
+                      }
+                      className="input-premium mt-2 min-h-24 resize-none py-3 text-sm"
+                      placeholder="Mahalle, cadde, sokak, bina, daire..."
+                    />
+                  </label>
                 </div>
               </div>
+            </section>
 
-              <div className="mt-4 grid gap-3">
-                <label className="flex cursor-pointer gap-3 rounded-2xl border border-mhgreen/35 bg-mhgreen/10 p-4 transition hover:border-mhgreen/50">
-                  <input
-                    type="radio"
-                    name="paymentMethod"
-                    checked={form.paymentMethod === "CreditCard"}
-                    onChange={() => updateForm("paymentMethod", "CreditCard")}
-                    className="mt-1 h-4 w-4 accent-mhgreen"
-                  />
+            <section className="concept-surface rounded-[1.45rem] border border-border-soft bg-panel/76 p-4 shadow-[0_18px_50px_rgba(0,0,0,0.16)] backdrop-blur md:p-5">
+              <div className="relative z-10">
+                <div className="flex items-start gap-3">
+                  <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-mhgreen/25 bg-mhgreen/10 text-mhgreen">
+                    <CreditCard className="h-5 w-5" />
+                  </div>
 
-                  <span className="min-w-0">
-                    <span className="flex flex-wrap items-center gap-2">
-                      <span className="text-sm font-black text-foreground">
-                        Kredi / Banka Kartı
-                      </span>
+                  <div>
+                    <h2 className="text-xl font-black tracking-[-0.02em] text-foreground">
+                      Ödeme yöntemi
+                    </h2>
 
-                      <span className="rounded-full border border-mhgreen/30 bg-mhgreen/10 px-2 py-0.5 text-[10px] font-black uppercase tracking-[0.12em] text-mhgreen">
-                        Sanal POS
-                      </span>
-                    </span>
-
-                    <span className="mt-1 block text-xs leading-5 text-muted">
-                      Kuveyt Türk Sanal POS entegrasyonuna hazır ödeme akışı.
-                      Şu an test ortamında mock ödeme ekranına yönlendirme
-                      yapılır.
-                    </span>
-                  </span>
-                </label>
-
-                <div className="rounded-2xl border border-border-soft bg-panel/65 p-4">
-                  <div className="flex gap-3">
-                    <ShieldCheck className="mt-0.5 h-5 w-5 shrink-0 text-mhgreen" />
-
-                    <div>
-                      <p className="text-sm font-black text-foreground">
-                        Kart bilgileri sitede saklanmaz
-                      </p>
-
-                      <p className="mt-1 text-xs leading-5 text-muted">
-                        Gerçek sanal POS entegrasyonu aktif edildiğinde kart
-                        bilgileri banka veya ödeme sağlayıcı güvenli ödeme
-                        ekranında işlenir. Medine Huzur kart bilgilerini
-                        kaydetmez.
-                      </p>
-                    </div>
+                    <p className="mt-1 text-sm font-medium leading-6 text-muted">
+                      Sipariş oluşturulduktan sonra güvenli ödeme adımına
+                      yönlendirileceksin.
+                    </p>
                   </div>
                 </div>
 
-                <div className="rounded-2xl border border-warning/25 bg-warning/10 p-4">
-                  <p className="text-sm font-black text-warning">
-                    Test ödeme modu aktif
-                  </p>
+                <div className="mt-4 grid gap-3">
+                  <label className="flex cursor-pointer gap-3 rounded-2xl border border-mhgreen/35 bg-mhgreen/10 p-4 transition hover:border-mhgreen/50">
+                    <input
+                      type="radio"
+                      name="paymentMethod"
+                      checked={form.paymentMethod === "CreditCard"}
+                      onChange={() => updateForm("paymentMethod", "CreditCard")}
+                      className="mt-1 h-4 w-4 accent-mhgreen"
+                    />
 
-                  <p className="mt-1 text-xs leading-5 text-muted">
-                    Şu an sipariş sonrası ödeme başlatıldığında mock ödeme ekranı
-                    açılır. Kuveyt Türk bilgileri alındığında gerçek Sanal POS
-                    yönlendirmesi bu akışa bağlanacak.
-                  </p>
+                    <span className="min-w-0">
+                      <span className="flex flex-wrap items-center gap-2">
+                        <span className="text-sm font-black text-foreground">
+                          Kredi / Banka Kartı
+                        </span>
+
+                        <span className="rounded-full border border-mhgreen/30 bg-mhgreen/10 px-2 py-0.5 text-[10px] font-black uppercase tracking-[0.12em] text-mhgreen">
+                          Sanal POS
+                        </span>
+                      </span>
+
+                      <span className="mt-1 block text-xs leading-5 text-muted">
+  Ödeme işlemi güvenli ödeme altyapısı üzerinden tamamlanır. Kart
+  bilgileri Medine Huzur tarafından saklanmaz.
+</span>
+                    </span>
+                  </label>
+
+                  <div className="rounded-2xl border border-border-soft bg-panel/65 p-4">
+                    <div className="flex gap-3">
+                      <ShieldCheck className="mt-0.5 h-5 w-5 shrink-0 text-mhgreen" />
+
+                      <div>
+                        <p className="text-sm font-black text-foreground">
+                          Kart bilgileri sitede saklanmaz
+                        </p>
+
+                        <p className="mt-1 text-xs leading-5 text-muted">
+                          Gerçek sanal POS entegrasyonu aktif edildiğinde kart
+                          bilgileri banka veya ödeme sağlayıcı güvenli ödeme
+                          ekranında işlenir. Medine Huzur kart bilgilerini
+                          kaydetmez.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </div>
             </section>
 
             {giftPackage.enabled && giftPackage.items.length > 0 && (
-              <section className="rounded-[1.35rem] border border-mhgreen/25 bg-mhgreen/10 p-4 md:p-5">
-                <div className="flex items-start gap-3">
+              <section className="concept-surface rounded-[1.45rem] border border-mhgreen/25 bg-mhgreen/10 p-4 shadow-[0_18px_50px_rgba(0,0,0,0.12)] md:p-5">
+                <div className="relative z-10 flex items-start gap-3">
                   <Gift className="mt-1 h-5 w-5 shrink-0 text-mhgreen" />
 
                   <div>
@@ -769,12 +799,21 @@ export default function CheckoutPageClient() {
                       Hediye kutusu bilgisi
                     </h2>
 
-                    <p className="mt-1 text-sm leading-6 text-muted">
-                      Hediye kutusu siparişle birlikte gönderilecek.
+                    <p className="mt-1 text-sm font-medium leading-6 text-muted">
+                      Seçtiğin kutu içeriği {Math.max(1, giftPackage.quantity || 1)}
+                      adet aynı hediye kutusu olarak hazırlanacak.
+                    </p>
+
+                    <p className="mt-3 text-sm font-bold text-foreground">
+                      Kutu adedi: {Math.max(1, giftPackage.quantity || 1)}
+                    </p>
+
+                    <p className="mt-1 text-sm font-bold text-foreground">
+                      1 kutu içeriği: {formatPrice(giftUnitSubtotal)}
                     </p>
 
                     {giftPackage.title && (
-                      <p className="mt-3 text-sm font-bold text-foreground">
+                      <p className="mt-1 text-sm font-bold text-foreground">
                         Başlık: {giftPackage.title}
                       </p>
                     )}
@@ -789,88 +828,92 @@ export default function CheckoutPageClient() {
               </section>
             )}
 
-            <section className="rounded-[1.35rem] border border-border-soft bg-panel/72 p-4 shadow-[0_18px_50px_rgba(0,0,0,0.18)] md:p-5">
-              <h2 className="text-xl font-black text-foreground">
-                Sipariş notu
-              </h2>
+            <section className="concept-surface rounded-[1.45rem] border border-border-soft bg-panel/76 p-4 shadow-[0_18px_50px_rgba(0,0,0,0.16)] backdrop-blur md:p-5">
+              <div className="relative z-10">
+                <h2 className="text-xl font-black tracking-[-0.02em] text-foreground">
+                  Sipariş notu
+                </h2>
 
-              <p className="mt-1 text-sm leading-6 text-muted">
-                Bu not teslimat adresiyle birlikte siparişe kaydedilir.
-              </p>
+                <p className="mt-1 text-sm font-medium leading-6 text-muted">
+                  Bu not teslimat adresiyle birlikte siparişe kaydedilir.
+                </p>
 
-              <textarea
-                value={form.orderNote}
-                onChange={(event) => updateForm("orderNote", event.target.value)}
-                className="input-premium mt-4 min-h-24 resize-none py-3 text-sm"
-                placeholder="Siparişle ilgili notun varsa yazabilirsin..."
-              />
+                <textarea
+                  value={form.orderNote}
+                  onChange={(event) => updateForm("orderNote", event.target.value)}
+                  className="input-premium mt-4 min-h-24 resize-none py-3 text-sm"
+                  placeholder="Siparişle ilgili notun varsa yazabilirsin..."
+                />
+              </div>
             </section>
 
-            <section className="rounded-[1.35rem] border border-border-soft bg-panel/72 p-4 shadow-[0_18px_50px_rgba(0,0,0,0.18)] md:p-5">
-              <h2 className="text-xl font-black text-foreground">
-                Yasal onaylar
-              </h2>
+            <section className="concept-surface rounded-[1.45rem] border border-border-soft bg-panel/76 p-4 shadow-[0_18px_50px_rgba(0,0,0,0.16)] backdrop-blur md:p-5">
+              <div className="relative z-10">
+                <h2 className="text-xl font-black tracking-[-0.02em] text-foreground">
+                  Yasal onaylar
+                </h2>
 
-              <p className="mt-1 text-sm leading-6 text-muted">
-                Siparişi oluşturmak için ön bilgilendirme ve mesafeli satış
-                onayları zorunludur.
-              </p>
+                <p className="mt-1 text-sm font-medium leading-6 text-muted">
+                  Siparişi oluşturmak için ön bilgilendirme ve mesafeli satış
+                  onayları zorunludur.
+                </p>
 
-              <div className="mt-4 grid gap-3">
-                <label className="flex cursor-pointer gap-3 rounded-2xl border border-border-soft bg-panel/65 p-3 transition hover:border-border-strong">
-                  <input
-                    type="checkbox"
-                    checked={legalConsents.preInformationAccepted}
-                    onChange={(event) =>
-                      updateConsent(
-                        "preInformationAccepted",
-                        event.target.checked
-                      )
-                    }
-                    className="mt-1 h-4 w-4 accent-mhgreen"
-                  />
+                <div className="mt-4 grid gap-3">
+                  <label className="flex cursor-pointer gap-3 rounded-2xl border border-border-soft bg-panel/65 p-3 transition hover:border-border-strong">
+                    <input
+                      type="checkbox"
+                      checked={legalConsents.preInformationAccepted}
+                      onChange={(event) =>
+                        updateConsent(
+                          "preInformationAccepted",
+                          event.target.checked
+                        )
+                      }
+                      className="mt-1 h-4 w-4 accent-mhgreen"
+                    />
 
-                  <span className="text-sm leading-6 text-muted">
-                    <Link
-                      href="/legal/pre-information"
-                      className="font-black text-mhgreen transition hover:text-mhgreen-dark"
-                    >
-                      Ön bilgilendirme formunu
-                    </Link>{" "}
-                    okudum ve kabul ediyorum.
-                  </span>
-                </label>
+                    <span className="text-sm leading-6 text-muted">
+                      <Link
+                        href="/legal/pre-information"
+                        className="font-black text-mhgreen transition hover:text-mhgreen-dark"
+                      >
+                        Ön bilgilendirme formunu
+                      </Link>{" "}
+                      okudum ve kabul ediyorum.
+                    </span>
+                  </label>
 
-                <label className="flex cursor-pointer gap-3 rounded-2xl border border-border-soft bg-panel/65 p-3 transition hover:border-border-strong">
-                  <input
-                    type="checkbox"
-                    checked={legalConsents.distanceSalesAccepted}
-                    onChange={(event) =>
-                      updateConsent(
-                        "distanceSalesAccepted",
-                        event.target.checked
-                      )
-                    }
-                    className="mt-1 h-4 w-4 accent-mhgreen"
-                  />
+                  <label className="flex cursor-pointer gap-3 rounded-2xl border border-border-soft bg-panel/65 p-3 transition hover:border-border-strong">
+                    <input
+                      type="checkbox"
+                      checked={legalConsents.distanceSalesAccepted}
+                      onChange={(event) =>
+                        updateConsent(
+                          "distanceSalesAccepted",
+                          event.target.checked
+                        )
+                      }
+                      className="mt-1 h-4 w-4 accent-mhgreen"
+                    />
 
-                  <span className="text-sm leading-6 text-muted">
-                    <Link
-                      href="/legal/distance-sales"
-                      className="font-black text-mhgreen transition hover:text-mhgreen-dark"
-                    >
-                      Mesafeli satış sözleşmesini
-                    </Link>{" "}
-                    okudum ve kabul ediyorum.
-                  </span>
-                </label>
+                    <span className="text-sm leading-6 text-muted">
+                      <Link
+                        href="/legal/distance-sales"
+                        className="font-black text-mhgreen transition hover:text-mhgreen-dark"
+                      >
+                        Mesafeli satış sözleşmesini
+                      </Link>{" "}
+                      okudum ve kabul ediyorum.
+                    </span>
+                  </label>
+                </div>
               </div>
             </section>
           </div>
 
-          <aside className="space-y-4 lg:sticky lg:top-24 lg:self-start">
-            <section className="rounded-[1.35rem] border border-border-soft bg-panel/72 p-4 shadow-[0_18px_50px_rgba(0,0,0,0.18)] md:p-5">
-              <div className="flex items-center gap-2">
+          <aside className="space-y-4 lg:self-start">
+            <section className="concept-surface rounded-[1.45rem] border border-border-soft bg-panel/76 p-4 shadow-[0_18px_50px_rgba(0,0,0,0.16)] backdrop-blur md:p-5">
+              <div className="relative z-10 flex items-center gap-2">
                 <PackageCheck className="h-5 w-5 text-mhgreen" />
 
                 <h2 className="text-lg font-black text-foreground">
@@ -878,24 +921,22 @@ export default function CheckoutPageClient() {
                 </h2>
               </div>
 
-              <div className="mt-4 space-y-3">
+              <div className="relative z-10 mt-4 space-y-3">
                 {items.map((item) => (
-                  <CheckoutLine
-                    key={`normal-${item.productId}-${item.variantId ?? "base"}`}
-                    item={item}
-                  />
+                  <CheckoutLine key={`normal-${getCartLineKey(item)}`} item={item} />
                 ))}
 
                 {giftPackage.items.map((item) => (
                   <CheckoutLine
-                    key={`gift-${item.productId}-${item.variantId ?? "base"}`}
+                    key={`gift-${getCartLineKey(item)}`}
                     item={item}
-                    badge="Hediye kutusu"
+                    badge="Kutu içeriği"
+                    multiplier={Math.max(1, giftPackage.quantity || 1)}
                   />
                 ))}
               </div>
 
-              <div className="mt-4 space-y-3 border-t border-border-soft pt-4">
+              <div className="relative z-10 mt-4 space-y-3 border-t border-border-soft pt-4">
                 <div className="flex items-center justify-between text-sm">
                   <span className="text-muted">Sepet</span>
                   <span className="font-black text-foreground">
@@ -903,8 +944,26 @@ export default function CheckoutPageClient() {
                   </span>
                 </div>
 
+                {giftPackage.enabled && giftPackage.items.length > 0 && (
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-muted">1 kutu içeriği</span>
+                    <span className="font-black text-foreground">
+                      {formatPrice(giftUnitSubtotal)}
+                    </span>
+                  </div>
+                )}
+
+                {giftPackage.enabled && giftPackage.items.length > 0 && (
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-muted">Kutu adedi</span>
+                    <span className="font-black text-foreground">
+                      {Math.max(1, giftPackage.quantity || 1)} kutu
+                    </span>
+                  </div>
+                )}
+
                 <div className="flex items-center justify-between text-sm">
-                  <span className="text-muted">Hediye kutusu</span>
+                  <span className="text-muted">Hediye kutusu toplamı</span>
                   <span className="font-black text-foreground">
                     {formatPrice(giftSubtotal)}
                   </span>
@@ -915,14 +974,14 @@ export default function CheckoutPageClient() {
                     Toplam
                   </span>
 
-                  <span className="text-2xl font-black text-mhgreen">
+                  <span className="text-2xl font-black tracking-[-0.03em] text-mhgreen">
                     {formatPrice(total)}
                   </span>
                 </div>
               </div>
 
               {total < MIN_CART_TOTAL && (
-                <div className="mt-4 rounded-2xl border border-warning/25 bg-warning/10 p-3 text-xs font-bold leading-5 text-warning">
+                <div className="relative z-10 mt-4 rounded-2xl border border-warning/25 bg-warning/10 p-3 text-xs font-bold leading-5 text-warning">
                   Minimum sepet tutarı için {formatPrice(missingAmount)} daha
                   eklemelisin.
                 </div>
@@ -930,7 +989,7 @@ export default function CheckoutPageClient() {
 
               {!legalConsents.preInformationAccepted ||
               !legalConsents.distanceSalesAccepted ? (
-                <div className="mt-4 rounded-2xl border border-border-soft bg-panel/65 p-3 text-xs font-bold leading-5 text-muted">
+                <div className="relative z-10 mt-4 rounded-2xl border border-border-soft bg-panel/65 p-3 text-xs font-bold leading-5 text-muted">
                   Siparişi oluşturmak için yasal onayları işaretlemelisin.
                 </div>
               ) : null}
@@ -939,7 +998,7 @@ export default function CheckoutPageClient() {
                 type="button"
                 disabled={!canSubmit || isSubmitting}
                 onClick={handleSubmit}
-                className="mt-4 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-2xl bg-mhgreen px-4 text-sm font-black text-white shadow-[0_14px_30px_rgba(34,197,94,0.22)] transition hover:-translate-y-0.5 hover:bg-mhgreen-dark active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-45"
+                className="relative z-10 mt-4 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-2xl bg-mhgreen px-4 text-sm font-black text-white shadow-[0_14px_30px_rgba(34,197,94,0.22)] transition hover:-translate-y-0.5 hover:bg-mhgreen-dark active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-45"
               >
                 {isSubmitting ? (
                   <>
@@ -953,29 +1012,30 @@ export default function CheckoutPageClient() {
             </section>
 
             <section className="grid gap-3">
-              <div className="rounded-2xl border border-border-soft bg-panel/65 p-4">
-                <ShieldCheck className="h-5 w-5 text-mhgreen" />
+              <div className="concept-corner rounded-2xl border border-border-soft bg-panel/70 p-4">
+                <ShieldCheck className="relative z-10 h-5 w-5 text-mhgreen" />
 
-                <p className="mt-2 text-sm font-black text-foreground">
+                <p className="relative z-10 mt-2 text-sm font-black text-foreground">
                   Güvenli ödeme hazırlığı
                 </p>
 
-                <p className="mt-1 text-xs leading-5 text-muted">
+                <p className="relative z-10 mt-1 text-xs leading-5 text-muted">
                   Sipariş oluşturulduktan sonra güvenli ödeme adımına
                   geçeceksin. Kart bilgileri site üzerinde saklanmaz.
                 </p>
               </div>
 
-              <div className="rounded-2xl border border-border-soft bg-panel/65 p-4">
-                <Truck className="h-5 w-5 text-mhgreen" />
+              <div className="concept-corner rounded-2xl border border-border-soft bg-panel/70 p-4">
+                <Truck className="relative z-10 h-5 w-5 text-mhgreen" />
 
-                <p className="mt-2 text-sm font-black text-foreground">
+                <p className="relative z-10 mt-2 text-sm font-black text-foreground">
                   Kargo bilgisi
                 </p>
 
-                <p className="mt-1 text-xs leading-5 text-muted">
-                  Kargo takip entegrasyonunu sonraki adımda bağlayacağız.
-                </p>
+                <p className="relative z-10 mt-1 text-xs leading-5 text-muted">
+  Kargo bilgileri siparişe eklendiğinde sipariş sorgulama ekranından
+  takip edilebilir.
+</p>
               </div>
             </section>
           </aside>

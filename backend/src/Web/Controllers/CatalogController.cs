@@ -122,6 +122,7 @@ public async Task<ActionResult<ProductListResponse>> GetProducts(
             x.Stock,
             x.HasVariants,
             x.IsFeatured,
+            x.IsGiftBoxEligible,
             x.Images
                 .OrderBy(i => i.SortOrder)
                 .ThenByDescending(i => i.IsPrimary)
@@ -202,6 +203,7 @@ public async Task<ActionResult<ProductListResponse>> GetProducts(
             x.Stock,
             x.HasVariants,
             x.IsFeatured,
+            x.IsGiftBoxEligible,
             x.Images
                 .OrderBy(i => i.SortOrder)
                 .ThenByDescending(i => i.IsPrimary)
@@ -287,6 +289,7 @@ public sealed record ProductListItemDto(
     int Stock,
     bool HasVariants,
     bool IsFeatured,
+    bool IsGiftBoxEligible,
     string? PrimaryImageUrl);
 
 public sealed record ProductListResponse(
@@ -307,6 +310,7 @@ public sealed record ProductDetailDto(
     int Stock,
     bool HasVariants,
     bool IsFeatured,
+    bool IsGiftBoxEligible,
     List<ProductImageDto> Images,
     List<ProductVariantDto> Variants,
     List<CategoryDto> Categories);

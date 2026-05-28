@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useState } from "react";
 import {
   ArrowRight,
   Gift,
@@ -31,23 +32,27 @@ function formatAttributes(attrs: CartItem["selectedAttributes"]) {
   return entries.map(([key, value]) => `${key}: ${value}`).join(" • ");
 }
 
+function getGiftUnitSubtotal(items: CartItem[]) {
+  return items.reduce((sum, item) => sum + item.unitPrice * item.quantity, 0);
+}
+
 function EmptyCart() {
   return (
-    <div className="rounded-[1.35rem] border border-border-soft bg-panel/72 p-8 text-center shadow-[0_18px_50px_rgba(0,0,0,0.18)]">
-      <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-3xl border border-border-soft bg-panel-3">
+    <div className="concept-surface rounded-[1.45rem] border border-border-soft bg-panel/76 p-8 text-center shadow-[0_18px_50px_rgba(0,0,0,0.16)] backdrop-blur">
+      <div className="relative z-10 mx-auto flex h-16 w-16 items-center justify-center rounded-3xl border border-border-soft bg-panel-3">
         <ShoppingBag className="h-8 w-8 text-mhgreen" />
       </div>
 
-      <h1 className="mt-5 text-2xl font-black text-foreground">
+      <h1 className="relative z-10 mt-5 text-2xl font-black text-foreground">
         Sepetin boş
       </h1>
 
-      <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-muted">
+      <p className="relative z-10 mx-auto mt-2 max-w-md text-sm font-medium leading-6 text-muted">
         Ürünleri inceleyip sepete veya hediye kutusuna ekleyerek alışverişe
         başlayabilirsin.
       </p>
 
-      <Link href="/products" className="btn-premium mt-5 min-h-10 text-sm">
+      <Link href="/products" className="btn-premium relative z-10 mt-5 min-h-10 text-sm">
         Ürünleri Keşfet
       </Link>
     </div>
@@ -68,10 +73,13 @@ function CartLine({
     increaseGiftItem,
     decreaseGiftItem,
     removeGiftItem,
+    giftPackage,
   } = useCart();
 
   const key = getCartLineKey(item);
   const attrs = formatAttributes(item.selectedAttributes);
+  const boxQuantity = Math.max(1, giftPackage.quantity || 1);
+  const lineTotal = item.unitPrice * item.quantity * (type === "gift" ? boxQuantity : 1);
 
   const increase = () => {
     if (type === "gift") {
@@ -101,49 +109,73 @@ function CartLine({
   };
 
   return (
-    <article className="grid gap-3 rounded-2xl border border-border-soft bg-panel/70 p-3 transition hover:border-border-strong sm:grid-cols-[92px_1fr_auto]">
+    <article className="concept-corner group grid gap-3 overflow-hidden rounded-2xl border border-border-soft bg-panel/74 p-3 shadow-[0_12px_34px_rgba(0,0,0,0.10)] transition hover:-translate-y-0.5 hover:border-mhgreen/30 hover:bg-panel/90 sm:grid-cols-[96px_1fr_auto]">
       <Link
         href={`/product/${item.slug}`}
-        className="relative flex h-24 w-full items-center justify-center overflow-hidden rounded-xl border border-border-soft bg-panel-3 sm:h-[92px] sm:w-[92px]"
+        className="relative z-10 flex h-24 w-full items-center justify-center overflow-hidden rounded-2xl border border-border-soft bg-panel-3/86 sm:h-24 sm:w-24"
       >
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_0%,rgba(34,197,94,0.13),transparent_36%)] opacity-80" />
+
         {item.imageUrl ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
             src={item.imageUrl}
             alt={item.name}
-            className="h-full w-full object-contain p-2"
+            className="relative h-full w-full object-contain p-2.5 transition duration-300 group-hover:scale-[1.04]"
           />
         ) : (
-          <ShoppingBag className="h-8 w-8 text-mhgreen" />
+          <ShoppingBag className="relative h-8 w-8 text-mhgreen" />
         )}
       </Link>
 
-      <div className="min-w-0">
+      <div className="relative z-10 min-w-0">
+        <div className="flex flex-wrap items-center gap-2">
+          <span
+            className={`rounded-full border px-2 py-1 text-[10px] font-black uppercase tracking-[0.12em] ${
+              type === "gift"
+                ? "border-mhgreen/30 bg-mhgreen/10 text-mhgreen"
+                : "border-border-soft bg-panel-2/78 text-muted"
+            }`}
+          >
+            {type === "gift" ? "Kutu İçeriği" : "Sepet"}
+          </span>
+
+          <span className="rounded-full border border-border-soft bg-panel-2/78 px-2 py-1 text-[10px] font-black uppercase tracking-[0.12em] text-muted">
+            SKU: {item.sku}
+          </span>
+        </div>
+
         <Link
           href={`/product/${item.slug}`}
-          className="line-clamp-2 text-sm font-black text-foreground transition hover:text-mhgreen"
+          className="mt-2 block line-clamp-2 text-sm font-black leading-5 text-foreground transition hover:text-mhgreen"
         >
           {item.name}
         </Link>
 
-        <p className="mt-1 text-xs font-semibold text-muted">SKU: {item.sku}</p>
-
         {attrs && (
-          <p className="mt-1 text-xs font-semibold text-muted">{attrs}</p>
+          <p className="mt-1 text-xs font-semibold leading-5 text-muted">
+            {attrs}
+          </p>
         )}
 
-        <p className="mt-2 text-base font-black text-mhgreen">
+        <p className="mt-2 text-base font-black tracking-[-0.02em] text-mhgreen">
           {formatPrice(item.unitPrice)}
         </p>
+
+        {type === "gift" && (
+          <p className="mt-1 text-xs font-semibold leading-5 text-muted">
+            Her kutuya {item.quantity} adet konur. Kutu adedi: {boxQuantity}
+          </p>
+        )}
       </div>
 
-      <div className="flex items-center justify-between gap-3 sm:flex-col sm:items-end">
-        <div className="flex h-9 items-center rounded-xl border border-border-soft bg-panel-2 px-1.5">
+      <div className="relative z-10 flex items-center justify-between gap-3 sm:flex-col sm:items-end">
+        <div className="flex h-9 items-center rounded-xl border border-border-soft bg-panel-2/82 px-1.5 shadow-[0_8px_20px_rgba(0,0,0,0.06)]">
           <button
             type="button"
             onClick={decrease}
             className="inline-flex h-7 w-7 items-center justify-center rounded-lg text-foreground transition hover:bg-panel-3 active:scale-95"
-            aria-label="Adedi azalt"
+            aria-label={type === "gift" ? "Kutu başı adedi azalt" : "Adedi azalt"}
           >
             <Minus className="h-3.5 w-3.5" />
           </button>
@@ -156,7 +188,7 @@ function CartLine({
             type="button"
             onClick={increase}
             className="inline-flex h-7 w-7 items-center justify-center rounded-lg text-foreground transition hover:bg-panel-3 active:scale-95"
-            aria-label="Adedi artır"
+            aria-label={type === "gift" ? "Kutu başı adedi artır" : "Adedi artır"}
           >
             <Plus className="h-3.5 w-3.5" />
           </button>
@@ -164,7 +196,7 @@ function CartLine({
 
         <div className="flex items-center gap-2">
           <p className="text-sm font-black text-foreground">
-            {formatPrice(item.unitPrice * item.quantity)}
+            {formatPrice(lineTotal)}
           </p>
 
           <button
@@ -185,26 +217,33 @@ function GiftPackagePanel() {
   const {
     giftPackage,
     setGiftPackageEnabled,
+    setGiftPackageQuantity,
+    increaseGiftPackageQuantity,
+    decreaseGiftPackageQuantity,
     updateGiftPackageInfo,
+    giftUnitSubtotal,
     giftSubtotal,
   } = useCart();
+  const [isExampleOpen, setIsExampleOpen] = useState(false);
+
+  const boxQuantity = Math.max(1, giftPackage.quantity || 1);
 
   return (
-    <section className="rounded-[1.35rem] border border-border-soft bg-panel/72 p-4 shadow-[0_18px_50px_rgba(0,0,0,0.18)] md:p-5">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+    <section className="concept-surface rounded-[1.45rem] border border-border-soft bg-panel/76 p-4 shadow-[0_18px_50px_rgba(0,0,0,0.16)] backdrop-blur md:p-5">
+      <div className="relative z-10 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <div className="inline-flex items-center rounded-full border border-mhgreen/30 bg-mhgreen/10 px-3 py-1 text-[11px] font-black uppercase tracking-[0.14em] text-mhgreen">
             <Gift className="mr-1.5 h-3.5 w-3.5" />
             Hediye Kutusu
           </div>
 
-          <h2 className="mt-3 text-xl font-black text-foreground">
-            Hediye kutusu oluştur
+          <h2 className="mt-3 text-xl font-black tracking-[-0.025em] text-foreground">
+            Kutu içeriğini oluştur
           </h2>
 
-          <p className="mt-1 text-sm leading-6 text-muted">
-            Hediye kutusu için ürünleri ayrı bölümde toplayabilir, özel not
-            ekleyebilirsin.
+          <p className="mt-1 max-w-2xl text-sm font-medium leading-6 text-muted">
+            Buraya eklediğin ürünler bir kutunun içeriğini oluşturur. Kutu adedini
+            ayrıca belirlediğinde aynı içerikten istediğin sayıda hazırlanır.
           </p>
         </div>
 
@@ -214,7 +253,7 @@ function GiftPackagePanel() {
           className={`inline-flex h-10 items-center justify-center rounded-xl border px-4 text-sm font-black transition active:scale-[0.98] ${
             giftPackage.enabled
               ? "border-mhgreen/35 bg-mhgreen/10 text-mhgreen"
-              : "border-border-soft bg-panel-2 text-foreground hover:bg-panel-3"
+              : "border-border-soft bg-panel-2/82 text-foreground hover:bg-panel-3"
           }`}
         >
           {giftPackage.enabled ? "Aktif" : "Aktifleştir"}
@@ -222,24 +261,42 @@ function GiftPackagePanel() {
       </div>
 
       {giftPackage.enabled && (
-        <>
-          <div className="mt-4 grid gap-3 md:grid-cols-2">
-            <label className="block">
-              <span className="text-xs font-black uppercase tracking-[0.12em] text-muted-2">
-                Kutu başlığı
-              </span>
+        <div className="relative z-10">
+          <button
+            type="button"
+            onClick={() => setIsExampleOpen((current) => !current)}
+            className="mt-4 inline-flex min-h-10 items-center justify-center rounded-2xl border border-mhgreen/25 bg-mhgreen/10 px-4 text-sm font-black text-mhgreen transition hover:bg-mhgreen/15 active:scale-[0.98]"
+          >
+            {isExampleOpen ? "Örnek kutuyu gizle" : "Örnek hediye kutusunu göster"}
+          </button>
 
-              <input
-                value={giftPackage.title}
-                onChange={(event) =>
-                  updateGiftPackageInfo({ title: event.target.value })
-                }
-                placeholder="Örn. Anneme özel hediye"
-                className="input-premium mt-2 min-h-10 text-sm"
-              />
-            </label>
+          {isExampleOpen && (
+            <div className="mt-3 overflow-hidden rounded-2xl border border-border-soft bg-panel/66 p-3">
+              <div className="grid gap-3 md:grid-cols-[220px_1fr] md:items-center">
+                <div className="overflow-hidden rounded-xl border border-border-soft bg-panel-3/80">
+                  <img
+                    src="/images/gift-box-example.jpg"
+                    alt="Örnek hediye kutusu"
+                    className="h-44 w-full object-cover"
+                  />
+                </div>
 
-            <label className="block">
+                <div>
+                  <p className="text-sm font-black text-foreground">
+                    Örnek kullanım
+                  </p>
+                  <p className="mt-1 text-sm leading-6 text-muted">
+                    Örneğin bir kutuya 1 tesbih, 1 seccade ve 1 zikirmatik
+                    ekleyip bu kutudan 100 adet sipariş verebilirsin. Stok ve
+                    toplam tutar, kutu adediyle birlikte hesaplanır.
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          <div className="mt-4 grid gap-3 md:grid-cols-[1fr_220px]">
+            <label className="block rounded-2xl border border-border-soft bg-panel/64 p-3">
               <span className="text-xs font-black uppercase tracking-[0.12em] text-muted-2">
                 Hediye notu
               </span>
@@ -249,17 +306,53 @@ function GiftPackagePanel() {
                 onChange={(event) =>
                   updateGiftPackageInfo({ note: event.target.value })
                 }
-                placeholder="Kısa bir not yaz..."
+                placeholder="Kutuya eklenecek kısa not"
                 className="input-premium mt-2 min-h-10 text-sm"
               />
             </label>
+
+            <div className="rounded-2xl border border-mhgreen/25 bg-mhgreen/10 p-3">
+              <span className="text-xs font-black uppercase tracking-[0.12em] text-mhgreen">
+                Kutu adedi
+              </span>
+
+              <div className="mt-2 flex h-11 items-center justify-between rounded-xl border border-mhgreen/25 bg-panel/72 px-1.5">
+                <button
+                  type="button"
+                  onClick={decreaseGiftPackageQuantity}
+                  className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-foreground transition hover:bg-panel-3 active:scale-95"
+                  aria-label="Kutu adedini azalt"
+                >
+                  <Minus className="h-3.5 w-3.5" />
+                </button>
+
+                <input
+                  value={boxQuantity}
+                  onChange={(event) =>
+                    setGiftPackageQuantity(Number(event.target.value))
+                  }
+                  inputMode="numeric"
+                  className="h-8 w-20 bg-transparent text-center text-base font-black text-foreground outline-none"
+                  aria-label="Kutu adedi"
+                />
+
+                <button
+                  type="button"
+                  onClick={increaseGiftPackageQuantity}
+                  className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-foreground transition hover:bg-panel-3 active:scale-95"
+                  aria-label="Kutu adedini artır"
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            </div>
           </div>
 
           <div className="mt-4 space-y-3">
             {giftPackage.items.length === 0 ? (
-              <div className="rounded-2xl border border-border-soft bg-panel/60 p-4 text-sm text-muted">
+              <div className="rounded-2xl border border-border-soft bg-panel/60 p-4 text-sm font-medium leading-6 text-muted">
                 Hediye kutusunda ürün yok. Ürün detay sayfasından “Hediye
-                Kutusu Oluştur” ile ürün ekleyebilirsin.
+                Kutusuna Ekle” ile kutu içeriğine ürün ekleyebilirsin.
               </div>
             ) : (
               giftPackage.items.map((item) => (
@@ -272,42 +365,71 @@ function GiftPackagePanel() {
             )}
           </div>
 
-          <div className="mt-4 flex items-center justify-between rounded-2xl border border-border-soft bg-panel-2/70 p-4">
-            <p className="text-sm font-black text-foreground">
-              Hediye kutusu ara toplamı
-            </p>
-            <p className="text-lg font-black text-mhgreen">
-              {formatPrice(giftSubtotal)}
-            </p>
+          <div className="mt-4 grid gap-3 md:grid-cols-3">
+            <div className="rounded-2xl border border-border-soft bg-panel-2/70 p-4">
+              <p className="text-xs font-black uppercase tracking-[0.12em] text-muted-2">
+                1 kutu içeriği
+              </p>
+              <p className="mt-1 text-lg font-black text-foreground">
+                {formatPrice(giftUnitSubtotal)}
+              </p>
+            </div>
+
+            <div className="rounded-2xl border border-border-soft bg-panel-2/70 p-4">
+              <p className="text-xs font-black uppercase tracking-[0.12em] text-muted-2">
+                Kutu adedi
+              </p>
+              <p className="mt-1 text-lg font-black text-foreground">
+                {boxQuantity} kutu
+              </p>
+            </div>
+
+            <div className="rounded-2xl border border-mhgreen/25 bg-mhgreen/10 p-4">
+              <p className="text-xs font-black uppercase tracking-[0.12em] text-mhgreen">
+                Toplam kutu tutarı
+              </p>
+              <p className="mt-1 text-lg font-black text-mhgreen">
+                {formatPrice(giftSubtotal)}
+              </p>
+            </div>
           </div>
-        </>
+        </div>
       )}
     </section>
   );
 }
 
 function OrderSummary() {
-  const { subtotal, giftSubtotal, total, items, giftPackage, clearCart } =
-    useCart();
+  const {
+    subtotal,
+    giftUnitSubtotal,
+    giftSubtotal,
+    total,
+    items,
+    giftPackage,
+    clearCart,
+  } = useCart();
 
   const missingAmount = Math.max(0, MIN_CART_TOTAL - total);
   const canCheckout = total >= MIN_CART_TOTAL && total > 0;
 
   return (
-    <aside className="rounded-[1.35rem] border border-border-soft bg-panel/72 p-4 shadow-[0_18px_50px_rgba(0,0,0,0.18)] md:p-5 lg:sticky lg:top-24">
-      <div className="flex items-center gap-2">
+    <aside className="concept-surface rounded-[1.45rem] border border-border-soft bg-panel/76 p-4 shadow-[0_18px_50px_rgba(0,0,0,0.16)] backdrop-blur md:p-5">
+      <div className="relative z-10 flex items-center gap-2">
         <PackageCheck className="h-5 w-5 text-mhgreen" />
         <h2 className="text-lg font-black text-foreground">Sipariş Özeti</h2>
       </div>
 
-      <div className="mt-4 space-y-3">
+      <div className="relative z-10 mt-4 space-y-3">
         <div className="flex items-center justify-between text-sm">
           <span className="text-muted">Sepet ara toplamı</span>
-          <span className="font-black text-foreground">{formatPrice(subtotal)}</span>
+          <span className="font-black text-foreground">
+            {formatPrice(subtotal)}
+          </span>
         </div>
 
         <div className="flex items-center justify-between text-sm">
-          <span className="text-muted">Hediye kutusu</span>
+          <span className="text-muted">Hediye kutusu toplamı</span>
           <span className="font-black text-foreground">
             {formatPrice(giftSubtotal)}
           </span>
@@ -316,7 +438,7 @@ function OrderSummary() {
         <div className="border-t border-border-soft pt-3">
           <div className="flex items-center justify-between">
             <span className="text-sm font-black text-foreground">Toplam</span>
-            <span className="text-2xl font-black text-mhgreen">
+            <span className="text-2xl font-black tracking-[-0.03em] text-mhgreen">
               {formatPrice(total)}
             </span>
           </div>
@@ -324,25 +446,26 @@ function OrderSummary() {
       </div>
 
       {total > 0 && !canCheckout && (
-        <div className="mt-4 rounded-2xl border border-warning/25 bg-warning/10 p-3 text-xs font-bold leading-5 text-warning">
+        <div className="relative z-10 mt-4 rounded-2xl border border-warning/25 bg-warning/10 p-3 text-xs font-bold leading-5 text-warning">
           Minimum sepet tutarı için {formatPrice(missingAmount)} daha eklemelisin.
         </div>
       )}
 
       {giftPackage.enabled && giftPackage.items.length > 0 && (
-        <div className="mt-4 rounded-2xl border border-mhgreen/25 bg-mhgreen/10 p-3 text-xs font-bold leading-5 text-mhgreen">
-          Hediye kutusu aktif. Not ve kutu bilgileri checkout adımında siparişe
-          eklenecek.
+        <div className="relative z-10 mt-4 rounded-2xl border border-mhgreen/25 bg-mhgreen/10 p-3 text-xs font-bold leading-5 text-mhgreen">
+          Hediye kutusu aktif: 1 kutu içeriği {formatPrice(giftUnitSubtotal)},
+          kutu adedi {Math.max(1, giftPackage.quantity || 1)}. Toplam tutar
+          kutu adedine göre hesaplanır.
         </div>
       )}
 
-      <div className="mt-4 grid gap-2">
+      <div className="relative z-10 mt-4 grid gap-2">
         <Link
           href={canCheckout ? "/checkout" : "/products"}
           className={`inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl px-4 text-sm font-black transition active:scale-[0.98] ${
             canCheckout
               ? "bg-mhgreen text-white shadow-[0_14px_30px_rgba(34,197,94,0.22)] hover:-translate-y-0.5 hover:bg-mhgreen-dark"
-              : "border border-border-soft bg-panel-2 text-foreground hover:bg-panel-3"
+              : "border border-border-soft bg-panel-2/82 text-foreground hover:bg-panel-3"
           }`}
         >
           {canCheckout ? "Checkout’a Devam Et" : "Ürün Eklemeye Devam Et"}
@@ -360,7 +483,7 @@ function OrderSummary() {
         )}
       </div>
 
-      <div className="mt-5 grid gap-2">
+      <div className="relative z-10 mt-5 grid gap-2">
         <div className="rounded-2xl border border-border-soft bg-panel/60 p-3">
           <p className="text-xs font-black text-foreground">Güvenli alışveriş</p>
           <p className="mt-1 text-xs leading-5 text-muted">
@@ -387,19 +510,21 @@ export default function CartPageClient() {
   return (
     <main className="page-shell">
       <section className="page-container py-5 md:py-6">
-        <div className="mb-5">
-          <p className="text-xs font-black uppercase tracking-[0.14em] text-mhgreen">
-            Sepet
-          </p>
+        <div className="concept-surface mb-5 rounded-[1.45rem] border border-border-soft bg-panel/76 p-4 shadow-[0_18px_50px_rgba(0,0,0,0.14)] backdrop-blur md:p-5">
+          <div className="relative z-10">
+            <p className="text-xs font-black uppercase tracking-[0.14em] text-mhgreen">
+              Sepet
+            </p>
 
-          <h1 className="mt-2 text-2xl font-black tracking-[-0.03em] text-foreground md:text-3xl">
-            Sepetim
-          </h1>
+            <h1 className="mt-2 text-2xl font-black tracking-[-0.03em] text-foreground md:text-3xl">
+              Sepetim
+            </h1>
 
-          <p className="mt-2 max-w-2xl text-sm leading-6 text-muted">
-            Ürünlerini kontrol et, hediye kutusu oluştur ve checkout adımına
-            devam et.
-          </p>
+            <p className="mt-2 max-w-2xl text-sm font-medium leading-6 text-muted">
+              Ürünlerini kontrol et, hediye kutusu oluştur ve checkout adımına
+              devam et.
+            </p>
+          </div>
         </div>
 
         {isEmpty ? (
@@ -407,13 +532,13 @@ export default function CartPageClient() {
         ) : (
           <div className="grid gap-5 lg:grid-cols-[1fr_360px] xl:grid-cols-[1fr_390px]">
             <div className="space-y-5">
-              <section className="rounded-[1.35rem] border border-border-soft bg-panel/72 p-4 shadow-[0_18px_50px_rgba(0,0,0,0.18)] md:p-5">
-                <div className="flex items-center justify-between gap-3">
+              <section className="concept-surface rounded-[1.45rem] border border-border-soft bg-panel/76 p-4 shadow-[0_18px_50px_rgba(0,0,0,0.16)] backdrop-blur md:p-5">
+                <div className="relative z-10 flex items-center justify-between gap-3">
                   <div>
-                    <h2 className="text-xl font-black text-foreground">
+                    <h2 className="text-xl font-black tracking-[-0.02em] text-foreground">
                       Sepet Ürünleri
                     </h2>
-                    <p className="mt-1 text-sm text-muted">
+                    <p className="mt-1 text-sm font-medium text-muted">
                       Normal alışveriş ürünlerin burada listelenir.
                     </p>
                   </div>
@@ -421,9 +546,9 @@ export default function CartPageClient() {
                   <ShoppingBag className="h-6 w-6 text-mhgreen" />
                 </div>
 
-                <div className="mt-4 space-y-3">
+                <div className="relative z-10 mt-4 space-y-3">
                   {items.length === 0 ? (
-                    <div className="rounded-2xl border border-border-soft bg-panel/60 p-4 text-sm text-muted">
+                    <div className="rounded-2xl border border-border-soft bg-panel/60 p-4 text-sm font-medium text-muted">
                       Normal sepette ürün yok.
                     </div>
                   ) : (
@@ -447,29 +572,29 @@ export default function CartPageClient() {
 
         {total > 0 && (
           <div className="mt-5 grid gap-3 md:grid-cols-3">
-            <div className="rounded-2xl border border-border-soft bg-panel/65 p-4">
-              <p className="text-sm font-black text-foreground">
+            <div className="concept-corner rounded-2xl border border-border-soft bg-panel/70 p-4">
+              <p className="relative z-10 text-sm font-black text-foreground">
                 Özenli paketleme
               </p>
-              <p className="mt-1 text-xs leading-5 text-muted">
+              <p className="relative z-10 mt-1 text-xs leading-5 text-muted">
                 Hediye ve normal siparişler ayrı hazırlanabilir.
               </p>
             </div>
 
-            <div className="rounded-2xl border border-border-soft bg-panel/65 p-4">
-              <p className="text-sm font-black text-foreground">
+            <div className="concept-corner rounded-2xl border border-border-soft bg-panel/70 p-4">
+              <p className="relative z-10 text-sm font-black text-foreground">
                 Misafir siparişi
               </p>
-              <p className="mt-1 text-xs leading-5 text-muted">
+              <p className="relative z-10 mt-1 text-xs leading-5 text-muted">
                 Üye olmadan sipariş verip numarayla takip edebilirsin.
               </p>
             </div>
 
-            <div className="rounded-2xl border border-border-soft bg-panel/65 p-4">
-              <p className="text-sm font-black text-foreground">
+            <div className="concept-corner rounded-2xl border border-border-soft bg-panel/70 p-4">
+              <p className="relative z-10 text-sm font-black text-foreground">
                 Güvenli akış
               </p>
-              <p className="mt-1 text-xs leading-5 text-muted">
+              <p className="relative z-10 mt-1 text-xs leading-5 text-muted">
                 Stok ve sipariş bilgileri checkout adımında tekrar doğrulanır.
               </p>
             </div>
