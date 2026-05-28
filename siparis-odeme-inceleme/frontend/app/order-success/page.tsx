@@ -94,8 +94,8 @@ function OrderSuccessContent() {
           </h1>
 
           <p className="relative z-10 mx-auto mt-4 max-w-2xl text-sm font-medium leading-7 text-muted md:text-base">
-            Siparişin başarıyla oluşturuldu. Güvenli ödeme adımına geçebilir
-            veya siparişini takip ekranından kontrol edebilirsin.
+            Siparişin başarıyla oluşturuldu. Ödeme adımına geçebilir veya
+siparişini sipariş takip ekranından kontrol edebilirsin.
           </p>
 
           {orderNumber && (
@@ -167,7 +167,7 @@ function OrderSuccessContent() {
               Sipariş alındı
             </p>
             <p className="relative z-10 mt-1 text-xs leading-5 text-muted">
-              Siparişin güvenle alındı ve ödeme adımına hazırlandı.
+              Sipariş kaydı sistemde oluşturuldu.
             </p>
           </div>
 
@@ -187,7 +187,7 @@ function OrderSuccessContent() {
               Hediye kutusu
             </p>
             <p className="relative z-10 mt-1 text-xs leading-5 text-muted">
-              Kutu içeriği ve kutu adedi sipariş detayında birlikte takip edilir.
+              Hediye kutusu ürünleri siparişe ayrı kaydedilir.
             </p>
           </div>
 
@@ -209,8 +209,8 @@ function OrderSuccessContent() {
             </p>
 
             <p className="mt-1 text-xs leading-5 text-muted">
-              Vitrindeki seçili ürünlere ve yeni hediye seçeneklerine göz
-              atabilirsin.
+              Vitrindeki öne çıkan ürünlere ve kampanya alanlarına geri
+              dönebilirsin.
             </p>
           </div>
 

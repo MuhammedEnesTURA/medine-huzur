@@ -10,7 +10,7 @@ export default function PreInformationPage() {
           className="inline-flex min-h-9 items-center gap-2 rounded-xl border border-border-soft bg-panel/70 px-3 text-sm font-bold text-muted transition hover:text-foreground"
         >
           <ArrowLeft className="h-4 w-4" />
-          Ödeme ve Siparişe Dön
+          Ödeme Ve Siparişe Dön
         </Link>
 
         <article className="mt-5 rounded-[1.35rem] border border-border-soft bg-panel/72 p-5 shadow-[0_18px_50px_rgba(0,0,0,0.18)] md:p-8">
@@ -25,9 +25,10 @@ export default function PreInformationPage() {
               </h1>
 
               <p className="mt-3 max-w-3xl text-sm leading-7 text-muted">
-                Bu form, sipariş öncesinde ürün, satıcı, ödeme, teslimat ve iade
-                süreçleri hakkında müşteriyi bilgilendirmek amacıyla
-                hazırlanmıştır.
+                Bu sayfa sipariş öncesinde müşteriye sunulması gereken temel
+                bilgilendirmeler için hazırlanmıştır. Gerçek şirket bilgileri,
+                adres, iletişim, kargo ve iade şartları yayına çıkmadan önce
+                işletme bilgilerine göre güncellenmelidir.
               </p>
             </div>
 
@@ -47,9 +48,7 @@ export default function PreInformationPage() {
   <br />
   E-posta: corum.medinehuzur@gmail.com
   <br />
-  Telefon: 0 (545) 616 45 33
-  <br />
-  WhatsApp: 0 (531) 161 01 55
+  Telefon: 0 (531) 161 01 55
   <br />
   Adres: Üçtutlar Mah. Osmancık Cad. 10/A, Ulu Camii karşısı,
   Medine Huzur, Çorum/Merkez
@@ -76,9 +75,7 @@ export default function PreInformationPage() {
 
               <p className="mt-2 text-sm leading-7 text-muted">
                 Ürün fiyatları Türk Lirası üzerinden gösterilir. Ödeme yöntemi
-                sipariş tamamlama adımında müşteriye sunulur. Kartlı ödeme
-                işlemleri güvenli ödeme altyapısı üzerinden tamamlanır; kart
-                bilgileri Medine Huzur tarafından saklanmaz.
+                checkout adımında seçilir. Ödeme yöntemi, sipariş tamamlama adımında müşteriye gösterilir.
               </p>
             </section>
 
@@ -88,10 +85,10 @@ export default function PreInformationPage() {
               </h2>
 
               <p className="mt-2 text-sm leading-7 text-muted">
-                Teslimat, müşterinin sipariş adımında bildirdiği adrese yapılır.
-                Kargo firması, takip numarası ve sevkiyat bilgileri sipariş
-                kaydına eklendiğinde müşteri sipariş sorgulama ekranından
-                gönderi durumunu takip edebilir.
+                Teslimat, müşterinin checkout adımında bildirdiği adrese
+                yapılır. Kargo firması, takip numarası ve sevkiyat bilgileri
+                sipariş yönetimi üzerinden güncellenir. Müşteri sipariş
+                sorgulama ekranından kargo durumunu takip edebilir.
               </p>
             </section>
 

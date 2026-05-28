@@ -6,11 +6,11 @@ export default function DistanceSalesPage() {
     <main className="page-shell">
       <section className="page-container py-5 md:py-8">
         <Link
-          href="/checkout"
+          href="/sipariş"
           className="inline-flex min-h-9 items-center gap-2 rounded-xl border border-border-soft bg-panel/70 px-3 text-sm font-bold text-muted transition hover:text-foreground"
         >
           <ArrowLeft className="h-4 w-4" />
-          Ödeme Ve Siparişe Dön
+          Ödeme ve Siparişe Dön
         </Link>
 
         <article className="mt-5 rounded-[1.35rem] border border-border-soft bg-panel/72 p-5 shadow-[0_18px_50px_rgba(0,0,0,0.18)] md:p-8">
@@ -43,7 +43,7 @@ arasındaki temel hak ve yükümlülükleri açıklamak için hazırlanmıştır
 
               <p className="mt-2 text-sm leading-7 text-muted">
                 İşbu sözleşme, sipariş veren alıcı ile Medine Huzur arasında
-                elektronik ortamda kurulmuştur. Alıcı, checkout adımında verdiği
+                elektronik ortamda kurulmuştur. Alıcı, sipariş adımında verdiği
                 bilgilerin doğru ve güncel olduğunu kabul eder.
               </p>
             </section>
@@ -56,7 +56,7 @@ arasındaki temel hak ve yükümlülükleri açıklamak için hazırlanmıştır
               <p className="mt-2 text-sm leading-7 text-muted">
                 Sözleşmenin konusu, alıcının elektronik ortamda sipariş verdiği
                 ürünlerin satışı ve teslimine ilişkin hak ve yükümlülüklerin
-                belirlenmesidir. Ürün adı, adet, fiyat ve toplam tutar checkout
+                belirlenmesidir. Ürün adı, adet, fiyat ve toplam tutar sipariş
                 ekranında gösterilir.
               </p>
             </section>
@@ -78,7 +78,7 @@ arasındaki temel hak ve yükümlülükleri açıklamak için hazırlanmıştır
               </h2>
 
               <p className="mt-2 text-sm leading-7 text-muted">
-                Ürünler, alıcının checkout adımında bildirdiği teslimat adresine
+                Ürünler, alıcının sipariş adımında bildirdiği teslimat adresine
                 gönderilir. Kargo bilgileri siparişe eklendiğinde alıcı sipariş
                 sorgulama ekranından kargo firmasını ve takip numarasını
                 görüntüleyebilir.

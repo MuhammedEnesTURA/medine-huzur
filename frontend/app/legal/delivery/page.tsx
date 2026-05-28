@@ -68,7 +68,7 @@ export default function DeliveryPage() {
               </h2>
 
               <p className="mt-2 text-sm leading-7 text-muted">
-                Teslimat, checkout adımında bildirilen adrese yapılır. Eksik,
+                Teslimat, sipariş adımında bildirilen adrese yapılır. Eksik,
                 hatalı veya ulaşılamayan adres bilgilerinden kaynaklanan
                 gecikmelerde müşteriyle iletişime geçilebilir.
               </p>

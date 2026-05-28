@@ -133,7 +133,7 @@ public async Task<ActionResult<CompleteMockPaymentResponse>> CompleteMock(
 
     if (!string.Equals(order.PaymentProvider, MockPaymentProvider.ProviderName, StringComparison.OrdinalIgnoreCase))
     {
-        return BadRequest(new { message = "Bu ödeme kaydı mevcut ödeme işlemiyle eşleşmiyor." });
+        return BadRequest(new { message = "Bu ödeme kaydı mock ödeme sağlayıcısına ait değil." });
     }
 
     if (order.Status == OrderStatus.Cancelled)

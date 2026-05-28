@@ -1,110 +1,104 @@
 import Link from "next/link";
-import { ArrowLeft, FileText, ShieldCheck } from "lucide-react";
+import { ArrowLeft, LockKeyhole, ShieldCheck } from "lucide-react";
 
-export default function PreInformationPage() {
+export default function PrivacyPolicyPage() {
   return (
     <main className="page-shell">
       <section className="page-container py-5 md:py-8">
         <Link
-          href="/checkout"
+          href="/"
           className="inline-flex min-h-9 items-center gap-2 rounded-xl border border-border-soft bg-panel/70 px-3 text-sm font-bold text-muted transition hover:text-foreground"
         >
           <ArrowLeft className="h-4 w-4" />
-          Ödeme ve Siparişe Dön
+          Ana sayfaya dön
         </Link>
 
         <article className="mt-5 rounded-[1.35rem] border border-border-soft bg-panel/72 p-5 shadow-[0_18px_50px_rgba(0,0,0,0.18)] md:p-8">
           <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
             <div>
               <p className="text-xs font-black uppercase tracking-[0.14em] text-mhgreen">
-                Yasal Bilgilendirme
+                Gizlilik
               </p>
 
               <h1 className="mt-2 text-2xl font-black tracking-[-0.03em] text-foreground md:text-4xl">
-                Ön Bilgilendirme Formu
+                Gizlilik Politikası
               </h1>
 
               <p className="mt-3 max-w-3xl text-sm leading-7 text-muted">
-                Bu form, sipariş öncesinde ürün, satıcı, ödeme, teslimat ve iade
-                süreçleri hakkında müşteriyi bilgilendirmek amacıyla
-                hazırlanmıştır.
+                Bu metin, Medine Huzur e-ticaret sitesi üzerinde kullanıcı
+bilgilerinin hangi amaçlarla işlendiğini ve nasıl korunduğunu
+açıklamak için hazırlanmıştır.
               </p>
             </div>
 
             <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl border border-mhgreen/25 bg-mhgreen/10 text-mhgreen">
-              <FileText className="h-7 w-7" />
+              <LockKeyhole className="h-7 w-7" />
             </div>
           </div>
 
           <div className="mt-8 grid gap-5">
             <section className="rounded-2xl border border-border-soft bg-panel/65 p-4">
               <h2 className="text-lg font-black text-foreground">
-                1. Satıcı Bilgileri
+                1. Toplanan Bilgiler
               </h2>
 
               <p className="mt-2 text-sm leading-7 text-muted">
-  Satıcı: Medine Huzur
-  <br />
-  E-posta: corum.medinehuzur@gmail.com
-  <br />
-  Telefon: 0 (545) 616 45 33
-  <br />
-  WhatsApp: 0 (531) 161 01 55
-  <br />
-  Adres: Üçtutlar Mah. Osmancık Cad. 10/A, Ulu Camii karşısı,
-  Medine Huzur, Çorum/Merkez
-</p>
-            </section>
-
-            <section className="rounded-2xl border border-border-soft bg-panel/65 p-4">
-              <h2 className="text-lg font-black text-foreground">
-                2. Ürün Bilgileri
-              </h2>
-
-              <p className="mt-2 text-sm leading-7 text-muted">
-                Siparişe konu ürünlerin temel özellikleri, satış fiyatı, stok
-                bilgisi, varsa varyant bilgisi ve ürün görselleri ilgili ürün
-                detay sayfasında gösterilir. Sepet ve checkout adımında ürün
-                adetleri ve toplam tutar tekrar görüntülenir.
+                Site üzerinde üyelik, sipariş, ödeme hazırlığı, adres yönetimi
+                ve sipariş takibi süreçlerinde ad soyad, e-posta, telefon,
+                teslimat adresi, sipariş bilgileri ve işlem kayıtları
+                işlenebilir.
               </p>
             </section>
 
             <section className="rounded-2xl border border-border-soft bg-panel/65 p-4">
               <h2 className="text-lg font-black text-foreground">
-                3. Fiyat ve Ödeme
+                2. Bilgilerin Kullanım Amacı
               </h2>
 
               <p className="mt-2 text-sm leading-7 text-muted">
-                Ürün fiyatları Türk Lirası üzerinden gösterilir. Ödeme yöntemi
-                sipariş tamamlama adımında müşteriye sunulur. Kartlı ödeme
-                işlemleri güvenli ödeme altyapısı üzerinden tamamlanır; kart
-                bilgileri Medine Huzur tarafından saklanmaz.
+                Kullanıcı bilgileri sipariş oluşturma, teslimat işlemleri,
+                ödeme sürecinin yürütülmesi, müşteri iletişimi, sipariş takibi,
+                yasal yükümlülüklerin yerine getirilmesi ve güvenli alışveriş
+                deneyiminin sağlanması amacıyla kullanılır.
               </p>
             </section>
 
             <section className="rounded-2xl border border-border-soft bg-panel/65 p-4">
               <h2 className="text-lg font-black text-foreground">
-                4. Teslimat ve Kargo
+                3. Ödeme Bilgileri
               </h2>
 
               <p className="mt-2 text-sm leading-7 text-muted">
-                Teslimat, müşterinin sipariş adımında bildirdiği adrese yapılır.
-                Kargo firması, takip numarası ve sevkiyat bilgileri sipariş
-                kaydına eklendiğinde müşteri sipariş sorgulama ekranından
-                gönderi durumunu takip edebilir.
+                Kart bilgileri site üzerinde saklanmaz. Sanal POS entegrasyonu
+                aktif edildiğinde ödeme işlemleri yetkili ödeme kuruluşu veya
+                banka altyapısı üzerinden yürütülür. Site tarafında ödeme
+                durumu, sipariş numarası ve ödeme referansı gibi işlem bilgileri
+                tutulabilir.
               </p>
             </section>
 
             <section className="rounded-2xl border border-border-soft bg-panel/65 p-4">
               <h2 className="text-lg font-black text-foreground">
-                5. Cayma ve İade
+                4. Üçüncü Taraflarla Paylaşım
               </h2>
 
               <p className="mt-2 text-sm leading-7 text-muted">
-                İade ve cayma koşulları, mesafeli satış sözleşmesi ve yürürlükteki
-                tüketici mevzuatı kapsamında değerlendirilir. Kişiye özel
-                hazırlanan, hijyen nedeniyle iadesi uygun olmayan veya kullanılmış
-                ürünlerde iade koşulları farklılık gösterebilir.
+                Siparişin teslimi için gerekli bilgiler kargo firmasıyla,
+                ödeme işlemleri için gerekli bilgiler ödeme sağlayıcı veya banka
+                altyapısıyla paylaşılabilir. Bunun dışında kişisel bilgiler,
+                yasal zorunluluklar haricinde üçüncü kişilerle paylaşılmaz.
+              </p>
+            </section>
+
+            <section className="rounded-2xl border border-border-soft bg-panel/65 p-4">
+              <h2 className="text-lg font-black text-foreground">
+                5. Güvenlik
+              </h2>
+
+              <p className="mt-2 text-sm leading-7 text-muted">
+                Kullanıcı hesapları token tabanlı oturum akışıyla yönetilir.
+                Site üzerinde güvenli bağlantı, erişim kontrolü ve yetkilendirme
+                mekanizmaları uygulanır.
               </p>
             </section>
 

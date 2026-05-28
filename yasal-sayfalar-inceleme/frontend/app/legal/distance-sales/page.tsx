@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { ArrowLeft, FileText, ShieldCheck } from "lucide-react";
 
-export default function PreInformationPage() {
+export default function DistanceSalesPage() {
   return (
     <main className="page-shell">
       <section className="page-container py-5 md:py-8">
@@ -10,24 +10,23 @@ export default function PreInformationPage() {
           className="inline-flex min-h-9 items-center gap-2 rounded-xl border border-border-soft bg-panel/70 px-3 text-sm font-bold text-muted transition hover:text-foreground"
         >
           <ArrowLeft className="h-4 w-4" />
-          Ödeme ve Siparişe Dön
+          Ödeme Ve Siparişe Dön
         </Link>
 
         <article className="mt-5 rounded-[1.35rem] border border-border-soft bg-panel/72 p-5 shadow-[0_18px_50px_rgba(0,0,0,0.18)] md:p-8">
           <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
             <div>
               <p className="text-xs font-black uppercase tracking-[0.14em] text-mhgreen">
-                Yasal Bilgilendirme
+                Yasal Sözleşme
               </p>
 
               <h1 className="mt-2 text-2xl font-black tracking-[-0.03em] text-foreground md:text-4xl">
-                Ön Bilgilendirme Formu
+                Mesafeli Satış Sözleşmesi
               </h1>
 
               <p className="mt-3 max-w-3xl text-sm leading-7 text-muted">
-                Bu form, sipariş öncesinde ürün, satıcı, ödeme, teslimat ve iade
-                süreçleri hakkında müşteriyi bilgilendirmek amacıyla
-                hazırlanmıştır.
+                Bu metin, internet üzerinden yapılan satışlarda alıcı ve satıcı
+arasındaki temel hak ve yükümlülükleri açıklamak için hazırlanmıştır.
               </p>
             </div>
 
@@ -39,72 +38,74 @@ export default function PreInformationPage() {
           <div className="mt-8 grid gap-5">
             <section className="rounded-2xl border border-border-soft bg-panel/65 p-4">
               <h2 className="text-lg font-black text-foreground">
-                1. Satıcı Bilgileri
+                1. Taraflar
               </h2>
 
               <p className="mt-2 text-sm leading-7 text-muted">
-  Satıcı: Medine Huzur
-  <br />
-  E-posta: corum.medinehuzur@gmail.com
-  <br />
-  Telefon: 0 (545) 616 45 33
-  <br />
-  WhatsApp: 0 (531) 161 01 55
-  <br />
-  Adres: Üçtutlar Mah. Osmancık Cad. 10/A, Ulu Camii karşısı,
-  Medine Huzur, Çorum/Merkez
-</p>
-            </section>
-
-            <section className="rounded-2xl border border-border-soft bg-panel/65 p-4">
-              <h2 className="text-lg font-black text-foreground">
-                2. Ürün Bilgileri
-              </h2>
-
-              <p className="mt-2 text-sm leading-7 text-muted">
-                Siparişe konu ürünlerin temel özellikleri, satış fiyatı, stok
-                bilgisi, varsa varyant bilgisi ve ürün görselleri ilgili ürün
-                detay sayfasında gösterilir. Sepet ve checkout adımında ürün
-                adetleri ve toplam tutar tekrar görüntülenir.
+                İşbu sözleşme, sipariş veren alıcı ile Medine Huzur arasında
+                elektronik ortamda kurulmuştur. Alıcı, checkout adımında verdiği
+                bilgilerin doğru ve güncel olduğunu kabul eder.
               </p>
             </section>
 
             <section className="rounded-2xl border border-border-soft bg-panel/65 p-4">
               <h2 className="text-lg font-black text-foreground">
-                3. Fiyat ve Ödeme
+                2. Sözleşme Konusu
               </h2>
 
               <p className="mt-2 text-sm leading-7 text-muted">
-                Ürün fiyatları Türk Lirası üzerinden gösterilir. Ödeme yöntemi
-                sipariş tamamlama adımında müşteriye sunulur. Kartlı ödeme
-                işlemleri güvenli ödeme altyapısı üzerinden tamamlanır; kart
-                bilgileri Medine Huzur tarafından saklanmaz.
+                Sözleşmenin konusu, alıcının elektronik ortamda sipariş verdiği
+                ürünlerin satışı ve teslimine ilişkin hak ve yükümlülüklerin
+                belirlenmesidir. Ürün adı, adet, fiyat ve toplam tutar checkout
+                ekranında gösterilir.
               </p>
             </section>
 
             <section className="rounded-2xl border border-border-soft bg-panel/65 p-4">
               <h2 className="text-lg font-black text-foreground">
-                4. Teslimat ve Kargo
+                3. Ödeme ve Sipariş Onayı
               </h2>
 
               <p className="mt-2 text-sm leading-7 text-muted">
-                Teslimat, müşterinin sipariş adımında bildirdiği adrese yapılır.
-                Kargo firması, takip numarası ve sevkiyat bilgileri sipariş
-                kaydına eklendiğinde müşteri sipariş sorgulama ekranından
-                gönderi durumunu takip edebilir.
+                Sipariş, alıcının gerekli bilgileri doldurması ve yasal onayları
+                kabul etmesiyle oluşturulur. Ödeme işlemleri, sipariş adımında sunulan ödeme yöntemi üzerinden gerçekleştirilir ve ödeme sonucu sipariş kaydına işlenir.
               </p>
             </section>
 
             <section className="rounded-2xl border border-border-soft bg-panel/65 p-4">
               <h2 className="text-lg font-black text-foreground">
-                5. Cayma ve İade
+                4. Teslimat
               </h2>
 
               <p className="mt-2 text-sm leading-7 text-muted">
-                İade ve cayma koşulları, mesafeli satış sözleşmesi ve yürürlükteki
-                tüketici mevzuatı kapsamında değerlendirilir. Kişiye özel
-                hazırlanan, hijyen nedeniyle iadesi uygun olmayan veya kullanılmış
-                ürünlerde iade koşulları farklılık gösterebilir.
+                Ürünler, alıcının checkout adımında bildirdiği teslimat adresine
+                gönderilir. Kargo bilgileri siparişe eklendiğinde alıcı sipariş
+                sorgulama ekranından kargo firmasını ve takip numarasını
+                görüntüleyebilir.
+              </p>
+            </section>
+
+            <section className="rounded-2xl border border-border-soft bg-panel/65 p-4">
+              <h2 className="text-lg font-black text-foreground">
+                5. Cayma Hakkı
+              </h2>
+
+              <p className="mt-2 text-sm leading-7 text-muted">
+                Alıcı, ilgili mevzuatta belirtilen şartlar dahilinde cayma
+                hakkını kullanabilir. Kişiye özel hazırlanan ürünlerde, hijyen
+                koşulları nedeniyle iadesi uygun olmayan ürünlerde veya
+                kullanılmış ürünlerde cayma hakkı sınırlanabilir.
+              </p>
+            </section>
+
+            <section className="rounded-2xl border border-border-soft bg-panel/65 p-4">
+              <h2 className="text-lg font-black text-foreground">
+                6. Uyuşmazlık
+              </h2>
+
+              <p className="mt-2 text-sm leading-7 text-muted">
+                Taraflar arasında doğabilecek uyuşmazlıklarda yürürlükteki
+                tüketici mevzuatı ve yetkili merciler esas alınır.
               </p>
             </section>
 

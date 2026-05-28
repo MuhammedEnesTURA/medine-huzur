@@ -60,8 +60,8 @@ function PaymentFailureContent() {
           </h1>
 
           <p className="relative z-10 mx-auto mt-4 max-w-2xl text-sm font-medium leading-7 text-muted md:text-base">
-            {reason} Sipariş kaydın oluşmuş olabilir; ödeme durumunu sipariş
-            sorgulama ekranından kontrol edebilir veya ödemeyi tekrar
+            {reason} Sipariş numaran varsa ödeme durumunu sipariş sorgulama
+            ekranından kontrol edebilir veya ödeme adımını tekrar
             deneyebilirsin.
           </p>
 
@@ -132,7 +132,7 @@ function PaymentFailureContent() {
             <CreditCard className="relative z-10 h-5 w-5 text-mhgreen" />
 
             <p className="relative z-10 mt-3 text-sm font-black text-foreground">
-              Ödeme tekrar denenebilir
+              Ödeme adımı tekrar denenebilir
             </p>
 
             <p className="relative z-10 mt-1 text-xs leading-5 text-muted">

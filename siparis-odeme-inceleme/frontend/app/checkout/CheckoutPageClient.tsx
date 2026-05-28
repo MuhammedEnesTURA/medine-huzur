@@ -447,11 +447,11 @@ export default function CheckoutPageClient() {
             </div>
 
             <h1 className="relative z-10 mt-5 text-2xl font-black text-foreground">
-              Sepetin boş
+              Checkout için sepet boş
             </h1>
 
             <p className="relative z-10 mx-auto mt-2 max-w-md text-sm font-medium leading-6 text-muted">
-              Sipariş oluşturmak için önce sepetine ürün veya hediye kutusu içeriği eklemelisin.
+              Sipariş oluşturmak için önce ürün eklemelisin.
             </p>
 
             <Link
@@ -777,9 +777,10 @@ export default function CheckoutPageClient() {
                         </p>
 
                         <p className="mt-1 text-xs leading-5 text-muted">
-                          Ödeme adımında kart bilgileri yalnızca güvenli ödeme
-                          altyapısı üzerinde işlenir. Medine Huzur kart
-                          bilgilerini saklamaz.
+                          Gerçek sanal POS entegrasyonu aktif edildiğinde kart
+                          bilgileri banka veya ödeme sağlayıcı güvenli ödeme
+                          ekranında işlenir. Medine Huzur kart bilgilerini
+                          kaydetmez.
                         </p>
                       </div>
                     </div>
@@ -1002,10 +1003,10 @@ export default function CheckoutPageClient() {
                 {isSubmitting ? (
                   <>
                     <Loader2 className="h-4 w-4 animate-spin" />
-                    Sipariş hazırlanıyor
+                    Sipariş oluşturuluyor
                   </>
                 ) : (
-                  "Siparişi Onayla"
+                  "Siparişi Oluştur"
                 )}
               </button>
             </section>
@@ -1020,7 +1021,7 @@ export default function CheckoutPageClient() {
 
                 <p className="relative z-10 mt-1 text-xs leading-5 text-muted">
                   Sipariş oluşturulduktan sonra güvenli ödeme adımına
-                  yönlendirileceksin. Kart bilgileri Medine Huzur tarafından saklanmaz.
+                  geçeceksin. Kart bilgileri site üzerinde saklanmaz.
                 </p>
               </div>
 
@@ -1033,7 +1034,7 @@ export default function CheckoutPageClient() {
 
                 <p className="relative z-10 mt-1 text-xs leading-5 text-muted">
   Kargo bilgileri siparişe eklendiğinde sipariş sorgulama ekranından
-                  takip edilebilir.
+  takip edilebilir.
 </p>
               </div>
             </section>

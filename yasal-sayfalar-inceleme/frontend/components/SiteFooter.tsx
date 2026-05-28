@@ -110,7 +110,7 @@ export default function SiteFooter() {
             <FooterTitle>Medine Huzur</FooterTitle>
 
             <p className="text-sm leading-7 text-muted">
-              Tesbih, seccade, hac malzemeleri, İslami ürünler, hediyelik ürünler ve özel hediye kutusu
+              Tesbih, seccade, hac malzemeleri,islami ürünler, hediyelik ürünler ve özel hediye kutusu
 seçenekleriyle güvenilir alışveriş deneyimi.
             </p>
 
@@ -119,7 +119,7 @@ seçenekleriyle güvenilir alışveriş deneyimi.
                 Hediye kutusu desteği
               </p>
               <p className="mt-1 text-xs leading-5 text-muted">
-                Seçtiğin ürünlerle kutu içeriği oluşturabilir, aynı içerikten dilediğin adet sipariş verebilirsin.
+                Ürünleri sepete veya özel hediye kutusuna ekleyebilirsin.
               </p>
             </div>
           </div>

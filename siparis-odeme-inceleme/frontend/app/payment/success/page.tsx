@@ -60,7 +60,7 @@ function PaymentSuccessContent() {
 
           <p className="relative z-10 mx-auto mt-4 max-w-2xl text-sm font-medium leading-7 text-muted md:text-base">
             Ödemen başarıyla tamamlandı. Sipariş durumunu hesabından veya
-            misafir sipariş sorgulama ekranından güvenle takip edebilirsin.
+            misafir sipariş sorgulama ekranından takip edebilirsin.
           </p>
 
           <div className="relative z-10 mx-auto mt-6 grid max-w-xl gap-3 text-left sm:grid-cols-2">
@@ -117,11 +117,12 @@ function PaymentSuccessContent() {
             <ReceiptText className="relative z-10 h-5 w-5 text-mhgreen" />
 
             <p className="relative z-10 mt-3 text-sm font-black text-foreground">
-              Ödeme onaylandı
+              Ödeme kaydı oluşturuldu
             </p>
 
             <p className="relative z-10 mt-1 text-xs leading-5 text-muted">
-              Siparişin ödeme onayıyla birlikte hazırlık sürecine alınır.
+              Ödeme başarılı olduğunda sipariş ödeme durumu sistemde ödendi
+olarak güncellenir.
             </p>
           </div>
 
