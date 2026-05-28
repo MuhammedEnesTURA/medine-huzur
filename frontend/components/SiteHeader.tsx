@@ -156,21 +156,21 @@ export default function SiteHeader() {
       <div className="pointer-events-none absolute inset-x-0 bottom-0 h-px bg-gradient-to-r from-transparent via-mhgreen/16 to-transparent" />
 
       <div className="page-container">
-        <div className="flex min-h-[58px] items-center gap-4 py-1.5 lg:min-h-[64px]">
+        <div className="flex min-h-[66px] items-center gap-4 py-1.5 lg:min-h-[72px]">
           <Link
             href="/"
             className="group flex shrink-0 items-center gap-2.5 pr-2"
             aria-label="Medine Huzur Ana Sayfa"
           >
-            <div className="relative h-[44px] w-[44px] shrink-0 transition duration-200 group-hover:scale-[1.035]">
+            <div className="relative h-[54px] w-[54px] shrink-0 transition duration-200 group-hover:scale-[1.035]">
               <Image
-                src="/logo.png"
-                alt="Medine Huzur"
-                fill
-                sizes="44px"
-                className="object-contain drop-shadow-[0_10px_18px_rgba(21,128,61,0.14)]"
-                priority
-              />
+  src="/images/medine-huzur-logo-v2.png"
+  alt="Medine Huzur"
+  fill
+  sizes="54px"
+  className="object-contain drop-shadow-[0_10px_18px_rgba(21,128,61,0.14)]"
+  priority
+/>
             </div>
 
             <div className="hidden min-w-0 leading-none sm:block">

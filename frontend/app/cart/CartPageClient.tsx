@@ -468,7 +468,7 @@ function OrderSummary() {
               : "border border-border-soft bg-panel-2/82 text-foreground hover:bg-panel-3"
           }`}
         >
-          {canCheckout ? "Checkout’a Devam Et" : "Ürün Eklemeye Devam Et"}
+          {canCheckout ? "Siparişi Tamamla" : "Ürün Eklemeye Devam Et"}
           <ArrowRight className="h-4 w-4" />
         </Link>
 
@@ -521,8 +521,8 @@ export default function CartPageClient() {
             </h1>
 
             <p className="mt-2 max-w-2xl text-sm font-medium leading-6 text-muted">
-              Ürünlerini kontrol et, hediye kutusu oluştur ve checkout adımına
-              devam et.
+              Ürünlerini kontrol et, hediye kutusu oluştur ve sipariş bilgileri
+adımına devam et.
             </p>
           </div>
         </div>

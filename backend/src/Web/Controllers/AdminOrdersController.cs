@@ -1,5 +1,8 @@
+using System.Globalization;
+using System.Net;
 using MedineHuzur.Domain.Entities;
 using MedineHuzur.Infrastructure;
+using MedineHuzur.Web.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -12,11 +15,21 @@ namespace MedineHuzur.Web.Controllers;
 public class AdminOrdersController : ControllerBase
 {
     private readonly ECommerceContext _db;
+private readonly IEmailService _emailService;
+private readonly IConfiguration _configuration;
+private readonly ILogger<AdminOrdersController> _logger;
 
-    public AdminOrdersController(ECommerceContext db)
-    {
-        _db = db;
-    }
+public AdminOrdersController(
+    ECommerceContext db,
+    IEmailService emailService,
+    IConfiguration configuration,
+    ILogger<AdminOrdersController> logger)
+{
+    _db = db;
+    _emailService = emailService;
+    _configuration = configuration;
+    _logger = logger;
+}
 
     [HttpGet]
     public async Task<ActionResult<AdminOrderListResponse>> GetAll(
@@ -72,6 +85,7 @@ public class AdminOrdersController : ControllerBase
                 x.Items.Count(),
                 x.GiftPackageItems.Count(),
                 x.IsGiftPackage,
+                x.GiftPackageQuantity,
                 x.ShippingCompany,
                 x.TrackingNumber
             ))
@@ -210,6 +224,11 @@ public async Task<ActionResult<AdminOrderDetailDto>> UpdateStatus(
         return NotFound(new { message = "Sipariş güncellendi fakat tekrar okunamadı." });
     }
 
+    if (oldStatus != OrderStatus.Shipped && updatedOrder.Status == OrderStatus.Shipped)
+    {
+        await SendOrderShippedEmailAsync(updatedOrder, cancellationToken);
+    }
+
     return Ok(ToDetailDto(updatedOrder));
 }
 
@@ -296,6 +315,23 @@ public async Task<ActionResult<AdminOrderDetailDto>> UpdateShipping(
     {
         return NotFound(new { message = "Sipariş güncellendi fakat tekrar okunamadı." });
     }
+
+    var hadShippingInfoBefore =
+    !string.IsNullOrWhiteSpace(existingOrder.ShippingCompany) ||
+    !string.IsNullOrWhiteSpace(existingOrder.TrackingNumber);
+
+var hasShippingInfoAfter =
+    !string.IsNullOrWhiteSpace(updatedOrder.ShippingCompany) ||
+    !string.IsNullOrWhiteSpace(updatedOrder.TrackingNumber);
+
+var shouldSendShippingEmail =
+    hasShippingInfoAfter &&
+    (oldStatus != OrderStatus.Shipped || !hadShippingInfoBefore);
+
+if (shouldSendShippingEmail)
+{
+    await SendOrderShippedEmailAsync(updatedOrder, cancellationToken);
+}
 
     return Ok(ToDetailDto(updatedOrder));
 }
@@ -435,6 +471,7 @@ public async Task<ActionResult<AdminOrderDetailDto>> UpdateShipping(
         return Ok(ToDetailDto(order));
     }
 
+
     private async Task RestoreStockForCancelledOrderAsync(
         Order order,
         CancellationToken cancellationToken)
@@ -510,6 +547,150 @@ public async Task<ActionResult<AdminOrderDetailDto>> UpdateShipping(
         }
     }
 
+private async Task SendOrderShippedEmailAsync(Order order, CancellationToken cancellationToken)
+{
+    if (string.IsNullOrEmpty(order.Email)) return;
+
+    var frontendBaseUrl = _configuration["Frontend:BaseUrl"] ?? "http://localhost:3000";
+
+    // Misafir ve üye ayrımı
+    var trackUrl = order.UserId == null
+        ? $"{frontendBaseUrl}/guest-orders?orderNumber={Uri.EscapeDataString(order.OrderNumber)}&email={Uri.EscapeDataString(order.Email)}"
+        : $"{frontendBaseUrl}/account/orders/{order.Id}";
+
+    var html = $@"
+<p>Merhaba {WebUtility.HtmlEncode(order.CustomerName)},</p>
+<p>Siparişiniz kargoya verildi.</p>
+<p>Kargo Firması: {WebUtility.HtmlEncode(order.ShippingCompany)}</p>
+<p>Takip No: {WebUtility.HtmlEncode(order.TrackingNumber)}</p>
+<p><a href='{trackUrl}'>Siparişimi Sorgula</a></p>";
+
+    try
+    {
+        await _emailService.SendAsync(
+            order.Email,
+            $"Medine Huzur - Siparişiniz Kargoya Verildi ({order.OrderNumber})",
+            html,
+            cancellationToken
+        );
+    }
+    catch (Exception ex)
+    {
+        _logger.LogError(ex, "Shipping email could not be sent.");
+    }
+}
+
+private string BuildOrderShippedHtml(Order order)
+{
+    var frontendBaseUrl = GetFrontendBaseUrl();
+    var guestOrderUrl =
+        $"{frontendBaseUrl}/guest-orders?orderNumber={Uri.EscapeDataString(order.OrderNumber)}&email={Uri.EscapeDataString(order.Email)}";
+
+    var shippingCompany = string.IsNullOrWhiteSpace(order.ShippingCompany)
+        ? "Kargo firması bilgisi hazırlanıyor"
+        : HtmlEncode(order.ShippingCompany);
+
+    var trackingNumber = string.IsNullOrWhiteSpace(order.TrackingNumber)
+        ? "Takip numarası hazırlanıyor"
+        : HtmlEncode(order.TrackingNumber);
+
+    var shippedAt = order.ShippedAtUtc.HasValue
+        ? order.ShippedAtUtc.Value.ToString("dd.MM.yyyy HH:mm", CultureInfo.GetCultureInfo("tr-TR"))
+        : DateTime.UtcNow.ToString("dd.MM.yyyy HH:mm", CultureInfo.GetCultureInfo("tr-TR"));
+
+    return $"""
+        <div style="margin:0;padding:0;background:#f3f7f4;font-family:Arial,Helvetica,sans-serif;color:#111827">
+            <div style="max-width:720px;margin:0 auto;padding:24px">
+                <div style="background:#ffffff;border:1px solid #d8eadf;border-radius:18px;overflow:hidden">
+                    <div style="padding:22px 24px;background:#0f8a43;color:#ffffff">
+                        <div style="font-size:12px;letter-spacing:3px;font-weight:800;text-transform:uppercase">
+                            Medine Huzur
+                        </div>
+                        <h1 style="margin:8px 0 0;font-size:26px;line-height:1.2">
+                            Siparişiniz kargoya verildi
+                        </h1>
+                        <p style="margin:8px 0 0;color:#dcfce7">
+                            Siparişiniz özenle hazırlanarak kargo firmasına teslim edilmiştir.
+                        </p>
+                    </div>
+
+                    <div style="padding:24px">
+                        <p style="margin:0 0 16px;font-size:15px;line-height:1.7">
+                            Merhaba <strong>{HtmlEncode(order.CustomerName)}</strong>, siparişinizin kargo bilgileri aşağıdadır.
+                        </p>
+
+                        <div style="border:1px solid #d8eadf;border-radius:14px;padding:16px;margin-bottom:18px;background:#f8fcf9">
+                            <table style="width:100%;border-collapse:collapse;font-size:14px">
+                                <tr>
+                                    <td style="padding:8px 0;color:#4b5563">Sipariş numarası</td>
+                                    <td style="padding:8px 0;text-align:right;color:#0f8a43;font-weight:800">{HtmlEncode(order.OrderNumber)}</td>
+                                </tr>
+                                <tr>
+                                    <td style="padding:8px 0;color:#4b5563">Kargo firması</td>
+                                    <td style="padding:8px 0;text-align:right;color:#111827;font-weight:700">{shippingCompany}</td>
+                                </tr>
+                                <tr>
+                                    <td style="padding:8px 0;color:#4b5563">Takip numarası</td>
+                                    <td style="padding:8px 0;text-align:right;color:#111827;font-weight:700">{trackingNumber}</td>
+                                </tr>
+                                <tr>
+                                    <td style="padding:8px 0;color:#4b5563">Kargoya veriliş zamanı</td>
+                                    <td style="padding:8px 0;text-align:right;color:#111827;font-weight:700">{HtmlEncode(shippedAt)}</td>
+                                </tr>
+                            </table>
+                        </div>
+
+                        <div style="border:1px solid #d8eadf;border-radius:14px;padding:16px;background:#ffffff">
+                            <p style="margin:0 0 8px;font-weight:800;color:#111827">
+                                Teslimat bilgileri
+                            </p>
+                            <p style="margin:0 0 6px"><strong>Ad Soyad:</strong> {HtmlEncode(order.CustomerName)}</p>
+                            <p style="margin:0 0 6px"><strong>Telefon:</strong> {HtmlEncode(order.Phone)}</p>
+                            <p style="margin:0"><strong>Adres:</strong> {HtmlEncode(order.AddressText)}</p>
+                        </div>
+
+                        <div style="margin-top:22px;text-align:center">
+                            <a href="{guestOrderUrl}" style="display:inline-block;background:#0f8a43;color:#ffffff;text-decoration:none;padding:13px 18px;border-radius:12px;font-weight:800">
+                                Siparişimi Sorgula
+                            </a>
+                        </div>
+
+                        <p style="margin:22px 0 0;color:#6b7280;font-size:12px;line-height:1.6">
+                            Kargo takip bilgisinin kargo firmasının sistemine yansıması kısa bir süre alabilir.
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+        """;
+}
+
+private async Task SafeSendEmailAsync(
+    string to,
+    string subject,
+    string html,
+    CancellationToken cancellationToken)
+{
+    try
+    {
+        await _emailService.SendAsync(to, subject, html, cancellationToken);
+    }
+    catch (Exception ex)
+    {
+        _logger.LogError(ex, "Shipping email could not be sent. To: {To}, Subject: {Subject}", to, subject);
+    }
+}
+
+private string GetFrontendBaseUrl()
+{
+    return _configuration["Frontend:BaseUrl"]?.TrimEnd('/')
+        ?? "http://localhost:3000";
+}
+
+private static string HtmlEncode(string? value)
+{
+    return WebUtility.HtmlEncode(value ?? string.Empty);
+}
     private static AdminOrderDetailDto ToDetailDto(Order order)
     {
         return new AdminOrderDetailDto(
@@ -648,6 +829,7 @@ public sealed record AdminOrderSummaryDto(
     int ItemCount,
     int GiftPackageItemCount,
     bool IsGiftPackage,
+    int GiftPackageQuantity,
     string? ShippingCompany,
     string? TrackingNumber);
 

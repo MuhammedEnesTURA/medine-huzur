@@ -1,0 +1,25 @@
+# *
+User-agent: *
+Allow: /
+Disallow: /admin
+Disallow: /admin/*
+Disallow: /account
+Disallow: /account/*
+Disallow: /checkout
+Disallow: /cart
+Disallow: /login
+Disallow: /register
+Disallow: /forgot-password
+Disallow: /reset-password
+Disallow: /confirm-email
+Disallow: /guest-orders
+Disallow: /order-success
+Disallow: /payment/mock
+Disallow: /payment/success
+Disallow: /payment/failure
+
+# Host
+Host: https://www.medinehuzur.com
+
+# Sitemaps
+Sitemap: https://www.medinehuzur.com/sitemap.xml
