@@ -1,14 +1,18 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { MailWarning, RefreshCcw } from "lucide-react";
+import { MailWarning, RefreshCcw, Loader2, X } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 
 export default function EmailVerificationNotice() {
   const router = useRouter();
   const { user, isAuthenticated, isReady, refreshUser, resendVerification } =
     useAuth();
+    
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [isResending, setIsResending] = useState(false);
+  const [isHidden, setIsHidden] = useState(false); // Kullanıcının kapatabilmesi için
 
   const checkedLatestUserRef = useRef(false);
 
@@ -26,61 +30,78 @@ export default function EmailVerificationNotice() {
 
   if (!isReady || !isAuthenticated || !user) return null;
   if (user.emailConfirmed === true) return null;
+  if (isHidden) return null;
+
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    checkedLatestUserRef.current = true;
+    try {
+      await refreshUser();
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
+
+  const handleResend = async () => {
+    setIsResending(true);
+    try {
+      await resendVerification();
+    } finally {
+      setIsResending(false);
+    }
+  };
 
   return (
-    <section className="page-container -mt-16 pt-3 md:-mt-20 md:pt-4 lg:-mt-24">
-      <div className="relative z-10 mx-auto max-w-6xl overflow-hidden rounded-2xl border border-amber-300/70 bg-amber-50/92 px-3.5 py-2.5 text-amber-950 shadow-[0_12px_30px_rgba(120,73,18,0.10)] backdrop-blur dark:border-amber-400/30 dark:bg-amber-950/55 dark:text-amber-50">
-        <div className="absolute inset-y-0 left-0 w-1 bg-amber-400" />
+    <div className="fixed bottom-4 left-4 right-4 z-[9999] md:bottom-6 md:left-auto md:right-6 md:w-[380px] overflow-hidden rounded-xl border border-amber-300/70 bg-amber-50/95 p-3 text-amber-950 shadow-2xl backdrop-blur dark:border-amber-400/30 dark:bg-amber-950/95 dark:text-amber-50">
+      {/* Sol Kenar Çizgisi */}
+      <div className="absolute inset-y-0 left-0 w-1.5 bg-amber-400" />
 
-        <div className="flex flex-col gap-2.5 lg:flex-row lg:items-center lg:justify-between">
-          <div className="flex min-w-0 items-center gap-2.5">
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-amber-300/70 bg-amber-100 text-amber-700 dark:border-amber-300/30 dark:bg-amber-300/10 dark:text-amber-200">
-              <MailWarning className="h-4.5 w-4.5" />
-            </div>
+      {/* Kapat Butonu */}
+      <button 
+        onClick={() => setIsHidden(true)}
+        className="absolute right-2 top-2 rounded-md p-1 text-amber-700/50 transition hover:bg-amber-200/50 hover:text-amber-900 dark:text-amber-200/50 dark:hover:bg-amber-800/50 dark:hover:text-amber-100"
+        aria-label="Kapat"
+      >
+        <X className="h-4 w-4" />
+      </button>
 
-            <div className="min-w-0">
-              <p className="text-sm font-extrabold leading-5">
-                E-posta adresiniz henüz doğrulanmadı.
-              </p>
+      <div className="flex items-start gap-3 pl-2 pr-6">
+        <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-amber-200/50 text-amber-700 dark:bg-amber-500/20 dark:text-amber-300">
+          <MailWarning className="h-4 w-4" />
+        </div>
 
-              <p className="mt-0.5 text-xs font-medium leading-5 text-amber-900/75 dark:text-amber-50/75">
-                Hesap güvenliği ve sipariş bilgilendirmeleri için doğrulama
-                mailindeki bağlantıyı kullanın.
-              </p>
-            </div>
-          </div>
+        <div className="min-w-0 flex-1">
+          <p className="text-[13px] font-bold leading-tight">
+            E-posta doğrulaması gerekli
+          </p>
+          {/* Sadece masaüstünde görünen açıklama */}
+          <p className="mt-1 hidden text-[11px] leading-tight text-amber-900/70 dark:text-amber-100/60 sm:block">
+            Hesap güvenliği ve sipariş detayları için lütfen e-postanızı doğrulayın.
+          </p>
 
-          <div className="grid grid-cols-1 gap-2 sm:grid-cols-3 lg:flex lg:shrink-0 lg:justify-end">
+          <div className="mt-2.5 flex flex-wrap gap-2">
             <button
               type="button"
-              onClick={() => {
-                checkedLatestUserRef.current = true;
-                void refreshUser();
-              }}
-              className="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-xl border border-amber-300/70 bg-white/55 px-3 text-xs font-extrabold text-amber-950 transition hover:bg-white/80 dark:border-amber-200/25 dark:bg-white/5 dark:text-amber-50 dark:hover:bg-white/10"
+              onClick={handleResend}
+              disabled={isResending}
+              className="inline-flex h-7 items-center justify-center gap-1.5 rounded-lg bg-amber-400 px-3 text-[11px] font-bold text-amber-950 transition hover:bg-amber-300 disabled:opacity-50"
             >
-              <RefreshCcw className="h-3.5 w-3.5" />
-              Durumu Yenile
+              {isResending && <Loader2 className="h-3 w-3 animate-spin" />}
+              {isResending ? "Gönderiliyor" : "Mail Gönder"}
             </button>
-
+            
             <button
               type="button"
-              onClick={() => void resendVerification()}
-              className="inline-flex min-h-9 items-center justify-center rounded-xl border border-amber-300/70 bg-white/55 px-3 text-xs font-extrabold text-amber-950 transition hover:bg-white/80 dark:border-amber-200/25 dark:bg-white/5 dark:text-amber-50 dark:hover:bg-white/10"
+              onClick={handleRefresh}
+              disabled={isRefreshing}
+              className="inline-flex h-7 items-center justify-center gap-1.5 rounded-lg border border-amber-300/70 bg-white/50 px-3 text-[11px] font-bold text-amber-950 transition hover:bg-white/80 disabled:opacity-50 dark:border-amber-500/30 dark:bg-amber-900/40 dark:text-amber-100 dark:hover:bg-amber-900/60"
             >
-              Maili Tekrar Gönder
-            </button>
-
-            <button
-              type="button"
-              onClick={() => router.push("/account/settings")}
-              className="inline-flex min-h-9 items-center justify-center rounded-xl bg-amber-400 px-3 text-xs font-black text-amber-950 shadow-[0_10px_22px_rgba(251,191,36,0.18)] transition hover:bg-amber-300"
-            >
-              Hesap Ayarları
+              {isRefreshing ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCcw className="h-3 w-3" />}
+              Yenile
             </button>
           </div>
         </div>
       </div>
-    </section>
+    </div>
   );
 }
