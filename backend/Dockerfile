@@ -1,30 +1,17 @@
-﻿# Base image olarak .NET 10 SDK kullanıyoruz
-FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
-
-# Çalışma dizinini ayarla
+﻿FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 WORKDIR /app
 
-# .csproj dosyalarını kopyala ve restore et
-COPY src/Web/Web.csproj ./Web/
-COPY src/Domain/Domain.csproj ./Domain/
-COPY src/Infrastructure/Infrastructure.csproj ./Infrastructure/
-COPY src/Application/Application.csproj ./Application/
+COPY backend/src ./src
 
-RUN dotnet restore Web/Web.csproj
+RUN dotnet restore src/Web/Web.csproj
+RUN dotnet publish src/Web/Web.csproj -c Release -o /app/publish
 
-# Tüm kaynak kodunu kopyala
-COPY src/ ./src/
-
-# Uygulamayı publish et
-RUN dotnet publish Web/Web.csproj -c Release -o /app/publish
-
-# Runtime image
-FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
+FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS final
 WORKDIR /app
+
 COPY --from=build /app/publish .
 
-# Port ayarla
-EXPOSE 5096
+ENV ASPNETCORE_URLS=http://+:8080
+EXPOSE 8080
 
-# Uygulamayı çalıştır
 ENTRYPOINT ["dotnet", "Web.dll"]
