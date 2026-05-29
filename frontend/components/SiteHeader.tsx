@@ -162,23 +162,25 @@ export default function SiteHeader() {
             className="group flex shrink-0 items-center gap-2.5 pr-2"
             aria-label="Medine Huzur Ana Sayfa"
           >
-            <div className="relative h-[54px] w-[54px] shrink-0 transition duration-200 group-hover:scale-[1.035]">
+            {/* Logo boyutunu mobilde hafif kıstık ki yazılara yer açılsın */}
+            <div className="relative h-[44px] w-[44px] sm:h-[54px] sm:w-[54px] shrink-0 transition duration-200 group-hover:scale-[1.035]">
               <Image
-  src="/images/medine-huzur-logo-v2.png"
-  alt="Medine Huzur"
-  fill
-  sizes="54px"
-  className="object-contain drop-shadow-[0_10px_18px_rgba(21,128,61,0.14)]"
-  priority
-/>
+                src="/images/medine-huzur-logo-v2.png"
+                alt="Medine Huzur"
+                fill
+                sizes="(max-width: 640px) 44px, 54px"
+                className="object-contain drop-shadow-[0_10px_18px_rgba(21,128,61,0.14)]"
+                priority
+              />
             </div>
 
-            <div className="hidden min-w-0 leading-none sm:block">
-              <p className="truncate text-[10px] font-extrabold uppercase tracking-[0.32em] text-mhgreen">
+            {/* Yazı kısmını mobilde görünür yapıp fontları zarifleştirdik */}
+            <div className="flex flex-col justify-center min-w-0 leading-none">
+              <p className="truncate text-[8px] sm:text-[10px] font-extrabold uppercase tracking-[0.25em] sm:tracking-[0.32em] text-mhgreen">
                 ÇORUM/MERKEZ
               </p>
 
-              <p className="mt-1 truncate text-[22px] font-extrabold tracking-[-0.055em] text-foreground">
+              <p className="mt-0.5 sm:mt-1 truncate text-[17px] sm:text-[22px] font-extrabold tracking-[-0.04em] sm:tracking-[-0.055em] text-foreground">
                 Medine Huzur
               </p>
             </div>
