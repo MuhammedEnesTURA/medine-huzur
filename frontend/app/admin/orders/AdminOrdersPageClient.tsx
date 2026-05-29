@@ -42,6 +42,7 @@ type AdminOrderSummaryDto = {
   itemCount: number;
   giftPackageItemCount: number;
   isGiftPackage: boolean;
+  giftPackageQuantity: number;
   shippingCompany?: string | null;
   trackingNumber?: string | null;
 };
@@ -183,6 +184,19 @@ function parseAttributes(raw?: string | null) {
   }
 }
 
+function getGiftBoxQuantity(order?: Pick<AdminOrderDetailDto, "giftPackageQuantity"> | null) {
+  return Math.max(1, order?.giftPackageQuantity || 1);
+}
+
+function getGiftBoxUnitSubtotal(items: AdminOrderLineDto[]) {
+  return items.reduce((sum, item) => sum + item.unitPrice * item.quantity, 0);
+}
+
+function getGiftBoxTotalQuantity(items: AdminOrderLineDto[], boxQuantity: number) {
+  return items.reduce((sum, item) => sum + item.quantity * boxQuantity, 0);
+}
+
+
 function shortPayload(value?: string | null) {
   if (!value) return "-";
 
@@ -227,19 +241,26 @@ function Badge({
 function OrderLine({
   item,
   badge,
+  giftBoxQuantity,
 }: {
   item: AdminOrderLineDto;
   badge?: string;
+  giftBoxQuantity?: number;
 }) {
   const attrs = parseAttributes(item.variantAttributesJson);
+  const isGiftLine = Boolean(giftBoxQuantity);
+  const totalQuantity = isGiftLine ? item.quantity * giftBoxQuantity! : item.quantity;
 
   return (
     <div className="rounded-2xl border border-border-soft bg-panel/65 p-3">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <p className="text-sm font-black text-foreground">{item.name}</p>
-          <p className="mt-1 text-xs font-semibold text-muted">
-            {item.quantity} adet · {item.sku}
+
+          <p className="mt-1 text-xs font-semibold leading-5 text-muted">
+            {isGiftLine
+              ? `Kutu başına ${item.quantity} adet · Toplam ${totalQuantity} adet · ${item.sku}`
+              : `${item.quantity} adet · ${item.sku}`}
           </p>
 
           {attrs && (
@@ -254,14 +275,24 @@ function OrderLine({
         )}
       </div>
 
-      <div className="mt-3 flex items-center justify-between gap-3">
-        <span className="text-xs font-semibold text-muted">
-          Birim: {formatPrice(item.unitPrice)}
-        </span>
+      <div className="mt-3 grid gap-2 sm:grid-cols-2">
+        <div className="rounded-xl border border-border-soft bg-panel/70 p-2.5">
+          <p className="text-[10px] font-black uppercase tracking-[0.12em] text-muted-2">
+            Birim fiyat
+          </p>
+          <p className="mt-1 text-xs font-black text-foreground">
+            {formatPrice(item.unitPrice)}
+          </p>
+        </div>
 
-        <span className="text-sm font-black text-mhgreen">
-          {formatPrice(item.lineTotal)}
-        </span>
+        <div className="rounded-xl border border-mhgreen/25 bg-mhgreen/10 p-2.5">
+          <p className="text-[10px] font-black uppercase tracking-[0.12em] text-mhgreen">
+            {isGiftLine ? "Satır toplamı" : "Toplam"}
+          </p>
+          <p className="mt-1 text-xs font-black text-mhgreen">
+            {formatPrice(item.lineTotal)}
+          </p>
+        </div>
       </div>
     </div>
   );
@@ -296,6 +327,14 @@ export default function AdminOrdersPageClient() {
   const canUseAdmin = isReady && isAuthenticated && isAdmin;
 
   const totalPages = list?.totalPages ?? 1;
+  const detailGiftBoxQuantity = getGiftBoxQuantity(detail);
+  const detailGiftUnitSubtotal = detail
+    ? getGiftBoxUnitSubtotal(detail.giftPackageItems)
+    : 0;
+  const detailGiftTotalQuantity = detail
+    ? getGiftBoxTotalQuantity(detail.giftPackageItems, detailGiftBoxQuantity)
+    : 0;
+  const detailGiftPackageTotal = detailGiftUnitSubtotal * detailGiftBoxQuantity;
 
   const queryString = useMemo(() => {
     const params = new URLSearchParams();
@@ -827,10 +866,19 @@ const copyPaymentLink = async () => {
                           <Badge tone={paymentStatusTone(order.paymentStatus)}>
                             {paymentStatusLabel(order.paymentStatus)}
                           </Badge>
+
+                          {order.isGiftPackage && order.giftPackageItemCount > 0 && (
+                            <Badge tone="success">
+                              {Math.max(1, order.giftPackageQuantity || 1)} kutu
+                            </Badge>
+                          )}
                         </div>
 
                         <p className="mt-2 text-xs font-semibold text-muted">
                           {formatDate(order.createdAtUtc)}
+                          {order.itemCount > 0 && ` · ${order.itemCount} ürün`}
+                          {order.giftPackageItemCount > 0 &&
+                            ` · ${order.giftPackageItemCount} kutu içeriği`}
                         </p>
                       </button>
                     );
@@ -1331,17 +1379,67 @@ const copyPaymentLink = async () => {
                   </section>
 
                   <section className="rounded-2xl border border-mhgreen/25 bg-mhgreen/10 p-4">
-                    <p className="text-lg font-black text-mhgreen">
-                      Hediye kutusu
-                    </p>
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                      <div>
+                        <p className="text-lg font-black text-mhgreen">
+                          Hediye kutusu paketi
+                        </p>
+                        <p className="mt-1 text-sm leading-6 text-muted">
+                          Bu bölümde kutu başı içerik ve toplam hazırlanacak
+                          kutu adedi ayrı gösterilir.
+                        </p>
+                      </div>
 
-                    {detail.giftPackageNote && (
-                      <p className="mt-2 text-sm font-bold text-foreground">
-                        Not: {detail.giftPackageNote}
-                      </p>
+                      {detail.giftPackageItems.length > 0 && (
+                        <Badge tone="success">
+                          {detailGiftBoxQuantity} kutu
+                        </Badge>
+                      )}
+                    </div>
+
+                    {detail.giftPackageItems.length > 0 && (
+                      <div className="mt-4 grid gap-3 md:grid-cols-3">
+                        <div className="rounded-2xl border border-border-soft bg-panel/70 p-3">
+                          <p className="text-xs font-black uppercase tracking-[0.12em] text-muted-2">
+                            1 kutu içeriği
+                          </p>
+                          <p className="mt-1 text-sm font-black text-foreground">
+                            {formatPrice(detailGiftUnitSubtotal)}
+                          </p>
+                        </div>
+
+                        <div className="rounded-2xl border border-border-soft bg-panel/70 p-3">
+                          <p className="text-xs font-black uppercase tracking-[0.12em] text-muted-2">
+                            Toplam ürün ihtiyacı
+                          </p>
+                          <p className="mt-1 text-sm font-black text-foreground">
+                            {detailGiftTotalQuantity} adet
+                          </p>
+                        </div>
+
+                        <div className="rounded-2xl border border-mhgreen/25 bg-panel/70 p-3">
+                          <p className="text-xs font-black uppercase tracking-[0.12em] text-mhgreen">
+                            Kutu toplamı
+                          </p>
+                          <p className="mt-1 text-sm font-black text-mhgreen">
+                            {formatPrice(detailGiftPackageTotal)}
+                          </p>
+                        </div>
+                      </div>
                     )}
 
-                    <div className="mt-3 grid gap-3">
+                    {detail.giftPackageNote && (
+                      <div className="mt-4 rounded-2xl border border-border-soft bg-panel/70 p-3">
+                        <p className="text-xs font-black uppercase tracking-[0.12em] text-muted-2">
+                          Hediye notu
+                        </p>
+                        <p className="mt-1 text-sm font-bold leading-6 text-foreground">
+                          {detail.giftPackageNote}
+                        </p>
+                      </div>
+                    )}
+
+                    <div className="mt-4 grid gap-3">
                       {detail.giftPackageItems.length === 0 ? (
                         <p className="text-sm text-muted">
                           Hediye kutusu ürünü yok.
@@ -1351,7 +1449,8 @@ const copyPaymentLink = async () => {
                           <OrderLine
                             key={item.id}
                             item={item}
-                            badge="Hediye"
+                            badge="Kutu içeriği"
+                            giftBoxQuantity={detailGiftBoxQuantity}
                           />
                         ))
                       )}

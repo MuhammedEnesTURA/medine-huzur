@@ -223,8 +223,8 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
     <div className="page-shell">
       <SearchBand />
 
-      <section className="page-container mt-4">
-        <div className="concept-surface rounded-[1.35rem] border border-border-soft bg-panel/76 px-4 py-4 shadow-[0_18px_50px_rgba(0,0,0,0.16)] backdrop-blur sm:px-5">
+      <section className="page-container mt-3">
+        <div className="concept-surface rounded-[1.2rem] border border-border-soft bg-panel/76 px-4 py-3.5 shadow-[0_14px_38px_rgba(0,0,0,0.10)] backdrop-blur sm:px-5">
           <div className="relative z-10 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
             <div>
               <div className="inline-flex items-center rounded-full border border-mhgreen/25 bg-mhgreen/10 px-3 py-1 text-[11px] font-black uppercase tracking-[0.14em] text-mhgreen">
@@ -232,20 +232,20 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
                 Ürünler
               </div>
 
-              <h1 className="mt-3 text-2xl font-black tracking-[-0.03em] text-foreground sm:text-3xl">
+              <h1 className="mt-2.5 text-[1.65rem] font-black tracking-[-0.03em] text-foreground sm:text-[1.9rem]">
                 Ürünleri keşfet
               </h1>
 
-              <p className="mt-2 max-w-2xl text-sm font-medium leading-6 text-muted">
+              <p className="mt-1.5 max-w-2xl text-[13px] font-medium leading-6 text-muted">
                 Kategori, stok ve fiyat filtresiyle aradığın ürüne hızlıca ulaş.
               </p>
             </div>
 
-            <div className="w-fit rounded-2xl border border-border-soft bg-panel-2/82 px-4 py-3 shadow-[0_12px_30px_rgba(0,0,0,0.08)]">
+            <div className="w-fit rounded-2xl border border-border-soft bg-panel-2/82 px-3.5 py-2.5 shadow-[0_10px_24px_rgba(0,0,0,0.06)]">
               <p className="text-[10px] font-black uppercase tracking-[0.18em] text-muted-2">
                 Sonuç
               </p>
-              <p className="mt-1 text-xl font-black text-mhgreen">
+              <p className="mt-0.5 text-lg font-black text-mhgreen">
                 {products.totalCount}
               </p>
             </div>
@@ -253,22 +253,20 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
         </div>
       </section>
 
-      <section className="page-container mt-4">
-        <div className="concept-surface overflow-hidden rounded-[1.35rem] border border-border-soft bg-panel/76 shadow-[0_18px_50px_rgba(0,0,0,0.14)] backdrop-blur">
-          <div className="relative z-10 border-b border-border-soft px-3 py-3 sm:px-4">
+      <section className="page-container mt-3">
+        <div className="concept-surface overflow-hidden rounded-[1.2rem] border border-border-soft bg-panel/76 shadow-[0_14px_38px_rgba(0,0,0,0.10)] backdrop-blur">
+          <div className="relative z-10 border-b border-border-soft px-3 py-2.5 sm:px-4">
             <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
               <div className="flex items-center gap-2.5">
-                <div className="flex h-9 w-9 items-center justify-center rounded-xl border border-border-soft bg-panel-3 text-mhgreen">
+                <div className="flex h-8 w-8 items-center justify-center rounded-xl border border-border-soft bg-panel-3 text-mhgreen">
                   <SlidersHorizontal className="h-4.5 w-4.5" />
                 </div>
 
                 <div>
                   <p className="text-sm font-black text-foreground">
-                    Filtrele
+                    Ürünleri filtrele
                   </p>
-                  <p className="text-xs font-semibold text-muted">
-                    Kategori, stok, fiyat ve sıralama.
-                  </p>
+                  <p className="text-xs font-semibold text-muted">Kategori ve fiyat seçenekleri.</p>
                 </div>
               </div>
 
@@ -283,7 +281,7 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
               )}
             </div>
 
-            <div className="mt-3 flex gap-2 overflow-x-auto pb-1">
+            <div className="mt-2.5 flex gap-2 overflow-x-auto pb-1">
               <Link
                 href={buildProductsHref({
                   q,
@@ -327,7 +325,7 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
           </div>
 
           <details className="group" open={hasAdvancedFilters}>
-            <summary className="relative z-10 flex cursor-pointer list-none items-center justify-between gap-3 px-3 py-2.5 transition hover:bg-panel-3/45 sm:px-4">
+            <summary className="relative z-10 flex cursor-pointer list-none items-center justify-between gap-3 px-3 py-2 transition hover:bg-panel-3/45 sm:px-4">
               <div className="flex items-center gap-2">
                 <Filter className="h-4 w-4 text-mhgreen" />
                 <span className="text-sm font-black text-foreground">
@@ -462,7 +460,7 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
         </div>
       </section>
 
-      <section className="page-container mt-4">
+      <section className="page-container mt-3">
         {products.items.length === 0 ? (
           <div className="page-panel-soft concept-surface flex min-h-[260px] flex-col items-center justify-center p-8 text-center">
             <div className="relative z-10 flex h-14 w-14 items-center justify-center rounded-2xl border border-border-soft bg-panel-3">
@@ -483,17 +481,17 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
           </div>
         ) : (
           <>
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
               {products.items.map((product) => {
                 const image = productImage(product);
 
                 return (
                   <article
                     key={product.id}
-                    className="concept-corner group overflow-hidden rounded-[1.35rem] border border-border-soft bg-panel/78 p-2.5 shadow-[0_16px_42px_rgba(0,0,0,0.14)] transition duration-200 hover:-translate-y-1 hover:border-mhgreen/30 hover:bg-panel/90"
+                    className="concept-corner group overflow-hidden rounded-[1.2rem] border border-border-soft bg-panel/78 p-2.5 shadow-[0_12px_32px_rgba(0,0,0,0.10)] transition duration-200 hover:-translate-y-1 hover:border-mhgreen/30 hover:bg-panel/90"
                   >
                     <Link href={`/product/${product.slug}`} className="block">
-                      <div className="relative flex aspect-[4/3] items-center justify-center overflow-hidden rounded-3xl border border-border-soft bg-panel-3/86">
+                      <div className="relative flex aspect-[4/3] items-center justify-center overflow-hidden rounded-2xl border border-border-soft bg-panel-3/86">
                         <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_0%,rgba(34,197,94,0.13),transparent_36%)] opacity-80 transition group-hover:opacity-100" />
 
                         {image ? (
@@ -526,14 +524,14 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
                         <div className="pointer-events-none absolute inset-x-3 bottom-3 h-px bg-gradient-to-r from-transparent via-mhgreen/35 to-transparent opacity-0 transition group-hover:opacity-100" />
                       </div>
 
-                      <div className="px-2 pt-3">
-                        <p className="line-clamp-2 min-h-10 text-sm font-black leading-5 tracking-[-0.01em] text-foreground transition group-hover:text-mhgreen">
+                      <div className="px-1.5 pt-2.5">
+                        <p className="line-clamp-2 min-h-9 text-[13px] font-black leading-5 tracking-[-0.01em] text-foreground transition group-hover:text-mhgreen">
                           {product.name}
                         </p>
 
-                        <div className="mt-2 flex items-end justify-between gap-2">
+                        <div className="mt-1.5 flex items-end justify-between gap-2">
                           <div>
-                            <p className="text-lg font-black tracking-[-0.025em] text-mhgreen">
+                            <p className="text-base font-black tracking-[-0.025em] text-mhgreen">
                               {formatPrice(product.basePrice)}
                             </p>
                             <p className="mt-0.5 text-[11px] font-bold text-muted">
@@ -554,10 +552,10 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
                       </div>
                     </Link>
 
-                    <div className="mt-3 grid grid-cols-2 gap-2 px-2 pb-2">
+                    <div className="mt-2.5 grid grid-cols-2 gap-2 px-1.5 pb-1.5">
                       <Link
                         href={`/product/${product.slug}`}
-                        className="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-xl border border-border-soft bg-panel-2/82 px-2 text-xs font-black text-foreground transition hover:-translate-y-0.5 hover:border-mhgreen/35 hover:bg-panel-3 hover:text-mhgreen"
+                        className="inline-flex min-h-8 items-center justify-center gap-1.5 rounded-xl border border-border-soft bg-panel-2/82 px-2 text-xs font-black text-foreground transition hover:-translate-y-0.5 hover:border-mhgreen/35 hover:bg-panel-3 hover:text-mhgreen"
                       >
                         <Eye className="h-3.5 w-3.5" />
                         İncele
@@ -565,10 +563,10 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
 
                       <Link
                         href={`/product/${product.slug}?gift=1`}
-                        className="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-xl bg-mhgreen px-2 text-xs font-black text-white shadow-[0_10px_24px_rgba(34,197,94,0.20)] transition hover:-translate-y-0.5 hover:bg-mhgreen-dark"
+                        className="inline-flex min-h-8 items-center justify-center gap-1.5 rounded-xl bg-mhgreen px-2 text-xs font-black text-white shadow-[0_10px_22px_rgba(34,197,94,0.18)] transition hover:-translate-y-0.5 hover:bg-mhgreen-dark"
                       >
                         <Gift className="h-3.5 w-3.5" />
-                        Hediye
+                        Kutuya Ekle
                       </Link>
                     </div>
                   </article>
