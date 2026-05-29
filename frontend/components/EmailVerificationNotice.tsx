@@ -1,21 +1,26 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
 import { MailWarning, RefreshCcw, Loader2, X } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 
+// Geri sayım süresi (saniye cinsinden)
+const COOLDOWN_SECONDS = 60;
+
 export default function EmailVerificationNotice() {
-  const router = useRouter();
   const { user, isAuthenticated, isReady, refreshUser, resendVerification } =
     useAuth();
     
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isResending, setIsResending] = useState(false);
-  const [isHidden, setIsHidden] = useState(false); // Kullanıcının kapatabilmesi için
+  const [isHidden, setIsHidden] = useState(false);
+  
+  // Geri sayım (cooldown) state'i
+  const [cooldown, setCooldown] = useState(COOLDOWN_SECONDS);
 
   const checkedLatestUserRef = useRef(false);
 
+  // Otomatik Yenileme Efekti
   useEffect(() => {
     if (!isReady || !isAuthenticated || !user) return;
     if (checkedLatestUserRef.current) return;
@@ -27,6 +32,17 @@ export default function EmailVerificationNotice() {
       // sessiz geç
     });
   }, [isReady, isAuthenticated, user, refreshUser]);
+
+  // Geri Sayım (Timer) Efekti
+  useEffect(() => {
+    // Sadece kullanıcı giriş yapmışsa ve e-postası onaylanmamışsa geri sayım çalışsın
+    if (!isReady || !isAuthenticated || !user || user.emailConfirmed === true || isHidden) return;
+
+    if (cooldown > 0) {
+      const timer = setTimeout(() => setCooldown((prev) => prev - 1), 1000);
+      return () => clearTimeout(timer);
+    }
+  }, [cooldown, isReady, isAuthenticated, user, isHidden]);
 
   if (!isReady || !isAuthenticated || !user) return null;
   if (user.emailConfirmed === true) return null;
@@ -43,9 +59,14 @@ export default function EmailVerificationNotice() {
   };
 
   const handleResend = async () => {
+    // Eğer cooldown hala devam ediyorsa veya zaten gönderiliyorsa işlemi engelle
+    if (cooldown > 0 || isResending) return;
+
     setIsResending(true);
     try {
       await resendVerification();
+      // Başarılı olursa sayacı tekrar başlat
+      setCooldown(COOLDOWN_SECONDS);
     } finally {
       setIsResending(false);
     }
@@ -74,20 +95,29 @@ export default function EmailVerificationNotice() {
           <p className="text-[13px] font-bold leading-tight">
             E-posta doğrulaması gerekli
           </p>
-          {/* Sadece masaüstünde görünen açıklama */}
-          <p className="mt-1 hidden text-[11px] leading-tight text-amber-900/70 dark:text-amber-100/60 sm:block">
-            Hesap güvenliği ve sipariş detayları için lütfen e-postanızı doğrulayın.
+          
+          {/* Kullanıcıya İlk Kayıtta Mailin Gittiğini Belirten Şık Bir Not */}
+          <p className="mt-1 text-[11px] leading-tight text-amber-900/80 dark:text-amber-100/70">
+            Doğrulama maili gönderildi. Lütfen gelen kutunuzu (veya Spam klasörünü) kontrol edin.
           </p>
 
           <div className="mt-2.5 flex flex-wrap gap-2">
             <button
               type="button"
               onClick={handleResend}
-              disabled={isResending}
-              className="inline-flex h-7 items-center justify-center gap-1.5 rounded-lg bg-amber-400 px-3 text-[11px] font-bold text-amber-950 transition hover:bg-amber-300 disabled:opacity-50"
+              disabled={isResending || cooldown > 0} // Cooldown varken buton tıklanamaz
+              className="inline-flex h-7 min-w-[110px] items-center justify-center gap-1.5 rounded-lg bg-amber-400 px-3 text-[11px] font-bold text-amber-950 transition hover:bg-amber-300 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {isResending && <Loader2 className="h-3 w-3 animate-spin" />}
-              {isResending ? "Gönderiliyor" : "Mail Gönder"}
+              {isResending ? (
+                <>
+                  <Loader2 className="h-3 w-3 animate-spin" />
+                  Gönderiliyor
+                </>
+              ) : cooldown > 0 ? (
+                `Tekrar Gönder (${cooldown}s)` // Geri sayımı göster
+              ) : (
+                "Tekrar Gönder"
+              )}
             </button>
             
             <button
