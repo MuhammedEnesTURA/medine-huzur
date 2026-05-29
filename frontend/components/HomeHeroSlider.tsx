@@ -1,213 +1,205 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowRight, Gift, ShieldCheck, ShoppingBag } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
-import type { CSSProperties } from "react";
+import { ArrowRight, ChevronLeft, ChevronRight } from "lucide-react";
+import { useEffect, useState, useCallback } from "react";
 
 type Slide = {
   id: string;
-  title?: string;
-  description?: string;
+  title: string;
+  description: string;
   href: string;
   action: string;
   badge?: string;
-  backgroundImage?: string | null;
-  showInfoCards?: boolean;
+  desktopImage: string;
+  mobileImage: string;
 };
 
 const slides: Slide[] = [
   {
-    id: "main",
-    title: "Seçkin İslami ürünleri huzurla keşfedin",
-    description:
-      "Tesbih, seccade, hediyelik ürünler ve hac malzemelerinde sade, güvenilir ve modern alışveriş deneyimi.",
-    href: "/products",
-    action: "Ürünleri Keşfet",
-    badge: "Medine Huzur",
-    backgroundImage: null,
-    showInfoCards: true,
+    id: "hac-umre",
+    title: "Hac ve Umre Malzemeleri",
+    description: "Kutsal topraklara hazırlıkta aradığınız tüm kaliteli ve güvenilir ürünler.",
+    href: "/products?q=hac",
+    action: "Hac Malzemelerini Keşfet",
+    badge: "YENİ KOLEKSİYON",
+    desktopImage: "/slides/slide-1-pc.jpg",
+    mobileImage: "/slides/slide-1-mobil.jpg",
   },
   {
-    id: "gift-box",
+    id: "seccade",
+    title: "Özel Tasarım Hediyelik Seccadeler",
+    description: "Sevdiklerinize sunabileceğiniz en anlamlı, kaliteli ve şık seccade modelleri.",
+    href: "/products?q=seccade",
+    action: "Seccadeleri İncele",
+    badge: "ÇOK SATANLAR",
+    desktopImage: "/slides/slide-2-pc.jpg",
+    mobileImage: "/slides/slide-2-mobil.jpg",
+  },
+  {
+    id: "tesbih",
+    title: "Doğal Taş ve Usta İşi Tesbihler",
+    description: "Özel el işçiliğiyle üretilmiş, koleksiyonluk ve günlük kullanıma uygun tesbihler.",
+    href: "/products?q=tesbih",
+    action: "Tesbihleri İncele",
+    desktopImage: "/slides/slide-3-pc.jpg",
+    mobileImage: "/slides/slide-3-mobil.jpg",
+  },
+  {
+    id: "giyim",
+    title: "İslami Giyim & Tesettür",
+    description: "Sade, şık ve modern çizgilerle tasarlanmış yüksek kaliteli giyim ürünleri.",
+    href: "/products?q=giyim",
+    action: "Giyim Ürünleri",
+    desktopImage: "/slides/slide-4-pc.jpg",
+    mobileImage: "/slides/slide-4-mobil.jpg",
+  },
+  {
+    id: "hediye-kutu",
+    title: "Özel Hediye Kutuları Oluşturun",
+    description: "Özel günleriniz için özenle seçilmiş ürünlerle kendi hediye paketinizi tasarlayın.",
     href: "/products?featured=true",
     action: "Hediye Kutusu Oluştur",
-    backgroundImage: "/slides/slide-2.jpg",
-    showInfoCards: false,
-  },
-  {
-    id: "in-stock",
-    href: "/products?inStock=true",
-    action: "Stoktaki Ürünler",
-    backgroundImage: "/slides/slide-3.jpg",
-    showInfoCards: false,
+    badge: "ÖZEL HEDİYE",
+    desktopImage: "/slides/slide-5-pc.jpg",
+    mobileImage: "/slides/slide-5-mobil.jpg",
   },
 ];
 
 export default function HomeHeroSlider() {
   const [activeIndex, setActiveIndex] = useState(0);
+  const [isHovered, setIsHovered] = useState(false);
 
-  const activeSlide = slides[activeIndex];
+  // Mobil kaydırma (swipe) state'leri
+  const [touchStart, setTouchStart] = useState<number | null>(null);
+  const [touchEnd, setTouchEnd] = useState<number | null>(null);
+  const minSwipeDistance = 50;
 
-  const hasTitle = Boolean(activeSlide.title?.trim());
-  const hasDescription = Boolean(activeSlide.description?.trim());
-  const hasBadge = Boolean(activeSlide.badge?.trim());
-  const hasTextContent = hasTitle || hasDescription || hasBadge;
+  const prevSlide = useCallback(() => {
+    setActiveIndex((current) => (current === 0 ? slides.length - 1 : current - 1));
+  }, []);
+
+  const nextSlide = useCallback(() => {
+    setActiveIndex((current) => (current + 1) % slides.length);
+  }, []);
+
+  const onTouchStart = (e: React.TouchEvent) => {
+    setTouchEnd(null);
+    setTouchStart(e.targetTouches[0].clientX);
+  };
+
+  const onTouchMove = (e: React.TouchEvent) => {
+    setTouchEnd(e.targetTouches[0].clientX);
+  };
+
+  const onTouchEnd = () => {
+    if (!touchStart || !touchEnd) return;
+    const distance = touchStart - touchEnd;
+    
+    if (distance > minSwipeDistance) nextSlide();
+    if (distance < -minSwipeDistance) prevSlide();
+  };
 
   useEffect(() => {
+    if (isHovered) return;
     const interval = window.setInterval(() => {
       setActiveIndex((current) => (current + 1) % slides.length);
     }, 5000);
-
     return () => window.clearInterval(interval);
-  }, []);
+  }, [isHovered]);
 
-  const backgroundStyle = useMemo<CSSProperties>(() => {
-    if (!activeSlide.backgroundImage) {
-      return {
-        backgroundImage:
-          "radial-gradient(circle at 12% 0%, rgba(34,197,94,0.18), transparent 32%), radial-gradient(circle at 88% 20%, rgba(245,158,11,0.10), transparent 30%), linear-gradient(135deg, color-mix(in srgb, var(--panel) 96%, transparent), color-mix(in srgb, var(--panel-3) 96%, transparent))",
-      };
-    }
-
-    return {
-      backgroundImage: `url("${activeSlide.backgroundImage}")`,
-      backgroundSize: "cover",
-      backgroundPosition: "center",
-    };
-  }, [activeSlide.backgroundImage]);
+  const activeSlide = slides[activeIndex];
 
   return (
-    <section className="relative overflow-hidden rounded-[1.45rem] border border-border-soft bg-panel shadow-[0_18px_46px_rgba(0,0,0,0.15)]">
-      <div
-        className={`absolute inset-0 bg-cover bg-center ${
-          activeSlide.backgroundImage
-            ? "brightness-[1.05] saturate-[1.22] contrast-[1.08]"
-            : ""
-        }`}
-        style={backgroundStyle}
-      />
-
-      {activeSlide.backgroundImage && (
-        <div className="absolute inset-0 bg-gradient-to-t from-black/16 via-transparent to-transparent" />
-      )}
-
-      {!activeSlide.backgroundImage && (
-        <div className="absolute inset-0 bg-gradient-to-br from-mhgreen/8 via-transparent to-warning/5" />
-      )}
-
-      <div className="relative px-4 py-5 sm:px-6 md:px-7 lg:px-8 lg:py-7">
+    <section 
+      className="relative overflow-hidden rounded-[1.45rem] border border-border-soft bg-panel shadow-[0_18px_46px_rgba(0,0,0,0.15)] h-[65vh] min-h-[480px] lg:min-h-[550px] group touch-pan-y"
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
+      onTouchStart={onTouchStart}
+      onTouchMove={onTouchMove}
+      onTouchEnd={onTouchEnd}
+    >
+      {slides.map((slide, index) => (
         <div
-          className={
-            activeSlide.showInfoCards
-              ? "grid min-h-[330px] gap-5 lg:min-h-[390px] lg:grid-cols-[1.08fr_0.92fr] lg:items-center"
-              : "grid min-h-[330px] items-end lg:min-h-[390px]"
-          }
+          key={slide.id}
+          className={`absolute inset-0 transition-opacity duration-700 ease-in-out ${
+            index === activeIndex ? "opacity-100 z-10" : "opacity-0 z-0 pointer-events-none"
+          }`}
         >
-          <div
-            className={
-              activeSlide.showInfoCards
-                ? ""
-                : hasTextContent
-                  ? "max-w-3xl"
-                  : "flex min-h-[280px] flex-col justify-end"
-            }
-          >
-            {hasBadge && (
-              <div className="inline-flex items-center rounded-full border border-mhgreen/30 bg-panel/72 px-3 py-1 text-[11px] font-black uppercase tracking-[0.14em] text-mhgreen shadow-[0_10px_28px_rgba(0,0,0,0.10)] backdrop-blur-md">
-                {activeSlide.badge}
-              </div>
-            )}
+          <picture>
+            <source media="(min-width: 768px)" srcSet={slide.desktopImage} />
+            <img
+              src={slide.mobileImage}
+              alt={slide.title}
+              className="h-full w-full object-cover brightness-95 transition-transform duration-[10000ms] ease-linear hover:scale-105 select-none pointer-events-none"
+              draggable="false"
+            />
+          </picture>
+          
+          {/* DİKKAT: Karartmayı tüm ekrandan alıp sadece alt %50'ye verdik */}
+          <div className="absolute bottom-0 h-1/2 w-full bg-gradient-to-t from-black/90 via-black/50 to-transparent" />
+        </div>
+      ))}
 
-            {hasTitle && (
-              <h1 className="mt-4 max-w-4xl text-3xl font-black leading-tight tracking-[-0.04em] text-foreground drop-shadow-[0_8px_22px_rgba(0,0,0,0.20)] sm:text-4xl lg:text-[44px]">
-                {activeSlide.title}
-              </h1>
-            )}
-
-            {hasDescription && (
-              <p className="mt-3 max-w-2xl text-sm font-medium leading-6 text-muted drop-shadow-[0_6px_18px_rgba(0,0,0,0.12)] sm:text-base">
-                {activeSlide.description}
-              </p>
-            )}
-
-            <div
-              className={
-                hasTextContent
-                  ? "mt-5 flex flex-col gap-2.5 sm:flex-row"
-                  : "flex flex-col gap-2.5 sm:flex-row"
-              }
-            >
-              <Link
-                href={activeSlide.href}
-                className="inline-flex min-h-11 items-center justify-center rounded-xl bg-mhgreen px-5 text-sm font-black text-white shadow-[0_14px_30px_rgba(34,197,94,0.26)] transition hover:-translate-y-0.5 hover:bg-mhgreen-dark"
-              >
-                {activeSlide.action}
-                <ArrowRight className="ml-2 h-4 w-4" />
-              </Link>
-
-              <Link
-                href="/guest-orders"
-                className="inline-flex min-h-11 items-center justify-center rounded-xl border border-border-soft bg-panel/86 px-5 text-sm font-black text-foreground shadow-[0_10px_26px_rgba(0,0,0,0.10)] backdrop-blur-md transition hover:-translate-y-0.5 hover:bg-panel-3"
-              >
-                Sipariş Sorgula
-              </Link>
-            </div>
-
-            <div className="mt-5 flex gap-1.5">
-              {slides.map((slide, index) => (
-                <button
-                  key={slide.id}
-                  type="button"
-                  onClick={() => setActiveIndex(index)}
-                  className={`h-1.5 rounded-full transition-all ${
-                    index === activeIndex
-                      ? "w-8 bg-mhgreen"
-                      : "w-3 bg-foreground/30"
-                  }`}
-                  aria-label={`${index + 1}. slider görseline geç`}
-                />
-              ))}
-            </div>
-          </div>
-
-          {activeSlide.showInfoCards && (
-            <div className="hidden rounded-[1.35rem] border border-border-soft bg-panel/68 p-4 shadow-[0_20px_50px_rgba(0,0,0,0.12)] backdrop-blur-xl lg:block">
-              <div className="grid gap-3 sm:grid-cols-2">
-                <div className="rounded-2xl border border-border-soft bg-panel/68 p-4">
-                  <ShoppingBag className="h-6 w-6 text-mhgreen" />
-                  <p className="mt-3 text-sm font-black text-foreground">
-                    Ürün Vitrini
-                  </p>
-                  <p className="mt-1 text-xs leading-5 text-muted">
-                    Öne çıkan ürünleri hızlıca inceleyin.
-                  </p>
-                </div>
-
-                <div className="rounded-2xl border border-border-soft bg-panel/68 p-4">
-                  <Gift className="h-6 w-6 text-mhgreen" />
-                  <p className="mt-3 text-sm font-black text-foreground">
-                    Hediye Kutusu
-                  </p>
-                  <p className="mt-1 text-xs leading-5 text-muted">
-                    Ürünleri hediye kutusu için seçin.
-                  </p>
-                </div>
-
-                <div className="rounded-2xl border border-border-soft bg-panel/68 p-4 sm:col-span-2">
-                  <ShieldCheck className="h-6 w-6 text-mhgreen" />
-                  <p className="mt-3 text-sm font-black text-foreground">
-                    Güvenli alışveriş altyapısı
-                  </p>
-                  <p className="mt-1 text-xs leading-5 text-muted">
-                    Sipariş numarası, stok kontrolü, yasal onaylar ve ödeme
-                    entegrasyonuna hazır yapı.
-                  </p>
-                </div>
-              </div>
+      {/* İçerik Konteyneri: Mobilde paddingleri kısıp iyice alta ittik */}
+      <div className="absolute inset-0 z-20 flex flex-col justify-end px-4 pb-12 sm:px-8 md:px-12 md:pb-16 lg:px-16 pointer-events-none">
+        <div className="max-w-3xl transition-all duration-500 translate-y-0 opacity-100 pointer-events-auto">
+          
+          {activeSlide.badge && (
+            <div className="mb-3 inline-flex items-center rounded-full border border-mhgreen/60 bg-black/40 px-2.5 py-1 text-[10px] sm:text-[11px] font-black uppercase tracking-widest text-mhgreen shadow-lg backdrop-blur-md">
+              {activeSlide.badge}
             </div>
           )}
+
+          {/* Başlık: Mobilde text-2xl ile küçülttük, PC'de büyük kalacak */}
+          <h1 className="max-w-4xl text-2xl font-black leading-tight tracking-[-0.03em] text-white drop-shadow-lg sm:text-4xl lg:text-[48px]">
+            {activeSlide.title}
+          </h1>
+
+          {/* DİKKAT: Açıklama metni mobilde tamamen GİZLENDİ (hidden sm:block) */}
+          <p className="mt-3 hidden sm:block max-w-2xl text-sm font-medium leading-relaxed text-gray-200 drop-shadow-md lg:text-lg">
+            {activeSlide.description}
+          </p>
+
+          {/* Butonlar: Mobilde yan yana daha kompakt (gap-2), PC'de standart */}
+          <div className="mt-4 flex flex-row flex-wrap gap-2 sm:mt-8 sm:gap-3">
+            <Link
+              href={activeSlide.href}
+              className="inline-flex items-center justify-center rounded-xl bg-mhgreen px-4 py-2.5 sm:min-h-12 sm:px-6 text-xs sm:text-sm font-black text-white shadow-lg transition-all hover:-translate-y-1 hover:bg-mhgreen-dark"
+            >
+              {activeSlide.action}
+              <ArrowRight className="ml-1.5 h-4 w-4 sm:ml-2 sm:h-5 sm:w-5 text-white" />
+            </Link>
+
+            <Link
+              href="/guest-orders"
+              className="inline-flex items-center justify-center rounded-xl border border-white/40 bg-white/10 px-4 py-2.5 sm:min-h-12 sm:px-6 text-xs sm:text-sm font-black text-white shadow-lg backdrop-blur-md transition-all hover:-translate-y-1 hover:bg-white/25 hover:border-white/60"
+            >
+              Sipariş Sorgula
+            </Link>
+          </div>
         </div>
+      </div>
+
+      {/* PC Okları */}
+      <button onClick={prevSlide} className="absolute left-4 top-1/2 z-30 -translate-y-1/2 rounded-full border border-white/20 bg-black/30 p-2 text-white backdrop-blur-md transition-all hover:scale-110 hover:bg-black/60 opacity-0 group-hover:opacity-100 hidden md:block md:left-6 md:p-3">
+        <ChevronLeft className="h-6 w-6 md:h-8 md:w-8" />
+      </button>
+      <button onClick={nextSlide} className="absolute right-4 top-1/2 z-30 -translate-y-1/2 rounded-full border border-white/20 bg-black/30 p-2 text-white backdrop-blur-md transition-all hover:scale-110 hover:bg-black/60 opacity-0 group-hover:opacity-100 hidden md:block md:right-6 md:p-3">
+        <ChevronRight className="h-6 w-6 md:h-8 md:w-8" />
+      </button>
+
+      {/* Alt Noktalar: Mobilde biraz daha aşağı çektik (bottom-4) */}
+      <div className="absolute bottom-4 left-1/2 z-30 flex -translate-x-1/2 gap-2 md:bottom-6">
+        {slides.map((slide, index) => (
+          <button
+            key={slide.id}
+            onClick={() => setActiveIndex(index)}
+            className={`h-2 rounded-full transition-all duration-300 ${
+              index === activeIndex ? "w-6 bg-mhgreen shadow-[0_0_8px_rgba(34,197,94,0.8)]" : "w-2 bg-white/50"
+            }`}
+          />
+        ))}
       </div>
     </section>
   );

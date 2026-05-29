@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { ArrowRight } from "lucide-react";
 import HomeHeroSlider from "../components/HomeHeroSlider";
 import HomeFeaturedCarousel from "../components/HomeFeaturedCarousel";
 import SearchBand from "../components/SearchBand";
@@ -78,44 +79,6 @@ function StatCard({ title, text }: { title: string; text: string }) {
   );
 }
 
-function CategoryCard({
-  title,
-  description,
-  href,
-}: {
-  title: string;
-  description: string;
-  href: string;
-}) {
-  return (
-    <Link
-      href={href}
-      className="concept-corner group relative overflow-hidden rounded-3xl border border-border-soft bg-panel-2/72 p-5 shadow-[0_14px_38px_rgba(0,0,0,0.09)] transition hover:-translate-y-1 hover:border-mhgreen/30 hover:bg-panel-3/80"
-    >
-      <div className="absolute -right-8 -top-8 h-24 w-24 rounded-full bg-mhgreen/10 blur-2xl transition group-hover:bg-mhgreen/20" />
-
-      <div className="relative z-10">
-        <p className="text-[11px] font-black uppercase tracking-[0.18em] text-mhgreen">
-          {title}
-        </p>
-
-        <h3 className="mt-3 text-lg font-black tracking-[-0.025em] text-foreground transition group-hover:text-mhgreen">
-          Kategoriyi İncele
-        </h3>
-
-        <p className="mt-2 text-sm font-medium leading-6 text-muted">
-          {description}
-        </p>
-
-        <span className="mt-4 inline-flex items-center text-sm font-black text-foreground/82 transition group-hover:text-mhgreen">
-          Ürünlere git
-          <span className="ml-1 transition group-hover:translate-x-1">→</span>
-        </span>
-      </div>
-    </Link>
-  );
-}
-
 async function getFeaturedProducts(): Promise<Product[]> {
   try {
     const res = await fetch(
@@ -137,12 +100,40 @@ async function getFeaturedProducts(): Promise<Product[]> {
 export default async function HomePage() {
   const featuredProducts = await getFeaturedProducts();
 
-  return (
-  <main className="home-page min-h-screen text-foreground">
-    <SearchBand />
+  // Kategori verileri (Görsel yollarını kendi üreteceğin görsellere göre değiştirebilirsin)
+  const categories = [
+    {
+      id: "seccade",
+      title: "Seccade Çeşitleri",
+      image: "/categories/seccade-cat.jpg",
+      href: "/products?q=seccade",
+      action: "KEŞFET",
+    },
+    {
+      id: "giyim",
+      title: "Pratik Namaz Elbisesi",
+      image: "/categories/giyim-cat.jpg",
+      href: "/products?q=giyim",
+      action: "KEŞFET",
+    },
+    {
+      id: "tesbih",
+      title: "Tesbih ve Zikirmatik",
+      image: "/categories/tesbih-cat.jpg",
+      href: "/products?q=tesbih",
+      action: "KEŞFET",
+    },
+  ];
 
-    <section className="home-hero-wrap page-container space-y-5 md:space-y-6">
-      <HomeHeroSlider />
+  return (
+    <main className="home-page min-h-screen text-foreground">
+      <SearchBand />
+
+      <section className="home-hero-wrap page-container space-y-5 md:space-y-6">
+        {/* Üst Slider */}
+        <HomeHeroSlider />
+
+        {/* Öne Çıkan Ürünler */}
         <section className="concept-surface rounded-[1.6rem] border border-border-soft bg-panel/78 p-4 shadow-[0_18px_48px_rgba(0,0,0,0.12)] backdrop-blur md:p-5">
           <SectionHeader
             eyebrow="Öne Çıkan Ürünler"
@@ -152,41 +143,56 @@ export default async function HomePage() {
             actionText="Tüm Ürünleri Gör"
           />
 
-          <div className="relative z-10">
+          <div className="relative z-10 mt-5">
             <HomeFeaturedCarousel products={featuredProducts} />
           </div>
         </section>
 
+        {/* YENİ: Görselli Kategori Vitrini */}
         <section className="concept-surface rounded-[1.6rem] border border-border-soft bg-panel/78 p-4 shadow-[0_18px_48px_rgba(0,0,0,0.12)] backdrop-blur md:p-5">
           <SectionHeader
             eyebrow="Kategori Vitrini"
             title="Kategorilere göre keşfet"
-            description="Seccade, tesbih, hediyelik ve benzeri ürünleri kategori bazında daha düzenli şekilde inceleyin."
-            actionHref="/products"
+            description="Seccade, tesbih, hediyelik ve benzeri ürünleri görsellerle daha şık bir şekilde inceleyin."
+            actionHref="/categories"
             actionText="Tüm Kategorileri Gör"
           />
 
-          <div className="relative z-10 mt-5 grid grid-cols-1 gap-3 md:grid-cols-3">
-            <CategoryCard
-              title="Seccade"
-              description="Günlük kullanım ve hediye için seccade seçeneklerini inceleyin."
-              href="/products?q=seccade"
-            />
+          <div className="relative z-10 mt-6">
+            {/* Mobilde kaydırmalı (swipe), PC'de yan yana 3'lü grid */}
+            <div className="flex snap-x snap-mandatory overflow-x-auto pb-6 -mx-4 px-4 md:mx-0 md:px-0 md:grid md:grid-cols-3 md:gap-5 space-x-4 md:space-x-0 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+              {categories.map((cat) => (
+                <Link
+                  href={cat.href}
+                  key={cat.id}
+                  className="group relative flex h-[350px] min-w-[75vw] snap-center flex-col justify-between overflow-hidden rounded-[1.25rem] bg-panel-2 shadow-lg sm:min-w-[300px] md:h-[400px] md:w-auto"
+                >
+                  <img
+                    src={cat.image}
+                    alt={cat.title}
+                    className="absolute inset-0 h-full w-full object-cover transition-transform duration-700 group-hover:scale-105"
+                  />
+                  {/* Yazının okunması için siyah perde */}
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent transition-opacity group-hover:opacity-90" />
 
-            <CategoryCard
-              title="Tesbih"
-              description="Farklı tasarım ve materyallerde tesbih ürünlerini keşfedin."
-              href="/products?q=tesbih"
-            />
+                  {/* Sol Alt - Başlık ve Buton */}
+                  <div className="relative z-10 mt-auto flex flex-col items-start p-6">
+                    <h3 className="mb-4 max-w-[80%] text-2xl font-black leading-tight text-white drop-shadow-md">
+                      {cat.title}
+                    </h3>
 
-            <CategoryCard
-              title="Hediyelik Ürünler"
-              description="Özenli sunuma uygun manevi değeri yüksek hediyelik ürünlere göz atın."
-              href="/products?q=hediye"
-            />
+                    <div className="inline-flex items-center justify-center rounded-full border border-white/40 bg-black/40 px-5 py-2 text-xs font-bold tracking-widest text-white backdrop-blur-md transition-all group-hover:border-mhgreen group-hover:bg-mhgreen group-hover:pr-4">
+                      {cat.action}
+                      <ArrowRight className="ml-2 h-4 w-4 transition-transform group-hover:translate-x-1" />
+                    </div>
+                  </div>
+                </Link>
+              ))}
+            </div>
           </div>
         </section>
 
+        {/* Site Özellikleri / Hakkımızda Bölümü */}
         <section className="concept-surface relative overflow-hidden rounded-[1.6rem] border border-border-soft bg-panel/78 p-4 shadow-[0_18px_48px_rgba(0,0,0,0.12)] backdrop-blur md:p-5">
           <div className="absolute -right-16 -top-16 h-48 w-48 rounded-full bg-mhgreen/10 blur-3xl" />
           <div className="absolute -bottom-20 left-12 h-44 w-44 rounded-full bg-warning/10 blur-3xl" />
