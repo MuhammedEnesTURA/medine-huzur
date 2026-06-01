@@ -26,6 +26,10 @@ export const metadata: Metadata = {
     template: "%s | Medine Huzur",
   },
   description: siteConfig.description,
+  icons: {
+    icon: "/icon.png",
+    apple: "/icon.png",
+  },
   keywords: [
     "Medine Huzur",
     "seccade",

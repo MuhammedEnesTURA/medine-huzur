@@ -96,12 +96,14 @@ type ProductDetailDto = {
   isGiftBoxEligible: boolean;
   createdAtUtc: string;
   updatedAtUtc?: string | null;
+  rowVersion?: string | null; // Eşzamanlılık (Concurrency) kontrolü için eklendi
   categories: ProductCategoryDto[];
   images: ProductImageDto[];
   variants: ProductVariantDto[];
 };
 
 type ProductImageForm = {
+  id?: string | null; // Veritabanındaki çakışmayı önlemek için eklendi
   imageUrl: string;
   sortOrder: string;
   isPrimary: boolean;
@@ -131,6 +133,8 @@ type ProductForm = {
   categoryIds: string[];
   images: ProductImageForm[];
   variants: ProductVariantForm[];
+  updatedAtUtc?: string | null; // Eşzamanlılık (Concurrency) kontrolü için eklendi
+  rowVersion?: string | null; // Eşzamanlılık (Concurrency) kontrolü için eklendi
 };
 
 type Notice =
@@ -154,12 +158,14 @@ const emptyForm: ProductForm = {
   isGiftBoxEligible: true,
   categoryIds: [],
   images: [
-    { imageUrl: "", sortOrder: "1", isPrimary: true },
-    { imageUrl: "", sortOrder: "2", isPrimary: false },
-    { imageUrl: "", sortOrder: "3", isPrimary: false },
-    { imageUrl: "", sortOrder: "4", isPrimary: false },
+    { id: null, imageUrl: "", sortOrder: "1", isPrimary: true },
+    { id: null, imageUrl: "", sortOrder: "2", isPrimary: false },
+    { id: null, imageUrl: "", sortOrder: "3", isPrimary: false },
+    { id: null, imageUrl: "", sortOrder: "4", isPrimary: false },
   ],
   variants: [],
+  updatedAtUtc: null,
+  rowVersion: null,
 };
 
 function slugify(value: string) {
@@ -249,9 +255,10 @@ function attributesToJson(attributes: Record<string, string>) {
 }
 
 function buildFormFromProduct(product: ProductDetailDto): ProductForm {
-  const images = product.images
+  const images: ProductImageForm[] = product.images
     .sort((a, b) => a.sortOrder - b.sortOrder)
     .map((image) => ({
+      id: image.id,
       imageUrl: image.imageUrl,
       sortOrder: String(image.sortOrder),
       isPrimary: image.isPrimary,
@@ -259,6 +266,7 @@ function buildFormFromProduct(product: ProductDetailDto): ProductForm {
 
   while (images.length < 4) {
     images.push({
+      id: null,
       imageUrl: "",
       sortOrder: String(images.length + 1),
       isPrimary: images.length === 0,
@@ -287,12 +295,15 @@ function buildFormFromProduct(product: ProductDetailDto): ProductForm {
       stock: String(variant.stock),
       isActive: variant.isActive,
     })),
+    updatedAtUtc: product.updatedAtUtc,
+    rowVersion: product.rowVersion,
   };
 }
 
 function buildPayload(form: ProductForm) {
   const images = form.images
     .map((image, index) => ({
+      id: image.id || null, // ID artık gönderiliyor ki EF Core çakışmasın
       imageUrl: image.imageUrl.trim(),
       sortOrder: toInteger(image.sortOrder) ?? index + 1,
       isPrimary: image.isPrimary,
@@ -332,6 +343,8 @@ function buildPayload(form: ProductForm) {
     categoryIds: form.categoryIds,
     images,
     variants,
+    updatedAtUtc: form.updatedAtUtc,
+    rowVersion: form.rowVersion,
   };
 }
 
@@ -359,6 +372,9 @@ export default function AdminProductsPageClient() {
     null
   );
   const [isUploadingCoverImage, setIsUploadingCoverImage] = useState(false);
+
+  // Eğer arka planda bir görsel yükleniyorsa, formu kaydetmeyi engelliyoruz
+  const isFormLocked = isSaving || uploadingImageIndex !== null || isUploadingCoverImage;
 
   const canUseAdmin = isReady && isAuthenticated && isAdmin;
   const isEditing = Boolean(editingId);
@@ -517,7 +533,7 @@ export default function AdminProductsPageClient() {
 
   const updateImage = (
     index: number,
-    key: keyof ProductImageForm,
+    key: keyof Omit<ProductImageForm, "id">,
     value: string | boolean
   ) => {
     setForm((current) => ({
@@ -553,6 +569,7 @@ export default function AdminProductsPageClient() {
       images: [
         ...current.images,
         {
+          id: null,
           imageUrl: "",
           sortOrder: String(current.images.length + 1),
           isPrimary: current.images.length === 0,
@@ -682,6 +699,7 @@ export default function AdminProductsPageClient() {
               )
             : [
                 {
+                  id: null,
                   imageUrl: data.url,
                   sortOrder: "1",
                   isPrimary: true,
@@ -803,6 +821,8 @@ export default function AdminProductsPageClient() {
     event.preventDefault();
 
     if (!token || !canUseAdmin) return;
+    
+    if (isFormLocked) return; // Görsel yüklenirken vs kayıt engellensin.
 
     const validationError = validateForm();
 
@@ -1248,7 +1268,7 @@ export default function AdminProductsPageClient() {
                         <div className="mt-3 grid gap-2 sm:grid-cols-3">
                           <button
                             type="button"
-                            disabled={isSaving}
+                            disabled={isFormLocked}
                             onClick={() => toggleProductFlag(product, "active")}
                             className="rounded-xl border border-border-soft bg-panel/70 px-3 py-2 text-xs font-black text-foreground transition hover:bg-panel-3 disabled:opacity-50"
                           >
@@ -1257,7 +1277,7 @@ export default function AdminProductsPageClient() {
 
                           <button
                             type="button"
-                            disabled={isSaving}
+                            disabled={isFormLocked}
                             onClick={() => toggleProductFlag(product, "featured")}
                             className="rounded-xl border border-mhgreen/30 bg-mhgreen/10 px-3 py-2 text-xs font-black text-mhgreen transition hover:bg-mhgreen/15 disabled:opacity-50"
                           >
@@ -1266,7 +1286,7 @@ export default function AdminProductsPageClient() {
 
                           <button
                             type="button"
-                            disabled={isSaving}
+                            disabled={isFormLocked}
                             onClick={() => deleteProduct(product)}
                             className="rounded-xl border border-danger/30 bg-danger/10 px-3 py-2 text-xs font-black text-danger transition hover:bg-danger/15 disabled:opacity-50"
                           >
@@ -1440,7 +1460,7 @@ export default function AdminProductsPageClient() {
                               type="file"
                               accept="image/jpeg,image/png,image/webp,image/gif"
                               className="hidden"
-                              disabled={isUploadingCoverImage || isSaving}
+                              disabled={isUploadingCoverImage || isFormLocked}
                               onChange={(event) => {
                                 const file = event.target.files?.[0];
                                 event.target.value = "";
@@ -1682,7 +1702,7 @@ export default function AdminProductsPageClient() {
                                 type="file"
                                 accept="image/jpeg,image/png,image/webp,image/gif"
                                 className="hidden"
-                                disabled={uploadingImageIndex === index || isSaving}
+                                disabled={uploadingImageIndex === index || isFormLocked}
                                 onChange={(event) => {
                                   const file = event.target.files?.[0];
                                   event.target.value = "";
@@ -1913,8 +1933,8 @@ export default function AdminProductsPageClient() {
                     <button
                       type="button"
                       onClick={() => deleteProduct(selectedProduct)}
-                      disabled={isSaving}
-                      className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl border border-danger/30 bg-danger/10 px-5 text-sm font-black text-danger transition hover:bg-danger/15 disabled:opacity-50"
+                      disabled={isFormLocked}
+                      className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl border border-danger/30 bg-danger/10 px-5 text-sm font-black text-danger transition hover:bg-danger/15 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       <Trash2 className="h-4 w-4" />
                       Ürünü Sil
@@ -1924,7 +1944,8 @@ export default function AdminProductsPageClient() {
                   <button
                     type="button"
                     onClick={resetForm}
-                    className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl border border-border-soft bg-panel/70 px-5 text-sm font-black text-foreground transition hover:bg-panel-3"
+                    disabled={isFormLocked}
+                    className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl border border-border-soft bg-panel/70 px-5 text-sm font-black text-foreground transition hover:bg-panel-3 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     <X className="h-4 w-4" />
                     Temizle
@@ -1932,13 +1953,13 @@ export default function AdminProductsPageClient() {
 
                   <button
                     type="submit"
-                    disabled={isSaving}
-                    className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl bg-mhgreen px-5 text-sm font-black text-white shadow-[0_14px_30px_rgba(34,197,94,0.22)] transition hover:-translate-y-0.5 hover:bg-mhgreen-dark disabled:opacity-50"
+                    disabled={isFormLocked}
+                    className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl bg-mhgreen px-5 text-sm font-black text-white shadow-[0_14px_30px_rgba(34,197,94,0.22)] transition hover:-translate-y-0.5 hover:bg-mhgreen-dark disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    {isSaving ? (
+                    {isFormLocked ? (
                       <>
                         <Loader2 className="h-4 w-4 animate-spin" />
-                        Kaydediliyor
+                        İşlem Yapılıyor...
                       </>
                     ) : isEditing ? (
                       "Ürünü Güncelle"

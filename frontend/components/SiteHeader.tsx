@@ -338,17 +338,44 @@ export default function SiteHeader() {
         </div>
 
         {categoriesOpen && rootCategories.length > 0 && (
-          <div className="border-t border-border-soft/70 pb-2 pt-2 lg:hidden">
-            <div className="flex gap-2 overflow-x-auto pb-1">
-              {rootCategories.map((category) => (
-                <Link
-                  key={category.id}
-                  href={`/products?categoryId=${category.id}`}
-                  className="badge-soft shrink-0"
-                >
-                  {category.name}
-                </Link>
-              ))}
+          <div className="border-t border-border-soft/70 px-2 py-4 lg:hidden max-h-[65vh] overflow-y-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+            <div className="mb-3 flex items-center justify-between px-1">
+              <p className="text-[11px] font-black uppercase tracking-widest text-mhgreen">Kategoriler</p>
+              <Link href="/categories" className="text-[11px] font-bold text-muted hover:text-foreground">
+                Tümünü Gör →
+              </Link>
+            </div>
+            
+            <div className="grid gap-3">
+              {rootCategories.map((root) => {
+                const children = childCategoriesByParent[root.id] || [];
+                return (
+                  <div key={root.id} className="rounded-2xl border border-border-soft bg-panel-2/60 p-3.5">
+                    <Link
+                      href={`/products?categoryId=${root.id}`}
+                      className="mb-2.5 block text-sm font-extrabold text-foreground"
+                    >
+                      {root.name}
+                    </Link>
+                    
+                    {children.length > 0 ? (
+                      <div className="flex flex-wrap gap-2">
+                        {children.map((child) => (
+                          <Link
+                            key={child.id}
+                            href={`/products?categoryId=${child.id}`}
+                            className="inline-flex items-center justify-center rounded-xl border border-border-soft bg-panel px-3 py-1.5 text-xs font-semibold text-muted transition hover:bg-panel-3 hover:text-foreground"
+                          >
+                            {child.name}
+                          </Link>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-xs text-muted-2">Alt kategori yok</p>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           </div>
         )}
