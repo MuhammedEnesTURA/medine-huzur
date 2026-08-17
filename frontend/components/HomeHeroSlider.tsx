@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { ArrowRight, ChevronLeft, ChevronRight } from "lucide-react";
 import { useEffect, useState, useCallback } from "react";
@@ -119,27 +120,32 @@ export default function HomeHeroSlider() {
       onTouchMove={onTouchMove}
       onTouchEnd={onTouchEnd}
     >
-      {slides.map((slide, index) => (
-        <div
-          key={slide.id}
-          className={`absolute inset-0 transition-opacity duration-700 ease-in-out ${
-            index === activeIndex ? "opacity-100 z-10" : "opacity-0 z-0 pointer-events-none"
-          }`}
-        >
-          <picture>
-            <source media="(min-width: 768px)" srcSet={slide.desktopImage} />
-            <img
-              src={slide.mobileImage}
-              alt={slide.title}
-              className="h-full w-full object-cover brightness-95 transition-transform duration-[10000ms] ease-linear hover:scale-105 select-none pointer-events-none"
-              draggable="false"
-            />
-          </picture>
-          
-          {/* DİKKAT: Karartmayı tüm ekrandan alıp sadece alt %50'ye verdik */}
-          <div className="absolute bottom-0 h-1/2 w-full bg-gradient-to-t from-black/90 via-black/50 to-transparent" />
-        </div>
-      ))}
+      <div
+        key={activeSlide.id}
+        className="absolute inset-0 z-10 transition-opacity duration-700 ease-in-out"
+      >
+        <Image
+          src={activeSlide.mobileImage}
+          alt={activeSlide.title}
+          fill
+          sizes="100vw"
+          fetchPriority={activeIndex === 0 ? "high" : "auto"}
+          className="select-none object-cover brightness-95 transition-transform duration-[10000ms] ease-linear hover:scale-105 pointer-events-none md:hidden"
+          draggable={false}
+        />
+        <Image
+          src={activeSlide.desktopImage}
+          alt={activeSlide.title}
+          fill
+          sizes="(min-width: 1280px) 1200px, 100vw"
+          fetchPriority={activeIndex === 0 ? "high" : "auto"}
+          className="hidden select-none object-cover brightness-95 transition-transform duration-[10000ms] ease-linear hover:scale-105 pointer-events-none md:block"
+          draggable={false}
+        />
+
+        {/* DİKKAT: Karartmayı tüm ekrandan alıp sadece alt %50'ye verdik */}
+        <div className="absolute bottom-0 h-1/2 w-full bg-gradient-to-t from-black/90 via-black/50 to-transparent" />
+      </div>
 
       {/* İçerik Konteyneri: Mobilde paddingleri kısıp iyice alta ittik */}
       <div className="absolute inset-0 z-20 flex flex-col justify-end px-4 pb-12 sm:px-8 md:px-12 md:pb-16 lg:px-16 pointer-events-none">

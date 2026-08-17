@@ -3,7 +3,8 @@
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
+import type { MouseEvent } from "react";
 import {
   ChevronDown,
   LogOut,
@@ -28,6 +29,8 @@ type CategoryDto = {
   parentId?: string | null;
   sortOrder?: number;
 };
+
+type CategoryLoadState = "idle" | "loading" | "ready" | "error";
 
 function navLinkClass(active: boolean) {
   return `inline-flex h-10 items-center justify-center rounded-2xl px-4 text-[13px] font-extrabold tracking-[-0.015em] transition-all duration-200 whitespace-nowrap ${
@@ -61,47 +64,50 @@ export default function SiteHeader() {
 
   const [categories, setCategories] = useState<CategoryDto[]>([]);
   const [categoriesOpen, setCategoriesOpen] = useState(false);
+  const [categoryLoadState, setCategoryLoadState] =
+    useState<CategoryLoadState>("idle");
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [mounted, setMounted] = useState(false);
+  const categoriesRequestedRef = useRef(false);
 
-  useEffect(() => {
-    setMounted(true);
-  }, []);
+  const loadCategories = async () => {
+    if (categoriesRequestedRef.current) return;
 
-  useEffect(() => {
-    let ignore = false;
+    setCategoryLoadState("loading");
+    categoriesRequestedRef.current = true;
+    try {
+      const res = await fetch(apiUrl("/api/catalog/categories"));
 
-    async function loadCategories() {
-      try {
-        const res = await fetch(apiUrl("/api/catalog/categories"), {
-          cache: "no-store",
-        });
-
-        if (!res.ok) return;
-
-        const data = (await res.json()) as CategoryDto[];
-
-        if (!ignore && Array.isArray(data)) {
-          setCategories(data);
-        }
-      } catch {
-        // sessiz geç
+      if (!res.ok) {
+        categoriesRequestedRef.current = false;
+        setCategoryLoadState("error");
+        return;
       }
+
+      const data = (await res.json()) as CategoryDto[];
+
+      if (!Array.isArray(data)) {
+        categoriesRequestedRef.current = false;
+        setCategoryLoadState("error");
+        return;
+      }
+
+      setCategories(data);
+      setCategoryLoadState("ready");
+    } catch {
+      categoriesRequestedRef.current = false;
+      setCategoryLoadState("error");
     }
+  };
 
-    void loadCategories();
+  const toggleCategories = () => {
+    const opening = !categoriesOpen;
+    setCategoriesOpen(opening);
 
-    return () => {
-      ignore = true;
-    };
-  }, []);
-
-  useEffect(() => {
-    setCategoriesOpen(false);
-    setUserMenuOpen(false);
-    setMobileOpen(false);
-  }, [pathname]);
+    if (opening && categoryLoadState !== "ready") {
+      void loadCategories();
+    }
+  };
 
   const rootCategories = useMemo(
     () =>
@@ -151,8 +157,19 @@ export default function SiteHeader() {
     setUserMenuOpen(false);
   };
 
+  const onHeaderLinkClick = (event: MouseEvent<HTMLElement>) => {
+    if (!(event.target as HTMLElement).closest("a")) return;
+
+    setCategoriesOpen(false);
+    setUserMenuOpen(false);
+    setMobileOpen(false);
+  };
+
   return (
-    <header className="sticky top-0 z-50 bg-panel/92 shadow-[0_10px_34px_rgba(0,0,0,0.07)] backdrop-blur-2xl">
+    <header
+      onClickCapture={onHeaderLinkClick}
+      className="sticky top-0 z-50 bg-panel/92 shadow-[0_10px_34px_rgba(0,0,0,0.07)] backdrop-blur-2xl"
+    >
       <div className="pointer-events-none absolute inset-x-0 bottom-0 h-px bg-gradient-to-r from-transparent via-mhgreen/16 to-transparent" />
 
       <div className="page-container">
@@ -170,7 +187,6 @@ export default function SiteHeader() {
                 fill
                 sizes="(max-width: 640px) 44px, 54px"
                 className="object-contain drop-shadow-[0_10px_18px_rgba(21,128,61,0.14)]"
-                priority
               />
             </div>
 
@@ -194,7 +210,7 @@ export default function SiteHeader() {
 
               <button
                 type="button"
-                onClick={() => setCategoriesOpen((prev) => !prev)}
+                onClick={toggleCategories}
                 className={navLinkClass(categoriesOpen)}
               >
                 Kategoriler
@@ -244,7 +260,7 @@ export default function SiteHeader() {
             >
               <ShoppingCart className="h-5 w-5 text-foreground" />
 
-              {mounted && cartCount > 0 && (
+              {cartCount > 0 && (
                 <span className="absolute -right-1.5 -top-1.5 flex h-5 min-w-5 items-center justify-center rounded-full bg-danger px-1 text-[10px] font-extrabold text-white">
                   {cartCount > 99 ? "99+" : cartCount}
                 </span>
@@ -326,7 +342,7 @@ export default function SiteHeader() {
 
           <button
             type="button"
-            onClick={() => setCategoriesOpen((prev) => !prev)}
+            onClick={toggleCategories}
             className={mobilePillClass(categoriesOpen)}
           >
             Kategoriler
@@ -336,6 +352,16 @@ export default function SiteHeader() {
             Ürünler
           </Link>
         </div>
+
+        {categoriesOpen && rootCategories.length === 0 && (
+          <div className="border-t border-border-soft/70 px-3 py-4 text-xs text-muted lg:hidden">
+            {categoryLoadState === "loading"
+              ? "Kategoriler yükleniyor..."
+              : categoryLoadState === "error"
+                ? "Kategori hizmetine şu anda erişilemiyor."
+                : "Kategori bulunamadı."}
+          </div>
+        )}
 
         {categoriesOpen && rootCategories.length > 0 && (
           <div className="border-t border-border-soft/70 px-2 py-4 lg:hidden max-h-[65vh] overflow-y-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
@@ -400,7 +426,15 @@ export default function SiteHeader() {
               </Link>
             </div>
 
-            {rootCategories.length === 0 ? (
+            {categoryLoadState === "loading" ? (
+              <div className="rounded-2xl border border-border-soft bg-panel-2/70 p-4 text-sm text-muted">
+                Kategoriler yükleniyor...
+              </div>
+            ) : categoryLoadState === "error" ? (
+              <div className="rounded-2xl border border-border-soft bg-panel-2/70 p-4 text-sm text-muted">
+                Kategori hizmetine şu anda erişilemiyor.
+              </div>
+            ) : rootCategories.length === 0 ? (
               <div className="rounded-2xl border border-border-soft bg-panel-2/70 p-4 text-sm text-muted">
                 Kategori bulunamadı.
               </div>

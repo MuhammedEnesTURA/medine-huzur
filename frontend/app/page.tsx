@@ -1,10 +1,15 @@
+import Image from "next/image";
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
+import { Suspense } from "react";
 import HomeHeroSlider from "../components/HomeHeroSlider";
 import HomeFeaturedCarousel from "../components/HomeFeaturedCarousel";
 import CatalogServiceError from "../components/CatalogServiceError";
 import SearchBand from "../components/SearchBand";
-import { fetchJsonResult } from "../lib/api";
+import {
+  fetchJsonResult,
+  PUBLIC_CATALOG_REVALIDATE_SECONDS,
+} from "../lib/api";
 
 type Product = {
   id: string;
@@ -83,14 +88,38 @@ function StatCard({ title, text }: { title: string; text: string }) {
 async function getFeaturedProducts() {
   return fetchJsonResult<ProductListResponse>(
     "/api/catalog/products?featured=true&inStock=true&pageSize=8",
-    { cache: "no-store" }
+    { next: { revalidate: PUBLIC_CATALOG_REVALIDATE_SECONDS } }
   );
 }
 
-export default async function HomePage() {
+async function FeaturedProductsContent() {
   const featuredResult = await getFeaturedProducts();
   const featuredProducts = featuredResult.ok ? featuredResult.data.items ?? [] : [];
 
+  return featuredResult.ok ? (
+    <HomeFeaturedCarousel products={featuredProducts} />
+  ) : (
+    <CatalogServiceError className="mt-5" />
+  );
+}
+
+function FeaturedProductsFallback() {
+  return (
+    <div
+      aria-label="Öne çıkan ürünler yükleniyor"
+      className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4"
+    >
+      {Array.from({ length: 4 }, (_, index) => (
+        <div
+          key={index}
+          className="aspect-[4/3] animate-pulse rounded-[1.35rem] border border-border-soft bg-panel-2/70"
+        />
+      ))}
+    </div>
+  );
+}
+
+export default function HomePage() {
   // Kategori verileri (Görsel yollarını kendi üreteceğin görsellere göre değiştirebilirsin)
   const categories = [
     {
@@ -135,11 +164,9 @@ export default async function HomePage() {
           />
 
           <div className="relative z-10 mt-5">
-            {featuredResult.ok ? (
-              <HomeFeaturedCarousel products={featuredProducts} />
-            ) : (
-              <CatalogServiceError className="mt-5" />
-            )}
+            <Suspense fallback={<FeaturedProductsFallback />}>
+              <FeaturedProductsContent />
+            </Suspense>
           </div>
         </section>
 
@@ -162,9 +189,11 @@ export default async function HomePage() {
                   key={cat.id}
                   className="group relative flex h-[350px] min-w-[75vw] snap-center flex-col justify-between overflow-hidden rounded-[1.25rem] bg-panel-2 shadow-lg sm:min-w-[300px] md:h-[400px] md:w-auto"
                 >
-                  <img
+                  <Image
                     src={cat.image}
                     alt={cat.title}
+                    fill
+                    sizes="(max-width: 767px) 75vw, (max-width: 1280px) 33vw, 390px"
                     className="absolute inset-0 h-full w-full object-cover transition-transform duration-700 group-hover:scale-105"
                   />
                   {/* Yazının okunması için siyah perde */}

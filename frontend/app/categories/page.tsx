@@ -2,7 +2,10 @@ import Link from "next/link";
 import { ChevronRight, LayoutGrid } from "lucide-react";
 import SearchBand from "../../components/SearchBand";
 import CatalogServiceError from "../../components/CatalogServiceError";
-import { fetchJsonResult } from "../../lib/api";
+import {
+  fetchJsonResult,
+  PUBLIC_CATALOG_REVALIDATE_SECONDS,
+} from "../../lib/api";
 
 // Kategori veri tipimiz
 type CategoryDto = {
@@ -18,7 +21,7 @@ type CategoryDto = {
 // API'den kategorileri çeken fonksiyon
 async function getCategories() {
   return fetchJsonResult<CategoryDto[]>("/api/catalog/categories", {
-    cache: "no-store",
+    next: { revalidate: PUBLIC_CATALOG_REVALIDATE_SECONDS },
   });
 }
 

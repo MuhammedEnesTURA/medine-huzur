@@ -12,7 +12,11 @@ import {
 } from "lucide-react";
 import SearchBand from "../../components/SearchBand";
 import CatalogServiceError from "../../components/CatalogServiceError";
-import { fetchJsonResult } from "../../lib/api";
+import {
+  fetchJsonResult,
+  PUBLIC_CATALOG_REVALIDATE_SECONDS,
+} from "../../lib/api";
+import { optimizedCloudinaryUrl } from "../../lib/cloudinary";
 
 type CategoryDto = {
   id: string;
@@ -58,7 +62,7 @@ type ProductsPageProps = {
 
 async function getCategories() {
   return fetchJsonResult<CategoryDto[]>("/api/catalog/categories", {
-    cache: "no-store",
+    next: { revalidate: PUBLIC_CATALOG_REVALIDATE_SECONDS },
   });
 }
 
@@ -96,7 +100,7 @@ async function getProducts({
 
   return fetchJsonResult<ProductListResponse>(
     `/api/catalog/products?${params.toString()}`,
-    { cache: "no-store" }
+    { next: { revalidate: PUBLIC_CATALOG_REVALIDATE_SECONDS } }
   );
 }
 
@@ -485,13 +489,17 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
                     key={product.id}
                     className="concept-corner group overflow-hidden rounded-[1.2rem] border border-border-soft bg-panel/78 p-2.5 shadow-[0_12px_32px_rgba(0,0,0,0.10)] transition duration-200 hover:-translate-y-1 hover:border-mhgreen/30 hover:bg-panel/90"
                   >
-                    <Link href={`/product/${product.slug}`} className="block">
+                    <Link
+                      href={`/product/${product.slug}`}
+                      prefetch={false}
+                      className="block"
+                    >
                       <div className="relative flex aspect-[4/3] items-center justify-center overflow-hidden rounded-2xl border border-border-soft bg-panel-3/86">
                         <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_0%,rgba(34,197,94,0.13),transparent_36%)] opacity-80 transition group-hover:opacity-100" />
 
                         {image ? (
                           <Image
-                            src={image}
+                            src={optimizedCloudinaryUrl(image, 640)}
                             alt={product.name}
                             fill
                             sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
@@ -550,6 +558,7 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
                     <div className="mt-2.5 grid grid-cols-2 gap-2 px-1.5 pb-1.5">
                       <Link
                         href={`/product/${product.slug}`}
+                        prefetch={false}
                         className="inline-flex min-h-8 items-center justify-center gap-1.5 rounded-xl border border-border-soft bg-panel-2/82 px-2 text-xs font-black text-foreground transition hover:-translate-y-0.5 hover:border-mhgreen/35 hover:bg-panel-3 hover:text-mhgreen"
                       >
                         <Eye className="h-3.5 w-3.5" />
@@ -558,6 +567,7 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
 
                       <Link
                         href={`/product/${product.slug}?gift=1`}
+                        prefetch={false}
                         className="inline-flex min-h-8 items-center justify-center gap-1.5 rounded-xl bg-mhgreen px-2 text-xs font-black text-white shadow-[0_10px_22px_rgba(34,197,94,0.18)] transition hover:-translate-y-0.5 hover:bg-mhgreen-dark"
                       >
                         <Gift className="h-3.5 w-3.5" />

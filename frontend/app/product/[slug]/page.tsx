@@ -1,6 +1,10 @@
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
-import { fetchJsonResult } from "../../../lib/api";
+import { cache } from "react";
+import {
+  fetchJsonResult,
+  PUBLIC_CATALOG_REVALIDATE_SECONDS,
+} from "../../../lib/api";
 import {
   absoluteUrl,
   buildSeoDescription,
@@ -53,12 +57,12 @@ type ProductPageProps = {
   }>;
 };
 
-async function getProduct(slug: string) {
+const getProduct = cache((slug: string) => {
   return fetchJsonResult<ProductDetailDto>(
     `/api/catalog/products/by-slug/${slug}`,
-    { cache: "no-store" }
+    { next: { revalidate: PUBLIC_CATALOG_REVALIDATE_SECONDS } }
   );
-}
+});
 
 function getProductImage(product: ProductDetailDto) {
   const primaryFromImages = product.images

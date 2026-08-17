@@ -2,6 +2,14 @@ const rawBaseUrl =
   process.env.NEXT_PUBLIC_API_BASE_URL?.trim() || "http://localhost:5096";
 
 export const API_BASE_URL = rawBaseUrl.replace(/\/+$/, "");
+export const PUBLIC_CATALOG_REVALIDATE_SECONDS = 60;
+
+type ApiFetchInit = RequestInit & {
+  next?: {
+    revalidate?: number | false;
+    tags?: string[];
+  };
+};
 
 export function apiUrl(path: string) {
   if (!path.startsWith("/")) {
@@ -17,7 +25,7 @@ export type ApiFetchResult<T> =
 
 export async function fetchJsonResult<T>(
   path: string,
-  init?: RequestInit
+  init?: ApiFetchInit
 ): Promise<ApiFetchResult<T>> {
   try {
     const response = await fetch(apiUrl(path), init);

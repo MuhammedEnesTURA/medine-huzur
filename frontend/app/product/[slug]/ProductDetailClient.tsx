@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
@@ -15,6 +16,7 @@ import {
   X,
 } from "lucide-react";
 import { useCart } from "../../../context/CartContext";
+import { optimizedCloudinaryUrl } from "../../../lib/cloudinary";
 import type { ProductDetailDto } from "./page";
 
 type VariantAttributes = Record<string, string>;
@@ -313,10 +315,13 @@ export default function ProductDetailClient({
               <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_0%,rgba(34,197,94,0.10),transparent_35%)]" />
 
               {activeImage ? (
-                <img
-                  src={activeImage}
+                <Image
+                  src={optimizedCloudinaryUrl(activeImage, 1200)}
                   alt={product.name}
-                  className="relative h-full w-full object-contain p-5 transition duration-300 hover:scale-[1.015]"
+                  fill
+                  sizes="(max-width: 1279px) 100vw, 45vw"
+                  fetchPriority="high"
+                  className="relative object-contain p-5 transition duration-300 hover:scale-[1.015]"
                 />
               ) : (
                 <div className="relative flex h-full w-full flex-col items-center justify-center text-sm text-muted">
@@ -369,10 +374,12 @@ export default function ProductDetailClient({
                           : "border-border-soft hover:border-border-strong"
                       }`}
                     >
-                      <img
-                        src={imageUrl}
+                      <Image
+                        src={optimizedCloudinaryUrl(imageUrl, 240)}
                         alt={`${product.name} görsel ${index + 1}`}
-                        className="h-full w-full object-contain p-1.5"
+                        fill
+                        sizes="(max-width: 640px) 25vw, 160px"
+                        className="object-contain p-1.5"
                       />
                     </button>
                   );
