@@ -1,6 +1,6 @@
 "use client";
 
-import Image from "next/image";
+import { getImageProps } from "next/image";
 import Link from "next/link";
 import { ArrowRight, ChevronLeft, ChevronRight } from "lucide-react";
 import { useEffect, useState, useCallback } from "react";
@@ -13,6 +13,8 @@ type Slide = {
   action: string;
   badge?: string;
   desktopImage: string;
+  desktopWidth: number;
+  desktopHeight: number;
   mobileImage: string;
 };
 
@@ -25,6 +27,8 @@ const slides: Slide[] = [
     action: "Hac Malzemelerini Keşfet",
     badge: "YENİ KOLEKSİYON",
     desktopImage: "/slides/slide-1-pc.jpg",
+    desktopWidth: 1672,
+    desktopHeight: 941,
     mobileImage: "/slides/slide-1-mobil.jpg",
   },
   {
@@ -35,6 +39,8 @@ const slides: Slide[] = [
     action: "Seccadeleri İncele",
     badge: "ÇOK SATANLAR",
     desktopImage: "/slides/slide-2-pc.jpg",
+    desktopWidth: 1916,
+    desktopHeight: 821,
     mobileImage: "/slides/slide-2-mobil.jpg",
   },
   {
@@ -44,6 +50,8 @@ const slides: Slide[] = [
     href: "/products?q=tesbih",
     action: "Tesbihleri İncele",
     desktopImage: "/slides/slide-3-pc.jpg",
+    desktopWidth: 1916,
+    desktopHeight: 821,
     mobileImage: "/slides/slide-3-mobil.jpg",
   },
   {
@@ -53,6 +61,8 @@ const slides: Slide[] = [
     href: "/products?q=giyim",
     action: "Giyim Ürünleri",
     desktopImage: "/slides/slide-4-pc.jpg",
+    desktopWidth: 1916,
+    desktopHeight: 821,
     mobileImage: "/slides/slide-4-mobil.jpg",
   },
   {
@@ -63,6 +73,8 @@ const slides: Slide[] = [
     action: "Hediye Kutusu Oluştur",
     badge: "ÖZEL HEDİYE",
     desktopImage: "/slides/slide-5-pc.jpg",
+    desktopWidth: 1672,
+    desktopHeight: 941,
     mobileImage: "/slides/slide-5-mobil.jpg",
   },
 ];
@@ -110,6 +122,26 @@ export default function HomeHeroSlider() {
   }, [isHovered]);
 
   const activeSlide = slides[activeIndex];
+  const desktopSizes =
+    "(min-width: 1536px) 1316px, (min-width: 1280px) calc(100vw - 64px), (min-width: 768px) calc(100vw - 48px), 100vw";
+  const {
+    props: { srcSet: desktopSrcSet },
+  } = getImageProps({
+    src: activeSlide.desktopImage,
+    alt: activeSlide.title,
+    width: activeSlide.desktopWidth,
+    height: activeSlide.desktopHeight,
+    sizes: desktopSizes,
+  });
+  const { props: mobileImageProps } = getImageProps({
+    src: activeSlide.mobileImage,
+    alt: activeSlide.title,
+    width: 941,
+    height: 1672,
+    sizes: "100vw",
+    loading: activeIndex === 0 ? "eager" : "lazy",
+    fetchPriority: activeIndex === 0 ? "high" : "auto",
+  });
 
   return (
     <section 
@@ -124,24 +156,19 @@ export default function HomeHeroSlider() {
         key={activeSlide.id}
         className="absolute inset-0 z-10 transition-opacity duration-700 ease-in-out"
       >
-        <Image
-          src={activeSlide.mobileImage}
-          alt={activeSlide.title}
-          fill
-          sizes="100vw"
-          fetchPriority={activeIndex === 0 ? "high" : "auto"}
-          className="select-none object-cover brightness-95 transition-transform duration-[10000ms] ease-linear hover:scale-105 pointer-events-none md:hidden"
-          draggable={false}
-        />
-        <Image
-          src={activeSlide.desktopImage}
-          alt={activeSlide.title}
-          fill
-          sizes="(min-width: 1280px) 1200px, 100vw"
-          fetchPriority={activeIndex === 0 ? "high" : "auto"}
-          className="hidden select-none object-cover brightness-95 transition-transform duration-[10000ms] ease-linear hover:scale-105 pointer-events-none md:block"
-          draggable={false}
-        />
+        <picture>
+          <source
+            media="(min-width: 768px)"
+            srcSet={desktopSrcSet}
+            sizes={desktopSizes}
+          />
+          <img
+            {...mobileImageProps}
+            alt={activeSlide.title}
+            className="absolute inset-0 h-full w-full select-none object-cover brightness-95 transition-transform duration-[10000ms] ease-linear hover:scale-105 pointer-events-none"
+            draggable={false}
+          />
+        </picture>
 
         {/* DİKKAT: Karartmayı tüm ekrandan alıp sadece alt %50'ye verdik */}
         <div className="absolute bottom-0 h-1/2 w-full bg-gradient-to-t from-black/90 via-black/50 to-transparent" />
