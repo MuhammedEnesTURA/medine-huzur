@@ -11,6 +11,32 @@ export function apiUrl(path: string) {
   return `${API_BASE_URL}${path}`;
 }
 
+export type ApiFetchResult<T> =
+  | { ok: true; status: number; data: T }
+  | { ok: false; status: number | null };
+
+export async function fetchJsonResult<T>(
+  path: string,
+  init?: RequestInit
+): Promise<ApiFetchResult<T>> {
+  try {
+    const response = await fetch(apiUrl(path), init);
+
+    if (!response.ok) {
+      return { ok: false, status: response.status };
+    }
+
+    const data = await response.json().catch(() => null);
+    if (data === null) {
+      return { ok: false, status: response.status };
+    }
+
+    return { ok: true, status: response.status, data: data as T };
+  } catch {
+    return { ok: false, status: null };
+  }
+}
+
 export async function readJsonOrThrow<T>(res: Response): Promise<T> {
   const data = await res.json().catch(() => null);
 

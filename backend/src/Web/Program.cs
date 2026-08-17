@@ -13,9 +13,17 @@ var builder = WebApplication.CreateBuilder(args);
 
 var configuration = builder.Configuration;
 
-var connectionString =
-    configuration.GetConnectionString("Default")
-    ?? Environment.GetEnvironmentVariable("MEDINE_HUZUR_CONNECTION_STRING");
+var primaryConnectionString =
+    Environment.GetEnvironmentVariable("ConnectionStrings__Default");
+
+var legacyConnectionString =
+    Environment.GetEnvironmentVariable("MEDINE_HUZUR_CONNECTION_STRING");
+
+var connectionString = !string.IsNullOrWhiteSpace(primaryConnectionString)
+    ? primaryConnectionString
+    : !string.IsNullOrWhiteSpace(legacyConnectionString)
+        ? legacyConnectionString
+        : configuration.GetConnectionString("Default");
 
 if (string.IsNullOrWhiteSpace(connectionString) ||
     connectionString == "SET_FROM_ENV_OR_DEVELOPMENT_SETTINGS")
@@ -50,6 +58,7 @@ builder.Services.Configure<AdminSeedSettings>(configuration.GetSection("AdminSee
 builder.Services.Configure<CloudinarySettings>(configuration.GetSection("Cloudinary"));
 builder.Services.AddScoped<IJwtTokenService, JwtTokenService>();
 builder.Services.AddScoped<IEmailService, SmtpEmailService>();
+builder.Services.AddScoped<DatabaseDiagnosticsService>();
 
 
 
@@ -164,6 +173,8 @@ app.UseStaticFiles();
 
 app.UseCors("Frontend");
 
+app.UseMiddleware<DatabaseExceptionMiddleware>();
+
 app.UseAuthentication();
 app.UseAuthorization();
 
@@ -177,6 +188,34 @@ app.MapGet("/health", () =>
         app = "Medine Huzur API",
         utc = DateTime.UtcNow
     });
+});
+
+app.MapGet("/health/process", () =>
+{
+    return Results.Ok(new
+    {
+        status = "ok",
+        app = "Medine Huzur API",
+        utc = DateTime.UtcNow
+    });
+});
+
+app.MapGet("/health/database", async (
+    DatabaseDiagnosticsService diagnostics,
+    CancellationToken cancellationToken) =>
+{
+    var reachable = await diagnostics.CanConnectAsync(cancellationToken);
+
+    return reachable
+        ? Results.Ok(new { status = "ok", database = "reachable" })
+        : Results.Json(
+            new
+            {
+                status = "degraded",
+                database = "unreachable",
+                message = "Veritabanı hizmetine şu anda erişilemiyor."
+            },
+            statusCode: StatusCodes.Status503ServiceUnavailable);
 });
 
 app.Run();

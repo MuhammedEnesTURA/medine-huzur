@@ -2,8 +2,9 @@ import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 import HomeHeroSlider from "../components/HomeHeroSlider";
 import HomeFeaturedCarousel from "../components/HomeFeaturedCarousel";
+import CatalogServiceError from "../components/CatalogServiceError";
 import SearchBand from "../components/SearchBand";
-import { apiUrl } from "../lib/api";
+import { fetchJsonResult } from "../lib/api";
 
 type Product = {
   id: string;
@@ -79,26 +80,16 @@ function StatCard({ title, text }: { title: string; text: string }) {
   );
 }
 
-async function getFeaturedProducts(): Promise<Product[]> {
-  try {
-    const res = await fetch(
-      apiUrl("/api/catalog/products?featured=true&inStock=true&pageSize=8"),
-      {
-        cache: "no-store",
-      }
-    );
-
-    if (!res.ok) return [];
-
-    const data = (await res.json()) as ProductListResponse;
-    return data.items ?? [];
-  } catch {
-    return [];
-  }
+async function getFeaturedProducts() {
+  return fetchJsonResult<ProductListResponse>(
+    "/api/catalog/products?featured=true&inStock=true&pageSize=8",
+    { cache: "no-store" }
+  );
 }
 
 export default async function HomePage() {
-  const featuredProducts = await getFeaturedProducts();
+  const featuredResult = await getFeaturedProducts();
+  const featuredProducts = featuredResult.ok ? featuredResult.data.items ?? [] : [];
 
   // Kategori verileri (Görsel yollarını kendi üreteceğin görsellere göre değiştirebilirsin)
   const categories = [
@@ -144,7 +135,11 @@ export default async function HomePage() {
           />
 
           <div className="relative z-10 mt-5">
-            <HomeFeaturedCarousel products={featuredProducts} />
+            {featuredResult.ok ? (
+              <HomeFeaturedCarousel products={featuredProducts} />
+            ) : (
+              <CatalogServiceError className="mt-5" />
+            )}
           </div>
         </section>
 

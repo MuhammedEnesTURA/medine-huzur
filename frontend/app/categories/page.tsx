@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { ChevronRight, LayoutGrid } from "lucide-react";
-import { apiUrl } from "../../lib/api";
 import SearchBand from "../../components/SearchBand";
+import CatalogServiceError from "../../components/CatalogServiceError";
+import { fetchJsonResult } from "../../lib/api";
 
 // Kategori veri tipimiz
 type CategoryDto = {
@@ -15,18 +16,10 @@ type CategoryDto = {
 };
 
 // API'den kategorileri çeken fonksiyon
-async function getCategories(): Promise<CategoryDto[]> {
-  try {
-    const res = await fetch(apiUrl("/api/catalog/categories"), {
-      cache: "no-store",
-    });
-
-    if (!res.ok) return [];
-
-    return (await res.json()) as CategoryDto[];
-  } catch {
-    return [];
-  }
+async function getCategories() {
+  return fetchJsonResult<CategoryDto[]>("/api/catalog/categories", {
+    cache: "no-store",
+  });
 }
 
 export const metadata = {
@@ -35,7 +28,8 @@ export const metadata = {
 };
 
 export default async function CategoriesPage() {
-  const categories = await getCategories();
+  const categoriesResult = await getCategories();
+  const categories = categoriesResult.ok ? categoriesResult.data : [];
 
   // Ana ve alt kategorileri ayırıp sıralıyoruz
   const rootCategories = categories
@@ -88,7 +82,9 @@ export default async function CategoriesPage() {
         </section>
 
         {/* Kategoriler Grid Yapısı */}
-        {rootCategories.length === 0 ? (
+        {!categoriesResult.ok ? (
+          <CatalogServiceError title="Kategori hizmetine şu anda erişilemiyor" />
+        ) : rootCategories.length === 0 ? (
           <div className="rounded-2xl border border-border-soft bg-panel-2/70 p-10 text-center text-muted">
             Henüz kategori bulunmuyor.
           </div>

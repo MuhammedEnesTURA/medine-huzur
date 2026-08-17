@@ -11,7 +11,8 @@ import {
   X,
 } from "lucide-react";
 import SearchBand from "../../components/SearchBand";
-import { apiUrl } from "../../lib/api";
+import CatalogServiceError from "../../components/CatalogServiceError";
+import { fetchJsonResult } from "../../lib/api";
 
 type CategoryDto = {
   id: string;
@@ -56,17 +57,9 @@ type ProductsPageProps = {
 };
 
 async function getCategories() {
-  try {
-    const res = await fetch(apiUrl("/api/catalog/categories"), {
-      cache: "no-store",
-    });
-
-    if (!res.ok) return [];
-
-    return ((await res.json()) as CategoryDto[]) ?? [];
-  } catch {
-    return [];
-  }
+  return fetchJsonResult<CategoryDto[]>("/api/catalog/categories", {
+    cache: "no-store",
+  });
 }
 
 async function getProducts({
@@ -101,31 +94,10 @@ async function getProducts({
   params.set("page", String(page));
   params.set("pageSize", "24");
 
-  try {
-    const res = await fetch(apiUrl(`/api/catalog/products?${params.toString()}`), {
-      cache: "no-store",
-    });
-
-    if (!res.ok) {
-      return {
-        items: [],
-        totalCount: 0,
-        page,
-        pageSize: 24,
-        totalPages: 0,
-      } satisfies ProductListResponse;
-    }
-
-    return (await res.json()) as ProductListResponse;
-  } catch {
-    return {
-      items: [],
-      totalCount: 0,
-      page,
-      pageSize: 24,
-      totalPages: 0,
-    } satisfies ProductListResponse;
-  }
+  return fetchJsonResult<ProductListResponse>(
+    `/api/catalog/products?${params.toString()}`,
+    { cache: "no-store" }
+  );
 }
 
 function formatPrice(value: number) {
@@ -196,7 +168,7 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
 
   const hasAnyFilter = Boolean(q || categoryId || hasAdvancedFilters);
 
-  const [categories, products] = await Promise.all([
+  const [categoriesResult, productsResult] = await Promise.all([
     getCategories(),
     getProducts({
       q,
@@ -209,6 +181,18 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
       sort,
     }),
   ]);
+
+  const catalogUnavailable = !productsResult.ok;
+  const categories = categoriesResult.ok ? categoriesResult.data : [];
+  const products = productsResult.ok
+    ? productsResult.data
+    : {
+        items: [],
+        totalCount: 0,
+        page,
+        pageSize: 24,
+        totalPages: 0,
+      } satisfies ProductListResponse;
 
   const selectedCategory = categories.find((x) => x.id === categoryId) ?? null;
 
@@ -246,7 +230,7 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
                 Sonuç
               </p>
               <p className="mt-0.5 text-lg font-black text-mhgreen">
-                {products.totalCount}
+                {catalogUnavailable ? "—" : products.totalCount}
               </p>
             </div>
           </div>
@@ -280,6 +264,15 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
                 </Link>
               )}
             </div>
+
+            {!categoriesResult.ok && (
+              <CatalogServiceError
+                compact
+                className="mt-2.5"
+                title="Kategoriler yüklenemedi"
+                message="Ürünler görüntülenmeye devam ediyor."
+              />
+            )}
 
             <div className="mt-2.5 flex gap-2 overflow-x-auto pb-1">
               <Link
@@ -461,7 +454,9 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
       </section>
 
       <section className="page-container mt-3">
-        {products.items.length === 0 ? (
+        {catalogUnavailable ? (
+          <CatalogServiceError />
+        ) : products.items.length === 0 ? (
           <div className="page-panel-soft concept-surface flex min-h-[260px] flex-col items-center justify-center p-8 text-center">
             <div className="relative z-10 flex h-14 w-14 items-center justify-center rounded-2xl border border-border-soft bg-panel-3">
               <PackageSearch className="h-7 w-7 text-mhgreen" />

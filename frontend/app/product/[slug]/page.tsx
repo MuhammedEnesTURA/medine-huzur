@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
-import { apiUrl } from "../../../lib/api";
+import { fetchJsonResult } from "../../../lib/api";
 import {
   absoluteUrl,
   buildSeoDescription,
@@ -8,6 +8,7 @@ import {
   siteConfig,
 } from "../../../lib/seo";
 import ProductDetailClient from "./ProductDetailClient";
+import CatalogServiceError from "../../../components/CatalogServiceError";
 
 export type ProductImageDto = {
   id?: string;
@@ -52,18 +53,11 @@ type ProductPageProps = {
   }>;
 };
 
-async function getProduct(slug: string): Promise<ProductDetailDto | null> {
-  try {
-    const res = await fetch(apiUrl(`/api/catalog/products/by-slug/${slug}`), {
-      cache: "no-store",
-    });
-
-    if (!res.ok) return null;
-
-    return (await res.json()) as ProductDetailDto;
-  } catch {
-    return null;
-  }
+async function getProduct(slug: string) {
+  return fetchJsonResult<ProductDetailDto>(
+    `/api/catalog/products/by-slug/${slug}`,
+    { cache: "no-store" }
+  );
 }
 
 function getProductImage(product: ProductDetailDto) {
@@ -101,19 +95,24 @@ export async function generateMetadata({
   params,
 }: ProductPageProps): Promise<Metadata> {
   const resolvedParams = await params;
-  const product = await getProduct(resolvedParams.slug);
+  const productResult = await getProduct(resolvedParams.slug);
 
-  if (!product) {
+  if (!productResult.ok) {
+    const unavailable = productResult.status !== 404;
+
     return {
-      title: "Ürün Bulunamadı",
-      description:
-        "Aradığınız ürün bulunamadı. Medine Huzur ürünlerini inceleyebilirsiniz.",
+      title: unavailable ? "Ürün Hizmeti Kullanılamıyor" : "Ürün Bulunamadı",
+      description: unavailable
+        ? "Ürün hizmetine şu anda erişilemiyor. Lütfen kısa süre sonra tekrar deneyin."
+        : "Aradığınız ürün bulunamadı. Medine Huzur ürünlerini inceleyebilirsiniz.",
       robots: {
         index: false,
         follow: false,
       },
     };
   }
+
+  const product = productResult.data;
 
   const title = buildSeoTitle(product.name);
   const description = buildSeoDescription(product.description);
@@ -162,11 +161,21 @@ export default async function ProductPage({
   const resolvedParams = await params;
   const resolvedSearchParams = await searchParams;
 
-  const product = await getProduct(resolvedParams.slug);
+  const productResult = await getProduct(resolvedParams.slug);
 
-  if (!product) {
+  if (!productResult.ok && productResult.status === 404) {
     notFound();
   }
+
+  if (!productResult.ok) {
+    return (
+      <main className="page-container min-h-[60vh] py-10">
+        <CatalogServiceError />
+      </main>
+    );
+  }
+
+  const product = productResult.data;
 
   const productUrl = absoluteUrl(`/product/${product.slug}`);
   const productImageUrl = absoluteUrl(getProductImage(product));
