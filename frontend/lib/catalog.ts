@@ -1,5 +1,7 @@
+import { unstable_noStore as noStore } from "next/cache";
 import { cache } from "react";
 import {
+  API_BASE_URL,
   fetchJsonResult,
   PUBLIC_CATALOG_REVALIDATE_SECONDS,
 } from "./api";
@@ -20,11 +22,31 @@ export type CategoryReference = {
   sortOrder?: number;
 };
 
-export const getPublicCategories = cache(() =>
-  fetchJsonResult<PublicCategory[]>("/api/catalog/categories", {
-    next: { revalidate: PUBLIC_CATALOG_REVALIDATE_SECONDS },
-  })
-);
+export const getPublicCategories = cache(async () => {
+  const result = await fetchJsonResult<PublicCategory[]>(
+    "/api/catalog/categories",
+    {
+      next: { revalidate: PUBLIC_CATALOG_REVALIDATE_SECONDS },
+    }
+  );
+
+  if (!result.ok) {
+    noStore();
+
+    let host = "invalid";
+    try {
+      host = new URL(API_BASE_URL).host || "invalid";
+    } catch {
+      // The configured value itself is never logged.
+    }
+
+    console.error(
+      `[catalog] category fetch failed host=${host} status=${result.status ?? "none"} type=${result.errorType}`
+    );
+  }
+
+  return result;
+});
 
 export function categoryPath(slug: string) {
   return `/categories/${encodeURIComponent(slug)}`;

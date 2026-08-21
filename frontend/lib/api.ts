@@ -24,7 +24,11 @@ export function apiUrl(path: string) {
 
 export type ApiFetchResult<T> =
   | { ok: true; status: number; data: T }
-  | { ok: false; status: number | null };
+  | {
+      ok: false;
+      status: number | null;
+      errorType: "http" | "network" | "invalid-response";
+    };
 
 export async function fetchJsonResult<T>(
   path: string,
@@ -53,12 +57,16 @@ export async function fetchJsonResult<T>(
       }
 
       if (!response.ok) {
-        return { ok: false, status: response.status };
+        return { ok: false, status: response.status, errorType: "http" };
       }
 
       const data = await response.json().catch(() => null);
       if (data === null) {
-        return { ok: false, status: response.status };
+        return {
+          ok: false,
+          status: response.status,
+          errorType: "invalid-response",
+        };
       }
 
       return { ok: true, status: response.status, data: data as T };
@@ -69,7 +77,7 @@ export async function fetchJsonResult<T>(
         !init?.signal?.aborted;
 
       if (!shouldRetry) {
-        return { ok: false, status: null };
+        return { ok: false, status: null, errorType: "network" };
       }
 
       await new Promise((resolve) =>
@@ -78,7 +86,7 @@ export async function fetchJsonResult<T>(
     }
   }
 
-  return { ok: false, status: null };
+  return { ok: false, status: null, errorType: "network" };
 }
 
 export async function readJsonOrThrow<T>(res: Response): Promise<T> {
