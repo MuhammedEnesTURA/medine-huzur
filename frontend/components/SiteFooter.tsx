@@ -8,6 +8,7 @@ import {
   ShieldCheck,
   FileText,
 } from "lucide-react";
+import { businessConfig, siteConfig } from "../lib/seo";
 
 function FooterLink({
   href,
@@ -81,14 +82,14 @@ export default function SiteFooter() {
             </Link>
 
             <Link
-              href="/products?q=seccade"
+              href="/categories/seccade"
               className="rounded-2xl border border-border-soft bg-panel/60 px-4 py-4 text-center text-sm font-black text-foreground transition hover:-translate-y-0.5 hover:bg-panel-3"
             >
               Seccade Setleri
             </Link>
 
             <Link
-              href="/products?q=tesbih"
+              href="/categories/tesbih"
               className="rounded-2xl border border-border-soft bg-panel/60 px-4 py-4 text-center text-sm font-black text-foreground transition hover:-translate-y-0.5 hover:bg-panel-3"
             >
               Tesbih Setleri
@@ -107,7 +108,7 @@ export default function SiteFooter() {
       <div className="page-container py-10">
         <div className="grid grid-cols-1 gap-8 md:grid-cols-2 xl:grid-cols-4">
           <div className="space-y-4">
-            <FooterTitle>Medine Huzur</FooterTitle>
+            <FooterTitle>{siteConfig.name}</FooterTitle>
 
             <p className="text-sm leading-7 text-muted">
               Tesbih, seccade, hac malzemeleri, İslami ürünler, hediyelik ürünler ve özel hediye kutusu
@@ -154,19 +155,19 @@ seçenekleriyle güvenilir alışveriş deneyimi.
 
             <div className="space-y-3">
               <ContactRow icon={<Phone size={16} />}>
-                0 (545) 616 45 33
+                {businessConfig.phone.display}
               </ContactRow>
 
               <ContactRow icon={<MessageCircle size={16} />}>
-                0 (531) 161 01 55
+                {businessConfig.whatsapp.display}
               </ContactRow>
 
               <ContactRow icon={<Mail size={16} />}>
-                corum.medinehuzur@gmail.com
+                {businessConfig.email}
               </ContactRow>
 
               <ContactRow icon={<MapPin size={16} />}>
-  Üçtutlar Mah. Osmancık Cad. 10/A, Ulu Camii karşısı, Medine Huzur, Çorum/Merkez
+  {businessConfig.address.display}
 </ContactRow>
             </div>
 
@@ -228,7 +229,7 @@ seçenekleriyle güvenilir alışveriş deneyimi.
           <div className="grid gap-6 lg:grid-cols-[1fr_auto] lg:items-center">
             <div>
               <p className="text-lg font-black text-foreground">
-                Medine Huzur
+                {siteConfig.name}
               </p>
 
               <p className="mt-1 text-sm leading-6 text-muted">
@@ -253,7 +254,7 @@ seçenekleriyle güvenilir alışveriş deneyimi.
 
           <div className="mt-6 flex flex-col gap-3 text-xs text-muted md:flex-row md:items-center md:justify-between">
             <p>
-              © {new Date().getFullYear()} Medine Huzur. Tüm hakları saklıdır.
+              © {new Date().getFullYear()} {siteConfig.name}. Tüm hakları saklıdır.
             </p>
 
             <div className="flex flex-wrap gap-3">

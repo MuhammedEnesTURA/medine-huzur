@@ -3,6 +3,7 @@ import {
   fetchJsonResult,
   PUBLIC_CATALOG_REVALIDATE_SECONDS,
 } from "../lib/api";
+import { categoryPath, getPublicCategories } from "../lib/catalog";
 import { absoluteUrl } from "../lib/seo";
 
 export const revalidate = 60;
@@ -55,15 +56,26 @@ async function getPublicProducts() {
 }
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  const products = await getPublicProducts();
+  const [products, categoriesResult] = await Promise.all([
+    getPublicProducts(),
+    getPublicCategories(),
+  ]);
   const productSlugs = new Set(
     products
       .map((product) => product.slug?.trim())
       .filter((slug): slug is string => Boolean(slug))
   );
+  const categorySlugs = new Set(
+    (categoriesResult.ok ? categoriesResult.data : [])
+      .map((category) => category.slug?.trim())
+      .filter((slug): slug is string => Boolean(slug))
+  );
 
   return [
     ...staticPublicPaths.map((path) => ({ url: absoluteUrl(path) })),
+    ...Array.from(categorySlugs, (slug) => ({
+      url: absoluteUrl(categoryPath(slug)),
+    })),
     ...Array.from(productSlugs, (slug) => ({
       url: absoluteUrl(`/product/${encodeURIComponent(slug)}`),
     })),

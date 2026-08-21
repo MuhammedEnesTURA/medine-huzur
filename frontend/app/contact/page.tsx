@@ -8,7 +8,7 @@ import {
   Phone,
   ShieldCheck,
 } from "lucide-react";
-import { createPageMetadata } from "../../lib/seo";
+import { businessConfig, createPageMetadata, siteConfig } from "../../lib/seo";
 
 export const metadata = createPageMetadata({
   title: "İletişim",
@@ -57,7 +57,7 @@ export default function ContactPage() {
           <div className="flex flex-col gap-5 md:flex-row md:items-start md:justify-between">
             <div>
               <p className="text-xs font-black uppercase tracking-[0.16em] text-mhgreen">
-                İletişim
+                {siteConfig.name} İletişim
               </p>
 
               <h1 className="mt-3 text-3xl font-black tracking-[-0.04em] text-foreground md:text-5xl">
@@ -89,28 +89,28 @@ export default function ContactPage() {
           <ContactCard
             icon={<Phone className="h-5 w-5" />}
             title="Telefon"
-            value="0 (545) 616 45 33"
+            value={businessConfig.phone.display}
             text="Sipariş ve ürün destek hattı."
           />
 
           <ContactCard
             icon={<MessageCircle className="h-5 w-5" />}
             title="WhatsApp"
-            value="0 (531) 161 01 55"
+            value={businessConfig.whatsapp.display}
             text="Hızlı destek ve sipariş bilgilendirme."
           />
 
           <ContactCard
             icon={<Mail className="h-5 w-5" />}
             title="E-posta"
-            value="corum.medinehuzur@gmail.com"
+            value={businessConfig.email}
             text="Detaylı talep ve belge gönderimi için."
           />
 
           <ContactCard
   icon={<MapPin className="h-5 w-5" />}
   title="Adres"
-  value="Üçtutlar Mah. Osmancık Cad. 10/A, Ulu Camii karşısı, Medine Huzur, Çorum/Merkez"
+  value={businessConfig.address.display}
   text="Mağaza ve sipariş desteği için bizimle iletişime geçebilirsin."
 />
         </section>
@@ -223,14 +223,14 @@ export default function ContactPage() {
 
   <div className="mt-3 grid gap-2">
     <a
-      href="tel:05456164533"
+      href={businessConfig.phone.href}
       className="inline-flex min-h-9 items-center justify-center rounded-xl border border-border-soft bg-panel-2 px-3 text-xs font-black text-foreground transition hover:bg-panel-3"
     >
       Telefonla Ara
     </a>
 
     <a
-      href="mailto:corum.medinehuzur@gmail.com"
+      href={`mailto:${businessConfig.email}`}
       className="inline-flex min-h-9 items-center justify-center rounded-xl border border-mhgreen/25 bg-mhgreen/10 px-3 text-xs font-black text-mhgreen transition hover:bg-mhgreen/15"
     >
       E-posta Gönder

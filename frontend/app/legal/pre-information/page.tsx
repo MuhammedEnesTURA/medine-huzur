@@ -1,6 +1,10 @@
 import Link from "next/link";
 import { ArrowLeft, FileText } from "lucide-react";
-import { createPageMetadata } from "../../../lib/seo";
+import {
+  businessConfig,
+  createPageMetadata,
+  siteConfig,
+} from "../../../lib/seo";
 
 export const metadata = createPageMetadata({
   title: "Ön Bilgilendirme Formu",
@@ -50,16 +54,15 @@ export default function PreInformationPage() {
               </h2>
 
               <p className="mt-2 text-sm leading-7 text-muted">
-  Satıcı: Medine Huzur
+  Satıcı: {siteConfig.name}
   <br />
-  E-posta: corum.medinehuzur@gmail.com
+  E-posta: {businessConfig.email}
   <br />
-  Telefon: 0 (545) 616 45 33
+  Telefon: {businessConfig.phone.display}
   <br />
-  WhatsApp: 0 (531) 161 01 55
+  WhatsApp: {businessConfig.whatsapp.display}
   <br />
-  Adres: Üçtutlar Mah. Osmancık Cad. 10/A, Ulu Camii karşısı,
-  Medine Huzur, Çorum/Merkez
+  Adres: {businessConfig.address.display}
 </p>
             </section>
 
