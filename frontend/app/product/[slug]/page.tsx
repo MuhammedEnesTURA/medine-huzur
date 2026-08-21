@@ -11,6 +11,11 @@ import {
   serializeJsonLd,
   siteConfig,
 } from "../../../lib/seo";
+import {
+  categoryPath,
+  getPublicCategories,
+  selectPrimaryCategoryTrail,
+} from "../../../lib/catalog";
 import ProductDetailClient from "./ProductDetailClient";
 import CatalogServiceError from "../../../components/CatalogServiceError";
 
@@ -198,7 +203,10 @@ export default async function ProductPage({
   const resolvedParams = await params;
   const resolvedSearchParams = await searchParams;
 
-  const productResult = await getProduct(resolvedParams.slug);
+  const [productResult, categoriesResult] = await Promise.all([
+    getProduct(resolvedParams.slug),
+    getPublicCategories(),
+  ]);
 
   if (!productResult.ok && productResult.status === 404) {
     notFound();
@@ -217,11 +225,15 @@ export default async function ProductPage({
   const productUrl = absoluteUrl(getProductPath(product.slug));
   const productImageUrl = absoluteUrl(getProductImage(product));
   const description = getProductDescription(product);
-  const primaryCategory = product.categories?.[0] ?? null;
-  const categoryPath = primaryCategory
-    ? `/products?categoryId=${encodeURIComponent(primaryCategory.id)}`
-    : "/categories";
-  const categoryName = primaryCategory?.name || "Kategoriler";
+  const categoryTrail = categoriesResult.ok
+    ? selectPrimaryCategoryTrail(product.categories ?? [], categoriesResult.data)
+    : [];
+  const visibleCategoryTrail =
+    categoryTrail.length > 0
+      ? categoryTrail
+      : product.categories?.[0]
+        ? [product.categories[0]]
+        : [];
 
   const productJsonLd = {
     "@context": "https://schema.org",
@@ -229,6 +241,9 @@ export default async function ProductPage({
     name: product.name,
     description,
     ...(product.sku?.trim() ? { sku: product.sku.trim() } : {}),
+    ...(visibleCategoryTrail.length > 0
+      ? { category: visibleCategoryTrail[visibleCategoryTrail.length - 1].name }
+      : {}),
     image: [productImageUrl],
     url: productUrl,
     offers: {
@@ -250,15 +265,15 @@ export default async function ProductPage({
         name: "Ana Sayfa",
         item: absoluteUrl("/"),
       },
+      ...visibleCategoryTrail.map((category, index) => ({
+        "@type": "ListItem",
+        position: index + 2,
+        name: category.name,
+        item: absoluteUrl(categoryPath(category.slug)),
+      })),
       {
         "@type": "ListItem",
-        position: 2,
-        name: categoryName,
-        item: absoluteUrl(categoryPath),
-      },
-      {
-        "@type": "ListItem",
-        position: 3,
+        position: visibleCategoryTrail.length + 2,
         name: product.name,
         item: productUrl,
       },
@@ -283,6 +298,7 @@ export default async function ProductPage({
 
       <ProductDetailClient
         product={product}
+        categoryTrail={visibleCategoryTrail}
         initialGiftMode={resolvedSearchParams?.gift === "1"}
       />
     </>

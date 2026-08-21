@@ -7,7 +7,11 @@ import {
   MapPin,
   Phone,
 } from "lucide-react";
-import { createPageMetadata } from "../../../lib/seo";
+import {
+  businessConfig,
+  createPageMetadata,
+  siteConfig,
+} from "../../../lib/seo";
 
 export const metadata = createPageMetadata({
   title: "Ticari Bilgiler",
@@ -86,16 +90,16 @@ gösterilir.
           </div>
 
           <div className="mt-8 grid gap-4 md:grid-cols-2">
-            <InfoRow label="Site / Marka" value="Medine Huzur" />
-<InfoRow label="Ticari Unvan" value="Medine Huzur" />
+            <InfoRow label="Site / Marka" value={siteConfig.name} />
+<InfoRow label="Ticari Unvan" value={siteConfig.name} />
 <InfoRow label="Vergi Dairesi" value="Çorum Vergi Dairesi" />
 <InfoRow label="Vergi / TCKN No" value="Resmi işlem ve başvuru süreçlerinde paylaşılır." />
-<InfoRow label="Telefon" value="0 (545) 616 45 33" />
-<InfoRow label="WhatsApp" value="0 (531) 161 01 55" />
-<InfoRow label="E-posta" value="corum.medinehuzur@gmail.com" />
+<InfoRow label="Telefon" value={businessConfig.phone.display} />
+<InfoRow label="WhatsApp" value={businessConfig.whatsapp.display} />
+<InfoRow label="E-posta" value={businessConfig.email} />
 <InfoRow
   label="Adres"
-  value="Üçtutlar Mah. Osmancık Cad. 10/A, Ulu Camii karşısı, Medine Huzur, Çorum/Merkez"
+  value={businessConfig.address.display}
 />
           </div>
 
@@ -109,7 +113,7 @@ gösterilir.
                 </h2>
 
                 <p className="mt-2 text-sm leading-7 text-muted">
-                  Üçtutlar Mah. Osmancık Cad. 10/A, Ulu Camii karşısı, Medine Huzur, Çorum/Merkez
+                  {businessConfig.address.display}
                 </p>
               </div>
             </div>
@@ -132,12 +136,12 @@ gösterilir.
                 <div className="mt-3 grid gap-2 sm:grid-cols-2">
                   <div className="flex items-center gap-2 rounded-xl border border-border-soft bg-panel/70 p-3 text-sm text-muted">
                     <Phone className="h-4 w-4 text-mhgreen" />
-                    0 (545) 616 45 33
+                    {businessConfig.phone.display}
                   </div>
 
                   <div className="flex items-center gap-2 rounded-xl border border-border-soft bg-panel/70 p-3 text-sm text-muted">
                     <Mail className="h-4 w-4 text-mhgreen" />
-                    corum.medinehuzur@gmail.com
+                    {businessConfig.email}
                   </div>
                 </div>
               </div>

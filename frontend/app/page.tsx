@@ -12,6 +12,7 @@ import {
 } from "../lib/api";
 import {
   absoluteUrl,
+  businessConfig,
   createPageMetadata,
   serializeJsonLd,
   siteConfig,
@@ -29,16 +30,16 @@ const businessJsonLd = {
   "@id": absoluteUrl("/#store"),
   name: siteConfig.name,
   url: siteConfig.url,
-  logo: absoluteUrl("/images/medine-huzur-logo-v2.png"),
+  logo: absoluteUrl(businessConfig.logo),
   image: absoluteUrl(siteConfig.ogImage),
-  telephone: "0 (545) 616 45 33",
-  email: "corum.medinehuzur@gmail.com",
+  telephone: businessConfig.phone.display,
+  email: businessConfig.email,
   address: {
     "@type": "PostalAddress",
-    streetAddress: "Üçtutlar Mah. Osmancık Cad. 10/A, Ulu Camii karşısı",
-    addressLocality: "Merkez",
-    addressRegion: "Çorum",
-    addressCountry: "TR",
+    streetAddress: businessConfig.address.streetAddress,
+    addressLocality: businessConfig.address.locality,
+    addressRegion: businessConfig.address.region,
+    addressCountry: businessConfig.address.country,
   },
 };
 
@@ -157,21 +158,21 @@ export default function HomePage() {
       id: "seccade",
       title: "Seccade Çeşitleri",
       image: "/categories/seccade-cat.jpg",
-      href: "/products?q=seccade",
+      href: "/categories/seccade",
       action: "KEŞFET",
     },
     {
       id: "giyim",
       title: "Pratik Namaz Elbisesi",
       image: "/categories/giyim-cat.jpg",
-      href: "/products?q=giyim",
+      href: "/categories/giyim",
       action: "KEŞFET",
     },
     {
       id: "tesbih",
       title: "Tesbih ve Zikirmatik",
       image: "/categories/tesbih-cat.jpg",
-      href: "/products?q=tesbih",
+      href: "/categories/tesbih",
       action: "KEŞFET",
     },
   ];

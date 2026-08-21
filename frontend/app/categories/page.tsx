@@ -3,28 +3,12 @@ import { ChevronRight, LayoutGrid } from "lucide-react";
 import SearchBand from "../../components/SearchBand";
 import CatalogServiceError from "../../components/CatalogServiceError";
 import {
-  fetchJsonResult,
-  PUBLIC_CATALOG_REVALIDATE_SECONDS,
-} from "../../lib/api";
+  categoryPath,
+  getPublicCategories,
+  sortCategories,
+  type PublicCategory,
+} from "../../lib/catalog";
 import { createPageMetadata } from "../../lib/seo";
-
-// Kategori veri tipimiz
-type CategoryDto = {
-  id: string;
-  name: string;
-  slug: string;
-  description?: string;
-  imageUrl?: string;
-  parentId?: string | null;
-  sortOrder?: number;
-};
-
-// API'den kategorileri çeken fonksiyon
-async function getCategories() {
-  return fetchJsonResult<CategoryDto[]>("/api/catalog/categories", {
-    next: { revalidate: PUBLIC_CATALOG_REVALIDATE_SECONDS },
-  });
-}
 
 export const metadata = createPageMetadata({
   title: "Tüm Kategoriler",
@@ -32,22 +16,50 @@ export const metadata = createPageMetadata({
   path: "/categories",
 });
 
+function CategoryChildren({
+  parentId,
+  childrenByParent,
+  depth = 0,
+}: {
+  parentId: string;
+  childrenByParent: Record<string, PublicCategory[]>;
+  depth?: number;
+}) {
+  const children = childrenByParent[parentId] ?? [];
+
+  return children.map((child) => (
+    <div key={child.id} className={depth > 0 ? "ml-3 border-l border-border-soft pl-3" : ""}>
+      <Link
+        href={categoryPath(child.slug)}
+        className="flex items-center justify-between rounded-xl px-3 py-2 text-sm font-semibold text-muted transition hover:bg-panel hover:text-foreground hover:shadow-sm"
+      >
+        <span>{child.name}</span>
+        <ChevronRight className="h-3.5 w-3.5 shrink-0" />
+      </Link>
+      <CategoryChildren
+        parentId={child.id}
+        childrenByParent={childrenByParent}
+        depth={depth + 1}
+      />
+    </div>
+  ));
+}
+
 export default async function CategoriesPage() {
-  const categoriesResult = await getCategories();
+  const categoriesResult = await getPublicCategories();
   const categories = categoriesResult.ok ? categoriesResult.data : [];
+  const categoryIds = new Set(categories.map((category) => category.id));
 
-  // Ana ve alt kategorileri ayırıp sıralıyoruz
-  const rootCategories = categories
-    .filter((c) => !c.parentId)
-    .sort(
-      (a, b) =>
-        (a.sortOrder ?? 0) - (b.sortOrder ?? 0) ||
-        a.name.localeCompare(b.name, "tr")
-    );
+  const rootCategories = sortCategories(
+    categories.filter(
+      (category) =>
+        !category.parentId || !categoryIds.has(category.parentId)
+    )
+  );
 
-  const childCategoriesByParent: Record<string, CategoryDto[]> = {};
+  const childCategoriesByParent: Record<string, PublicCategory[]> = {};
   for (const category of categories) {
-    if (!category.parentId) continue;
+    if (!category.parentId || !categoryIds.has(category.parentId)) continue;
     if (!childCategoriesByParent[category.parentId]) {
       childCategoriesByParent[category.parentId] = [];
     }
@@ -55,11 +67,7 @@ export default async function CategoriesPage() {
   }
 
   for (const key of Object.keys(childCategoriesByParent)) {
-    childCategoriesByParent[key].sort(
-      (a, b) =>
-        (a.sortOrder ?? 0) - (b.sortOrder ?? 0) ||
-        a.name.localeCompare(b.name, "tr")
-    );
+    sortCategories(childCategoriesByParent[key]);
   }
 
   return (
@@ -107,10 +115,10 @@ export default async function CategoriesPage() {
 
                   <div className="relative z-10 mb-4 flex items-center justify-between border-b border-border-soft/60 pb-4">
                     <h2 className="text-xl font-black tracking-tight text-foreground transition group-hover:text-mhgreen">
-                      {root.name}
+                      <Link href={categoryPath(root.slug)}>{root.name}</Link>
                     </h2>
                     <Link
-                      href={`/products?categoryId=${root.id}`}
+                      href={categoryPath(root.slug)}
                       className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-panel shadow-sm transition hover:bg-mhgreen hover:text-white"
                       title={`${root.name} kategorisine git`}
                     >
@@ -121,16 +129,10 @@ export default async function CategoriesPage() {
                   {/* Alt Kategoriler Listesi */}
                   <div className="relative z-10 flex flex-1 flex-col gap-2">
                     {children.length > 0 ? (
-                      children.map((child) => (
-                        <Link
-                          key={child.id}
-                          href={`/products?categoryId=${child.id}`}
-                          className="flex items-center justify-between rounded-xl px-3 py-2 text-sm font-semibold text-muted transition hover:bg-panel hover:text-foreground hover:shadow-sm"
-                        >
-                          <span>{child.name}</span>
-                          <ChevronRight className="h-3.5 w-3.5 opacity-0 transition group-hover:opacity-100" />
-                        </Link>
-                      ))
+                      <CategoryChildren
+                        parentId={root.id}
+                        childrenByParent={childCategoriesByParent}
+                      />
                     ) : (
                       <p className="px-3 py-2 text-sm font-medium text-muted-2">
                         Alt kategori bulunmuyor.
@@ -140,7 +142,7 @@ export default async function CategoriesPage() {
 
                   {/* Kategoriye Git Butonu */}
                   <Link
-                    href={`/products?categoryId=${root.id}`}
+                    href={categoryPath(root.slug)}
                     className="relative z-10 mt-6 inline-flex w-full items-center justify-center rounded-xl border border-border-soft bg-panel px-4 py-2.5 text-sm font-bold text-foreground shadow-sm transition hover:border-mhgreen hover:text-mhgreen"
                   >
                     Tüm {root.name} Ürünleri

@@ -378,7 +378,7 @@ export default function SiteHeader() {
                 return (
                   <div key={root.id} className="rounded-2xl border border-border-soft bg-panel-2/60 p-3.5">
                     <Link
-                      href={`/products?categoryId=${root.id}`}
+                      href={`/categories/${encodeURIComponent(root.slug)}`}
                       className="mb-2.5 block text-sm font-extrabold text-foreground"
                     >
                       {root.name}
@@ -389,7 +389,7 @@ export default function SiteHeader() {
                         {children.map((child) => (
                           <Link
                             key={child.id}
-                            href={`/products?categoryId=${child.id}`}
+                            href={`/categories/${encodeURIComponent(child.slug)}`}
                             className="inline-flex items-center justify-center rounded-xl border border-border-soft bg-panel px-3 py-1.5 text-xs font-semibold text-muted transition hover:bg-panel-3 hover:text-foreground"
                           >
                             {child.name}
@@ -449,7 +449,7 @@ export default function SiteHeader() {
                       className="rounded-2xl border border-border-soft bg-panel-2/70 p-4 transition hover:border-border-strong hover:bg-panel-3/70"
                     >
                       <Link
-                        href={`/products?categoryId=${category.id}`}
+                        href={`/categories/${encodeURIComponent(category.slug)}`}
                         className="text-sm font-extrabold text-foreground transition hover:text-mhgreen"
                       >
                         {category.name}
@@ -460,7 +460,7 @@ export default function SiteHeader() {
                           children.slice(0, 4).map((child) => (
                             <Link
                               key={child.id}
-                              href={`/products?categoryId=${child.id}`}
+                              href={`/categories/${encodeURIComponent(child.slug)}`}
                               className="text-xs font-semibold text-muted transition hover:text-foreground"
                             >
                               {child.name}

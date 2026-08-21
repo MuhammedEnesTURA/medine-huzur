@@ -17,7 +17,7 @@ import {
 } from "lucide-react";
 import { useCart } from "../../../context/CartContext";
 import { optimizedCloudinaryUrl } from "../../../lib/cloudinary";
-import type { ProductDetailDto } from "./page";
+import type { ProductCategoryDto, ProductDetailDto } from "./page";
 
 type VariantAttributes = Record<string, string>;
 
@@ -107,9 +107,11 @@ function InfoCard({
 
 export default function ProductDetailClient({
   product,
+  categoryTrail,
   initialGiftMode,
 }: {
   product: ProductDetailDto;
+  categoryTrail: ProductCategoryDto[];
   initialGiftMode: boolean;
 }) {
   const { addItem, addGiftPackageItem } = useCart();
@@ -211,11 +213,6 @@ export default function ProductDetailClient({
   const isGiftBoxEligible = product.isGiftBoxEligible !== false;
   const canAddToCart = displayStock > 0;
   const canAddToGiftBox = canAddToCart && isGiftBoxEligible;
-  const primaryCategory = product.categories?.[0] ?? null;
-  const categoryHref = primaryCategory
-    ? `/products?categoryId=${encodeURIComponent(primaryCategory.id)}`
-    : "/categories";
-
   useEffect(() => {
     if (!toast) return;
 
@@ -303,13 +300,28 @@ export default function ProductDetailClient({
           <Link href="/" className="transition hover:text-mhgreen hover:underline">
             Ana Sayfa
           </Link>
-          <span>/</span>
-          <Link
-            href={categoryHref}
-            className="transition hover:text-mhgreen hover:underline"
-          >
-            {primaryCategory?.name || "Kategoriler"}
-          </Link>
+          {categoryTrail.length === 0 && (
+            <>
+              <span>/</span>
+              <Link
+                href="/categories"
+                className="transition hover:text-mhgreen hover:underline"
+              >
+                Kategoriler
+              </Link>
+            </>
+          )}
+          {categoryTrail.map((category) => (
+            <span key={category.id} className="contents">
+              <span>/</span>
+              <Link
+                href={`/categories/${encodeURIComponent(category.slug)}`}
+                className="transition hover:text-mhgreen hover:underline"
+              >
+                {category.name}
+              </Link>
+            </span>
+          ))}
           <span>/</span>
           <span className="max-w-[220px] truncate text-foreground/70">
             {product.name}
@@ -425,6 +437,20 @@ export default function ProductDetailClient({
                 ? product.description
                 : "Bu ürün için detaylı bilgi almak istersen bizimle iletişime geçebilirsin."}
             </p>
+
+            {(product.categories?.length ?? 0) > 0 && (
+              <div className="mt-3 flex flex-wrap gap-2" aria-label="Ürün kategorileri">
+                {product.categories?.map((category) => (
+                  <Link
+                    key={category.id}
+                    href={`/categories/${encodeURIComponent(category.slug)}`}
+                    className="rounded-full border border-border-soft bg-panel-2/70 px-3 py-1 text-[11px] font-bold text-muted transition hover:border-mhgreen/30 hover:text-mhgreen"
+                  >
+                    {category.name}
+                  </Link>
+                ))}
+              </div>
+            )}
 
             <div className="mt-4 rounded-2xl border border-border-soft bg-panel-2/58 p-3.5">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">

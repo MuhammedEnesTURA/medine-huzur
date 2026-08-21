@@ -10,6 +10,26 @@ export const siteConfig = {
   ogImage: "/slides/slide-1-pc.jpg",
 };
 
+export const businessConfig = {
+  logo: "/images/medine-huzur-logo-v2.png",
+  phone: {
+    display: "0 (545) 616 45 33",
+    href: "tel:05456164533",
+  },
+  whatsapp: {
+    display: "0 (531) 161 01 55",
+  },
+  email: "corum.medinehuzur@gmail.com",
+  address: {
+    display:
+      "Üçtutlar Mah. Osmancık Cad. 10/A, Ulu Camii karşısı, Medine Huzur, Çorum/Merkez",
+    streetAddress: "Üçtutlar Mah. Osmancık Cad. 10/A, Ulu Camii karşısı",
+    locality: "Merkez",
+    region: "Çorum",
+    country: "TR",
+  },
+};
+
 export function absoluteUrl(path = "/") {
   return new URL(path || "/", `${siteConfig.url}/`).toString();
 }
