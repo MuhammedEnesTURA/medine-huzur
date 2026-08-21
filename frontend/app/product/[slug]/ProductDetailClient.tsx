@@ -211,6 +211,10 @@ export default function ProductDetailClient({
   const isGiftBoxEligible = product.isGiftBoxEligible !== false;
   const canAddToCart = displayStock > 0;
   const canAddToGiftBox = canAddToCart && isGiftBoxEligible;
+  const primaryCategory = product.categories?.[0] ?? null;
+  const categoryHref = primaryCategory
+    ? `/products?categoryId=${encodeURIComponent(primaryCategory.id)}`
+    : "/categories";
 
   useEffect(() => {
     if (!toast) return;
@@ -292,16 +296,19 @@ export default function ProductDetailClient({
   return (
     <main className="page-shell">
       <div className="page-container py-5 md:py-6">
-        <nav className="mb-4 flex flex-wrap gap-1 text-xs font-semibold text-muted">
+        <nav
+          aria-label="İçerik yolu"
+          className="mb-4 flex flex-wrap gap-1 text-xs font-semibold text-muted"
+        >
           <Link href="/" className="transition hover:text-mhgreen hover:underline">
             Ana Sayfa
           </Link>
           <span>/</span>
           <Link
-            href="/products"
+            href={categoryHref}
             className="transition hover:text-mhgreen hover:underline"
           >
-            Ürünler
+            {primaryCategory?.name || "Kategoriler"}
           </Link>
           <span>/</span>
           <span className="max-w-[220px] truncate text-foreground/70">

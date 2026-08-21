@@ -7,8 +7,8 @@ import {
 } from "../../../lib/api";
 import {
   absoluteUrl,
-  buildSeoDescription,
   buildSeoTitle,
+  serializeJsonLd,
   siteConfig,
 } from "../../../lib/seo";
 import ProductDetailClient from "./ProductDetailClient";
@@ -31,6 +31,14 @@ export type ProductVariantDto = {
   isActive?: boolean;
 };
 
+export type ProductCategoryDto = {
+  id: string;
+  name: string;
+  slug: string;
+  parentId?: string | null;
+  sortOrder?: number;
+};
+
 export type ProductDetailDto = {
   id: string;
   sku: string;
@@ -46,6 +54,7 @@ export type ProductDetailDto = {
   isGiftBoxEligible: boolean;
   images?: ProductImageDto[];
   variants?: ProductVariantDto[];
+  categories?: ProductCategoryDto[];
 };
 
 type ProductPageProps = {
@@ -59,10 +68,23 @@ type ProductPageProps = {
 
 const getProduct = cache((slug: string) => {
   return fetchJsonResult<ProductDetailDto>(
-    `/api/catalog/products/by-slug/${slug}`,
+    `/api/catalog/products/by-slug/${encodeURIComponent(slug)}`,
     { next: { revalidate: PUBLIC_CATALOG_REVALIDATE_SECONDS } }
   );
 });
+
+function getProductPath(slug: string) {
+  return `/product/${encodeURIComponent(slug)}`;
+}
+
+function getProductDescription(product: ProductDetailDto) {
+  const description = product.description?.replace(/\s+/g, " ").trim();
+
+  return (
+    description ||
+    `${product.name}. Bu ürün için detaylı bilgi almak istersen bizimle iletişime geçebilirsin.`
+  );
+}
 
 function getProductImage(product: ProductDetailDto) {
   const primaryFromImages = product.images
@@ -78,7 +100,7 @@ function getProductImage(product: ProductDetailDto) {
     primaryFromImages ||
     product.primaryImageUrl ||
     product.imageUrl ||
-    "/images/og-image.jpg"
+    siteConfig.ogImage
   );
 }
 
@@ -93,6 +115,17 @@ function getProductAvailability(product: ProductDetailDto) {
   return stock > 0
     ? "https://schema.org/InStock"
     : "https://schema.org/OutOfStock";
+}
+
+function getProductOfferPrice(product: ProductDetailDto) {
+  const activeVariantPrices =
+    product.variants
+      ?.filter((variant) => variant.isActive !== false)
+      .map((variant) => variant.price) ?? [];
+
+  return activeVariantPrices.length > 0
+    ? Math.min(...activeVariantPrices)
+    : product.basePrice;
 }
 
 export async function generateMetadata({
@@ -118,19 +151,19 @@ export async function generateMetadata({
 
   const product = productResult.data;
 
-  const title = buildSeoTitle(product.name);
-  const description = buildSeoDescription(product.description);
-  const canonicalUrl = absoluteUrl(`/product/${product.slug}`);
+  const socialTitle = buildSeoTitle(product.name);
+  const description = getProductDescription(product);
+  const canonicalUrl = absoluteUrl(getProductPath(product.slug));
   const imageUrl = absoluteUrl(getProductImage(product));
 
   return {
-    title,
+    title: product.name,
     description,
     alternates: {
       canonical: canonicalUrl,
     },
     openGraph: {
-      title,
+      title: socialTitle,
       description,
       url: canonicalUrl,
       siteName: siteConfig.name,
@@ -147,7 +180,7 @@ export async function generateMetadata({
     },
     twitter: {
       card: "summary_large_image",
-      title,
+      title: socialTitle,
       description,
       images: [imageUrl],
     },
@@ -181,29 +214,29 @@ export default async function ProductPage({
 
   const product = productResult.data;
 
-  const productUrl = absoluteUrl(`/product/${product.slug}`);
+  const productUrl = absoluteUrl(getProductPath(product.slug));
   const productImageUrl = absoluteUrl(getProductImage(product));
-  const description = buildSeoDescription(product.description);
+  const description = getProductDescription(product);
+  const primaryCategory = product.categories?.[0] ?? null;
+  const categoryPath = primaryCategory
+    ? `/products?categoryId=${encodeURIComponent(primaryCategory.id)}`
+    : "/categories";
+  const categoryName = primaryCategory?.name || "Kategoriler";
 
   const productJsonLd = {
     "@context": "https://schema.org",
     "@type": "Product",
     name: product.name,
     description,
-    sku: product.sku,
+    ...(product.sku?.trim() ? { sku: product.sku.trim() } : {}),
     image: [productImageUrl],
     url: productUrl,
-    brand: {
-      "@type": "Brand",
-      name: "Medine Huzur",
-    },
     offers: {
       "@type": "Offer",
       url: productUrl,
       priceCurrency: "TRY",
-      price: product.basePrice.toFixed(2),
+      price: getProductOfferPrice(product).toFixed(2),
       availability: getProductAvailability(product),
-      itemCondition: "https://schema.org/NewCondition",
     },
   };
 
@@ -220,8 +253,8 @@ export default async function ProductPage({
       {
         "@type": "ListItem",
         position: 2,
-        name: "Ürünler",
-        item: absoluteUrl("/products"),
+        name: categoryName,
+        item: absoluteUrl(categoryPath),
       },
       {
         "@type": "ListItem",
@@ -237,14 +270,14 @@ export default async function ProductPage({
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{
-          __html: JSON.stringify(productJsonLd),
+          __html: serializeJsonLd(productJsonLd),
         }}
       />
 
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{
-          __html: JSON.stringify(breadcrumbJsonLd),
+          __html: serializeJsonLd(breadcrumbJsonLd),
         }}
       />
 

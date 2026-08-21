@@ -202,6 +202,9 @@ public class ECommerceContext : DbContext
             entity.Property(x => x.CreatedAtUtc)
                 .HasDefaultValueSql("SYSUTCDATETIME()");
 
+            entity.Property(x => x.UpdatedAtUtc)
+                .IsConcurrencyToken();
+
             entity.HasMany(x => x.Variants)
                 .WithOne(x => x.Product)
                 .HasForeignKey(x => x.ProductId)

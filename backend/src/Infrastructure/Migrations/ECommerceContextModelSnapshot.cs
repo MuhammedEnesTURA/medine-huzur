@@ -588,6 +588,7 @@ namespace Infrastructure.Migrations
                         .HasDefaultValue(0);
 
                     b.Property<DateTime?>("UpdatedAtUtc")
+                        .IsConcurrencyToken()
                         .HasColumnType("datetime2");
 
                     b.HasKey("Id");

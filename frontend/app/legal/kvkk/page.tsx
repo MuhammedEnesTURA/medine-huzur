@@ -1,12 +1,18 @@
 import Link from "next/link";
 import {
   ArrowLeft,
-  Database,
   FileText,
   Mail,
   ShieldCheck,
   UserCheck,
 } from "lucide-react";
+import { createPageMetadata } from "../../../lib/seo";
+
+export const metadata = createPageMetadata({
+  title: "KVKK Aydınlatma Metni",
+  description: "Medine Huzur KVKK aydınlatma metnini inceleyin.",
+  path: "/legal/kvkk",
+});
 
 function Section({
   title,

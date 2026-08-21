@@ -8,6 +8,14 @@ import {
   Phone,
   ShieldCheck,
 } from "lucide-react";
+import { createPageMetadata } from "../../lib/seo";
+
+export const metadata = createPageMetadata({
+  title: "İletişim",
+  description:
+    "Medine Huzur telefon, WhatsApp, e-posta ve mağaza adresi bilgilerine ulaşın.",
+  path: "/contact",
+});
 
 function ContactCard({
   icon,

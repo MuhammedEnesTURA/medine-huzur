@@ -6,6 +6,7 @@ import {
   fetchJsonResult,
   PUBLIC_CATALOG_REVALIDATE_SECONDS,
 } from "../../lib/api";
+import { createPageMetadata } from "../../lib/seo";
 
 // Kategori veri tipimiz
 type CategoryDto = {
@@ -25,10 +26,11 @@ async function getCategories() {
   });
 }
 
-export const metadata = {
+export const metadata = createPageMetadata({
   title: "Tüm Kategoriler",
   description: "Medine Huzur'daki tüm ürün kategorilerini keşfedin.",
-};
+  path: "/categories",
+});
 
 export default async function CategoriesPage() {
   const categoriesResult = await getCategories();

@@ -10,6 +10,37 @@ import {
   fetchJsonResult,
   PUBLIC_CATALOG_REVALIDATE_SECONDS,
 } from "../lib/api";
+import {
+  absoluteUrl,
+  createPageMetadata,
+  serializeJsonLd,
+  siteConfig,
+} from "../lib/seo";
+
+export const metadata = createPageMetadata({
+  title: "İslami Hediyelik, Seccade ve Tesbih",
+  description: siteConfig.description,
+  path: "/",
+});
+
+const businessJsonLd = {
+  "@context": "https://schema.org",
+  "@type": "Store",
+  "@id": absoluteUrl("/#store"),
+  name: siteConfig.name,
+  url: siteConfig.url,
+  logo: absoluteUrl("/images/medine-huzur-logo-v2.png"),
+  image: absoluteUrl(siteConfig.ogImage),
+  telephone: "0 (545) 616 45 33",
+  email: "corum.medinehuzur@gmail.com",
+  address: {
+    "@type": "PostalAddress",
+    streetAddress: "Üçtutlar Mah. Osmancık Cad. 10/A, Ulu Camii karşısı",
+    addressLocality: "Merkez",
+    addressRegion: "Çorum",
+    addressCountry: "TR",
+  },
+};
 
 type Product = {
   id: string;
@@ -146,7 +177,12 @@ export default function HomePage() {
   ];
 
   return (
-    <main className="home-page min-h-screen text-foreground">
+    <>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: serializeJsonLd(businessJsonLd) }}
+      />
+      <main className="home-page min-h-screen text-foreground">
       <SearchBand />
 
       <section className="home-hero-wrap page-container space-y-5 md:space-y-6">
@@ -277,6 +313,7 @@ export default function HomePage() {
           </div>
         </section>
       </section>
-    </main>
+      </main>
+    </>
   );
 }

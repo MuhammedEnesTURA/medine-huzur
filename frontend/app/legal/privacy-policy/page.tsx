@@ -1,5 +1,12 @@
 import Link from "next/link";
-import { ArrowLeft, LockKeyhole, ShieldCheck } from "lucide-react";
+import { ArrowLeft, LockKeyhole } from "lucide-react";
+import { createPageMetadata } from "../../../lib/seo";
+
+export const metadata = createPageMetadata({
+  title: "Gizlilik Politikası",
+  description: "Medine Huzur gizlilik ve kişisel veri işleme esaslarını inceleyin.",
+  path: "/legal/privacy-policy",
+});
 
 export default function PrivacyPolicyPage() {
   return (

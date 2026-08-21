@@ -25,19 +25,6 @@ export const metadata: Metadata = {
     icon: "/icon.png",
     apple: "/icon.png",
   },
-  keywords: [
-    "Medine Huzur",
-    "seccade",
-    "tesbih",
-    "zikirmatik",
-    "İslami hediyelik",
-    "hac malzemeleri",
-    "umre malzemeleri",
-    "hediye kutusu",
-    "Çorum islami hediyelik",
-    "İslami ürünler",
-    "hediyelik ürünler",
-  ],
   applicationName: "Medine Huzur",
   authors: [{ name: "Medine Huzur" }],
   creator: "Medine Huzur",
@@ -45,9 +32,6 @@ export const metadata: Metadata = {
   robots: {
     index: true,
     follow: true,
-  },
-  alternates: {
-    canonical: "/",
   },
   openGraph: {
     title: "Medine Huzur | İslami Hediyelik, Seccade ve Tesbih",
@@ -58,9 +42,7 @@ export const metadata: Metadata = {
     type: "website",
     images: [
       {
-        url: absoluteUrl("/images/og-image.jpg"),
-        width: 1200,
-        height: 630,
+        url: absoluteUrl(siteConfig.ogImage),
         alt: "Medine Huzur",
       },
     ],
@@ -69,7 +51,7 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: "Medine Huzur | İslami Hediyelik, Seccade ve Tesbih",
     description: siteConfig.description,
-    images: [absoluteUrl("/images/og-image.jpg")],
+    images: [absoluteUrl(siteConfig.ogImage)],
   },
 };
 

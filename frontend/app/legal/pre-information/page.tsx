@@ -1,5 +1,12 @@
 import Link from "next/link";
-import { ArrowLeft, FileText, ShieldCheck } from "lucide-react";
+import { ArrowLeft, FileText } from "lucide-react";
+import { createPageMetadata } from "../../../lib/seo";
+
+export const metadata = createPageMetadata({
+  title: "Ön Bilgilendirme Formu",
+  description: "Medine Huzur sipariş öncesi bilgilendirme metnini inceleyin.",
+  path: "/legal/pre-information",
+});
 
 export default function PreInformationPage() {
   return (

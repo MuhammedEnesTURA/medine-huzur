@@ -7,6 +7,13 @@ import {
   MapPin,
   Phone,
 } from "lucide-react";
+import { createPageMetadata } from "../../../lib/seo";
+
+export const metadata = createPageMetadata({
+  title: "Ticari Bilgiler",
+  description: "Medine Huzur satıcı, iletişim ve mağaza bilgilerini inceleyin.",
+  path: "/legal/merchant-info",
+});
 
 function InfoRow({
   label,

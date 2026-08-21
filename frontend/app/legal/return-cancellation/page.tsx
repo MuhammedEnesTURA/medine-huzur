@@ -1,5 +1,12 @@
 import Link from "next/link";
 import { ArrowLeft, RotateCcw, ShieldCheck } from "lucide-react";
+import { createPageMetadata } from "../../../lib/seo";
+
+export const metadata = createPageMetadata({
+  title: "İade ve İptal",
+  description: "Medine Huzur iade ve sipariş iptal koşullarını inceleyin.",
+  path: "/legal/return-cancellation",
+});
 
 export default function ReturnCancellationPage() {
   return (

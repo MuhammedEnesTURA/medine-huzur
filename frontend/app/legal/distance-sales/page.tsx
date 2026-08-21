@@ -1,5 +1,12 @@
 import Link from "next/link";
-import { ArrowLeft, FileText, ShieldCheck } from "lucide-react";
+import { ArrowLeft, FileText } from "lucide-react";
+import { createPageMetadata } from "../../../lib/seo";
+
+export const metadata = createPageMetadata({
+  title: "Mesafeli Satış Sözleşmesi",
+  description: "Medine Huzur mesafeli satış sözleşmesini inceleyin.",
+  path: "/legal/distance-sales",
+});
 
 export default function DistanceSalesPage() {
   return (

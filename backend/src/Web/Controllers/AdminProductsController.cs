@@ -112,17 +112,15 @@ public class AdminProductsController : ControllerBase
         CancellationToken cancellationToken)
     {
         var name = NormalizeText(request.Name);
-        var sku = NormalizeSku(request.Sku);
 
         if (string.IsNullOrWhiteSpace(name))
         {
             return BadRequest(new { message = "Ürün adı zorunludur." });
         }
 
-        if (string.IsNullOrWhiteSpace(sku))
-        {
-            return BadRequest(new { message = "SKU zorunludur." });
-        }
+        var sku = string.IsNullOrWhiteSpace(request.Sku)
+            ? await CreateUniqueSkuAsync(name, cancellationToken)
+            : NormalizeSku(request.Sku);
 
         if (request.BasePrice < 0)
         {
@@ -214,8 +212,15 @@ public class AdminProductsController : ControllerBase
             return NotFound(new { message = "Ürün bulunamadı." });
         }
 
+        if (request.UpdatedAtUtc != product.UpdatedAtUtc)
+        {
+            return ProductConcurrencyConflict();
+        }
+
         var name = NormalizeText(request.Name);
-        var sku = NormalizeSku(request.Sku);
+        var sku = string.IsNullOrWhiteSpace(request.Sku)
+            ? product.Sku
+            : NormalizeSku(request.Sku);
 
         if (string.IsNullOrWhiteSpace(name))
         {
@@ -260,11 +265,13 @@ public class AdminProductsController : ControllerBase
             }
         }
 
-        var slug = await CreateUniqueSlugAsync(
-            request.Slug,
-            name,
-            ignoredProductId: id,
-            cancellationToken);
+        var slug = string.IsNullOrWhiteSpace(request.Slug)
+            ? product.Slug
+            : await CreateUniqueSlugAsync(
+                request.Slug,
+                name,
+                ignoredProductId: id,
+                cancellationToken);
 
         product.Sku = sku;
         product.Name = name;
@@ -279,20 +286,20 @@ public class AdminProductsController : ControllerBase
         product.IsGiftBoxEligible = request.IsGiftBoxEligible;
         product.UpdatedAtUtc = DateTime.UtcNow;
 
-        await UpdateProductCategoriesAsync(product.Id, categoryIds, cancellationToken);
-        await UpdateImagesAsync(product.Id, request.Images, cancellationToken);
-        await UpdateVariantsAsync(product, request.Variants, cancellationToken);
+        await using var transaction = await _db.Database.BeginTransactionAsync(cancellationToken);
 
         try
         {
+            await UpdateProductCategoriesAsync(product.Id, categoryIds, cancellationToken);
+            await UpdateImagesAsync(product.Id, request.Images, cancellationToken);
+            await UpdateVariantsAsync(product, request.Variants, cancellationToken);
             await _db.SaveChangesAsync(cancellationToken);
+            await transaction.CommitAsync(cancellationToken);
         }
         catch (DbUpdateConcurrencyException)
         {
-            return Conflict(new
-            {
-                message = "Ürün güncellenirken kayıt durumu değişmiş görünüyor. Sayfayı yenileyip tekrar deneyin."
-            });
+            await transaction.RollbackAsync(cancellationToken);
+            return ProductConcurrencyConflict();
         }
 
         var dto = await GetProductDetailByIdAsync(product.Id, cancellationToken);
@@ -674,6 +681,46 @@ public class AdminProductsController : ControllerBase
         return slug;
     }
 
+    private async Task<string> CreateUniqueSkuAsync(
+        string productName,
+        CancellationToken cancellationToken)
+    {
+        const int maxSkuLength = 80;
+        var readableName = Slugify(productName).ToUpperInvariant();
+        var baseSku = string.IsNullOrWhiteSpace(readableName) ? "URUN" : readableName;
+
+        for (var counter = 1; counter < int.MaxValue; counter++)
+        {
+            var suffix = $"-{counter:000}";
+            var allowedBaseLength = maxSkuLength - suffix.Length;
+            var normalizedBase = baseSku[..Math.Min(baseSku.Length, allowedBaseLength)]
+                .Trim('-');
+
+            if (string.IsNullOrWhiteSpace(normalizedBase))
+            {
+                normalizedBase = "URUN";
+            }
+
+            var sku = $"{normalizedBase}{suffix}";
+
+            if (!await _db.Products.AnyAsync(x => x.Sku == sku, cancellationToken))
+            {
+                return sku;
+            }
+        }
+
+        throw new InvalidOperationException("Ürün için benzersiz SKU üretilemedi.");
+    }
+
+    private ConflictObjectResult ProductConcurrencyConflict()
+    {
+        return Conflict(new
+        {
+            code = "product_concurrency_conflict",
+            message = "Ürün başka bir işlem tarafından güncellendi. Güncel kayıt yeniden yüklendi; değişiklikleri kontrol edip tekrar deneyin."
+        });
+    }
+
     private static string SerializeAttributes(Dictionary<string, string> attributes)
     {
         var cleaned = attributes
@@ -753,7 +800,7 @@ public class AdminProductsController : ControllerBase
 }
 
 public sealed record UpsertProductRequest(
-    string Sku,
+    string? Sku,
     string Name,
     string? Slug,
     string? Description,
@@ -766,7 +813,8 @@ public sealed record UpsertProductRequest(
     bool IsGiftBoxEligible,
     List<Guid> CategoryIds,
     List<UpsertProductImageRequest> Images,
-    List<UpsertProductVariantRequest> Variants);
+    List<UpsertProductVariantRequest> Variants,
+    DateTime? UpdatedAtUtc);
 
 public sealed record UpsertProductImageRequest(
     string ImageUrl,

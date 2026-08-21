@@ -1,5 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
+import type { Metadata } from "next";
 import {
   Eye,
   Filter,
@@ -17,6 +18,7 @@ import {
   PUBLIC_CATALOG_REVALIDATE_SECONDS,
 } from "../../lib/api";
 import { optimizedCloudinaryUrl } from "../../lib/cloudinary";
+import { createPageMetadata } from "../../lib/seo";
 
 type CategoryDto = {
   id: string;
@@ -64,6 +66,51 @@ async function getCategories() {
   return fetchJsonResult<CategoryDto[]>("/api/catalog/categories", {
     next: { revalidate: PUBLIC_CATALOG_REVALIDATE_SECONDS },
   });
+}
+
+export async function generateMetadata({
+  searchParams,
+}: ProductsPageProps): Promise<Metadata> {
+  const resolvedSearchParams = await searchParams;
+  const hasQueryParameters = Object.values(resolvedSearchParams ?? {}).some(
+    (value) => Boolean(value)
+  );
+
+  let title = "Ürünler";
+  let description =
+    "Medine Huzur ürünlerini kategori, stok ve fiyat seçenekleriyle inceleyin.";
+
+  if (resolvedSearchParams?.categoryId) {
+    const categoriesResult = await getCategories();
+    const category = categoriesResult.ok
+      ? categoriesResult.data.find(
+          (item) => item.id === resolvedSearchParams.categoryId
+        )
+      : null;
+
+    if (category) {
+      title = `${category.name} Ürünleri`;
+      description = `${category.name} kategorisindeki Medine Huzur ürünlerini inceleyin.`;
+    }
+  }
+
+  const baseMetadata = createPageMetadata({
+    title,
+    description,
+    path: "/products",
+  });
+
+  if (!hasQueryParameters) {
+    return baseMetadata;
+  }
+
+  return {
+    ...baseMetadata,
+    robots: {
+      index: false,
+      follow: true,
+    },
+  };
 }
 
 async function getProducts({

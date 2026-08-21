@@ -1,5 +1,13 @@
 import Link from "next/link";
 import { ArrowLeft, ShieldCheck, Truck } from "lucide-react";
+import { createPageMetadata } from "../../../lib/seo";
+
+export const metadata = createPageMetadata({
+  title: "Teslimat ve Kargo Bilgileri",
+  description:
+    "Medine Huzur sipariş hazırlığı, kargo ve teslimat süreçlerini inceleyin.",
+  path: "/legal/delivery",
+});
 
 export default function DeliveryPage() {
   return (

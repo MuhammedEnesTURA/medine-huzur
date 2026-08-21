@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import {
   AlertTriangle,
   CheckCircle2,
@@ -31,6 +31,11 @@ type AdminCategoryDto = {
   isActive: boolean;
   childCount: number;
   productCount: number;
+};
+
+type AdminCategoryOption = AdminCategoryDto & {
+  depth: number;
+  displayName: string;
 };
 
 type ProductListItemDto = {
@@ -96,7 +101,6 @@ type ProductDetailDto = {
   isGiftBoxEligible: boolean;
   createdAtUtc: string;
   updatedAtUtc?: string | null;
-  rowVersion?: string | null; // Eşzamanlılık (Concurrency) kontrolü için eklendi
   categories: ProductCategoryDto[];
   images: ProductImageDto[];
   variants: ProductVariantDto[];
@@ -133,8 +137,7 @@ type ProductForm = {
   categoryIds: string[];
   images: ProductImageForm[];
   variants: ProductVariantForm[];
-  updatedAtUtc?: string | null; // Eşzamanlılık (Concurrency) kontrolü için eklendi
-  rowVersion?: string | null; // Eşzamanlılık (Concurrency) kontrolü için eklendi
+  updatedAtUtc?: string | null;
 };
 
 type Notice =
@@ -165,7 +168,6 @@ const emptyForm: ProductForm = {
   ],
   variants: [],
   updatedAtUtc: null,
-  rowVersion: null,
 };
 
 function slugify(value: string) {
@@ -179,6 +181,60 @@ function slugify(value: string) {
     .replace(/ç/g, "c")
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "");
+}
+
+function buildCategoryOptions(
+  categories: AdminCategoryDto[]
+): AdminCategoryOption[] {
+  const byId = new Map(categories.map((category) => [category.id, category]));
+  const childrenByParent = new Map<string, AdminCategoryDto[]>();
+  const roots: AdminCategoryDto[] = [];
+  const result: AdminCategoryOption[] = [];
+  const visited = new Set<string>();
+  const sortCategories = (items: AdminCategoryDto[]) =>
+    items.sort(
+      (a, b) =>
+        a.sortOrder - b.sortOrder || a.name.localeCompare(b.name, "tr")
+    );
+
+  for (const category of categories) {
+    if (category.parentId && byId.has(category.parentId)) {
+      const siblings = childrenByParent.get(category.parentId) ?? [];
+      siblings.push(category);
+      childrenByParent.set(category.parentId, siblings);
+    } else {
+      roots.push(category);
+    }
+  }
+
+  const appendCategory = (category: AdminCategoryDto, depth: number) => {
+    if (visited.has(category.id)) return;
+    visited.add(category.id);
+
+    const indentation = "\u00a0\u00a0".repeat(depth);
+    result.push({
+      ...category,
+      depth,
+      displayName:
+        depth === 0 ? category.name : `${indentation}↳ ${category.name}`,
+    });
+
+    for (const child of sortCategories([
+      ...(childrenByParent.get(category.id) ?? []),
+    ])) {
+      appendCategory(child, depth + 1);
+    }
+  };
+
+  for (const root of sortCategories(roots)) {
+    appendCategory(root, 0);
+  }
+
+  for (const category of sortCategories([...categories])) {
+    appendCategory(category, 0);
+  }
+
+  return result;
 }
 
 function formatPrice(value: number) {
@@ -296,7 +352,6 @@ function buildFormFromProduct(product: ProductDetailDto): ProductForm {
       isActive: variant.isActive,
     })),
     updatedAtUtc: product.updatedAtUtc,
-    rowVersion: product.rowVersion,
   };
 }
 
@@ -344,7 +399,6 @@ function buildPayload(form: ProductForm) {
     images,
     variants,
     updatedAtUtc: form.updatedAtUtc,
-    rowVersion: form.rowVersion,
   };
 }
 
@@ -367,6 +421,7 @@ export default function AdminProductsPageClient() {
   const [isLoadingDetail, setIsLoadingDetail] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [notice, setNotice] = useState<Notice>(null);
+  const saveInFlightRef = useRef(false);
 
   const [uploadingImageIndex, setUploadingImageIndex] = useState<number | null>(
     null
@@ -394,11 +449,7 @@ export default function AdminProductsPageClient() {
   }, [query, categoryId, isActiveFilter, page]);
 
   const activeCategoryOptions = useMemo(
-    () =>
-      [...categories].sort(
-        (a, b) =>
-          a.sortOrder - b.sortOrder || a.name.localeCompare(b.name, "tr")
-      ),
+    () => buildCategoryOptions(categories),
     [categories]
   );
 
@@ -450,7 +501,7 @@ export default function AdminProductsPageClient() {
   };
 
   const loadProductDetail = async (id: string) => {
-    if (!token || !canUseAdmin) return;
+    if (!token || !canUseAdmin) return null;
 
     setIsLoadingDetail(true);
     setNotice(null);
@@ -468,6 +519,7 @@ export default function AdminProductsPageClient() {
       setSelectedProduct(data);
       setEditingId(data.id);
       setForm(buildFormFromProduct(data));
+      return data;
     } catch (error) {
       setNotice({
         type: "error",
@@ -476,6 +528,7 @@ export default function AdminProductsPageClient() {
             ? error.message
             : "Ürün detayı alınırken hata oluştu.",
       });
+      return null;
     } finally {
       setIsLoadingDetail(false);
     }
@@ -484,6 +537,7 @@ export default function AdminProductsPageClient() {
   useEffect(() => {
     if (!canUseAdmin) return;
 
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     void loadCategories();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [canUseAdmin]);
@@ -491,6 +545,7 @@ export default function AdminProductsPageClient() {
   useEffect(() => {
     if (!canUseAdmin) return;
 
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     void loadProducts();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [canUseAdmin, queryString]);
@@ -781,7 +836,6 @@ export default function AdminProductsPageClient() {
   };
 
   const validateForm = () => {
-    if (!form.sku.trim()) return "SKU zorunludur.";
     if (!form.name.trim()) return "Ürün adı zorunludur.";
 
     const basePrice = toNumber(form.basePrice);
@@ -822,7 +876,7 @@ export default function AdminProductsPageClient() {
 
     if (!token || !canUseAdmin) return;
     
-    if (isFormLocked) return; // Görsel yüklenirken vs kayıt engellensin.
+    if (saveInFlightRef.current || isFormLocked) return;
 
     const validationError = validateForm();
 
@@ -834,20 +888,22 @@ export default function AdminProductsPageClient() {
       return;
     }
 
+    saveInFlightRef.current = true;
     setIsSaving(true);
     setNotice(null);
 
     try {
       const payload = buildPayload(form);
+      const productIdBeingEdited = editingId;
 
       const res = await fetch(
         apiUrl(
-          isEditing
-            ? `/api/admin/products/${editingId}`
+          productIdBeingEdited
+            ? `/api/admin/products/${productIdBeingEdited}`
             : "/api/admin/products"
         ),
         {
-          method: isEditing ? "PUT" : "POST",
+          method: productIdBeingEdited ? "PUT" : "POST",
           headers: {
             "Content-Type": "application/json",
             ...authHeaders(token),
@@ -855,6 +911,28 @@ export default function AdminProductsPageClient() {
           body: JSON.stringify(payload),
         }
       );
+
+      if (res.status === 409 && productIdBeingEdited) {
+        const conflict = (await res
+          .clone()
+          .json()
+          .catch(() => null)) as {
+          code?: unknown;
+          message?: unknown;
+        } | null;
+
+        if (conflict?.code === "product_concurrency_conflict") {
+          await loadProductDetail(productIdBeingEdited);
+          setNotice({
+            type: "error",
+            message:
+              typeof conflict.message === "string"
+                ? conflict.message
+                : "Ürün başka bir işlem tarafından güncellendi. Güncel kayıt yeniden yüklendi.",
+          });
+          return;
+        }
+      }
 
       const data = await readJsonOrThrow<ProductDetailDto>(res);
 
@@ -864,7 +942,7 @@ export default function AdminProductsPageClient() {
 
       setNotice({
         type: "success",
-        message: isEditing ? "Ürün güncellendi." : "Ürün oluşturuldu.",
+        message: productIdBeingEdited ? "Ürün güncellendi." : "Ürün oluşturuldu.",
       });
 
       await loadProducts();
@@ -878,6 +956,7 @@ export default function AdminProductsPageClient() {
             : "Ürün kaydedilirken hata oluştu.",
       });
     } finally {
+      saveInFlightRef.current = false;
       setIsSaving(false);
     }
   };
@@ -1134,7 +1213,7 @@ export default function AdminProductsPageClient() {
 
                       {activeCategoryOptions.map((category) => (
                         <option key={category.id} value={category.id}>
-                          {category.name}
+                          {category.displayName}
                         </option>
                       ))}
                     </select>
@@ -1402,7 +1481,7 @@ export default function AdminProductsPageClient() {
                         value={form.sku}
                         onChange={(event) => updateForm("sku", event.target.value)}
                         className="input-premium mt-2 min-h-10 text-sm"
-                        placeholder="URN-001"
+                        placeholder="Boş bırakırsan otomatik oluşturulur"
                       />
                     </label>
 
@@ -1428,7 +1507,7 @@ export default function AdminProductsPageClient() {
                         value={form.slug}
                         onChange={(event) => updateForm("slug", event.target.value)}
                         className="input-premium mt-2 min-h-10 text-sm"
-                        placeholder="kuka-tesbih"
+                        placeholder="Ürün adından otomatik oluşturulur"
                       />
                     </label>
 
@@ -1642,7 +1721,7 @@ export default function AdminProductsPageClient() {
 
                           <span>
                             <span className="block text-sm font-black text-foreground">
-                              {category.name}
+                              {category.displayName}
                             </span>
                             <span className="mt-0.5 block text-xs text-muted">
                               /{category.slug}
