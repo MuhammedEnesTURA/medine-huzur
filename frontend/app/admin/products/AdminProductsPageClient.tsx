@@ -38,6 +38,10 @@ type AdminCategoryOption = AdminCategoryDto & {
   displayName: string;
 };
 
+type AdminCategoryTreeNode = AdminCategoryDto & {
+  children: AdminCategoryTreeNode[];
+};
+
 type ProductListItemDto = {
   id: string;
   sku: string;
@@ -183,13 +187,13 @@ function slugify(value: string) {
     .replace(/^-+|-+$/g, "");
 }
 
-function buildCategoryOptions(
+function buildCategoryTree(
   categories: AdminCategoryDto[]
-): AdminCategoryOption[] {
+): AdminCategoryTreeNode[] {
   const byId = new Map(categories.map((category) => [category.id, category]));
   const childrenByParent = new Map<string, AdminCategoryDto[]>();
   const roots: AdminCategoryDto[] = [];
-  const result: AdminCategoryOption[] = [];
+  const result: AdminCategoryTreeNode[] = [];
   const visited = new Set<string>();
   const sortCategories = (items: AdminCategoryDto[]) =>
     items.sort(
@@ -207,34 +211,117 @@ function buildCategoryOptions(
     }
   }
 
-  const appendCategory = (category: AdminCategoryDto, depth: number) => {
-    if (visited.has(category.id)) return;
+  const createNode = (
+    category: AdminCategoryDto
+  ): AdminCategoryTreeNode | null => {
+    if (visited.has(category.id)) return null;
     visited.add(category.id);
 
-    const indentation = "\u00a0\u00a0".repeat(depth);
-    result.push({
-      ...category,
-      depth,
-      displayName:
-        depth === 0 ? category.name : `${indentation}↳ ${category.name}`,
-    });
-
-    for (const child of sortCategories([
+    const children = sortCategories([
       ...(childrenByParent.get(category.id) ?? []),
-    ])) {
-      appendCategory(child, depth + 1);
-    }
+    ])
+      .map(createNode)
+      .filter((child): child is AdminCategoryTreeNode => child !== null);
+
+    return {
+      ...category,
+      children,
+    };
   };
 
   for (const root of sortCategories(roots)) {
-    appendCategory(root, 0);
+    const node = createNode(root);
+    if (node) result.push(node);
   }
 
   for (const category of sortCategories([...categories])) {
-    appendCategory(category, 0);
+    const node = createNode(category);
+    if (node) result.push(node);
   }
 
   return result;
+}
+
+function flattenCategoryTree(
+  nodes: AdminCategoryTreeNode[],
+  depth = 0
+): AdminCategoryOption[] {
+  return nodes.flatMap(({ children, ...category }) => {
+    const indentation = "\u00a0\u00a0".repeat(depth);
+
+    return [
+      {
+        ...category,
+        depth,
+        displayName:
+          depth === 0 ? category.name : `${indentation}↳ ${category.name}`,
+      },
+      ...flattenCategoryTree(children, depth + 1),
+    ];
+  });
+}
+
+function CategorySelectionNode({
+  node,
+  depth,
+  selectedCategoryIds,
+  onToggle,
+}: {
+  node: AdminCategoryTreeNode;
+  depth: number;
+  selectedCategoryIds: string[];
+  onToggle: (id: string) => void;
+}) {
+  const isSelected = selectedCategoryIds.includes(node.id);
+
+  return (
+    <div className="min-w-0">
+      <label
+        className={`flex min-w-0 cursor-pointer gap-3 rounded-xl border p-3 transition hover:border-border-strong ${
+          isSelected
+            ? "border-mhgreen/35 bg-mhgreen/10"
+            : depth === 0
+              ? "border-border-soft bg-panel-2/75"
+              : "border-border-soft bg-panel/70"
+        }`}
+      >
+        <input
+          type="checkbox"
+          checked={isSelected}
+          onChange={() => onToggle(node.id)}
+          className="mt-1 h-4 w-4 shrink-0 accent-mhgreen"
+        />
+
+        <span className="min-w-0">
+          <span className="block break-words text-sm font-black text-foreground">
+            {node.name}
+          </span>
+          <span className="mt-0.5 block break-all text-xs text-muted">
+            /{node.slug}
+          </span>
+        </span>
+      </label>
+
+      {node.children.length > 0 && (
+        <div className="ml-2 mt-2 space-y-2 border-l border-mhgreen/25 pl-3 sm:ml-3 sm:pl-4">
+          {node.children.map((child) => (
+            <div key={child.id} className="relative min-w-0">
+              <span
+                aria-hidden="true"
+                className="absolute -left-3 top-5 w-3 border-t border-mhgreen/25 sm:-left-4 sm:w-4"
+              />
+              <CategorySelectionNode
+                node={child}
+                depth={depth + 1}
+                selectedCategoryIds={selectedCategoryIds}
+                onToggle={onToggle}
+              />
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
 }
 
 function formatPrice(value: number) {
@@ -448,9 +535,13 @@ export default function AdminProductsPageClient() {
     return params.toString();
   }, [query, categoryId, isActiveFilter, page]);
 
-  const activeCategoryOptions = useMemo(
-    () => buildCategoryOptions(categories),
+  const activeCategoryTree = useMemo(
+    () => buildCategoryTree(categories),
     [categories]
+  );
+  const activeCategoryOptions = useMemo(
+    () => flattenCategoryTree(activeCategoryTree),
+    [activeCategoryTree]
   );
 
   const loadCategories = async () => {
@@ -1697,37 +1788,24 @@ export default function AdminProductsPageClient() {
                     </h3>
                   </div>
 
-                  <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-                    {activeCategoryOptions.length === 0 ? (
-                      <div className="rounded-2xl border border-border-soft bg-panel/70 p-4 text-sm text-muted sm:col-span-2 lg:col-span-3">
+                  <div className="mt-4 grid gap-3 md:grid-cols-2">
+                    {activeCategoryTree.length === 0 ? (
+                      <div className="rounded-2xl border border-border-soft bg-panel/70 p-4 text-sm text-muted md:col-span-2">
                         Henüz kategori yok. Önce admin kategori sayfasından kategori oluştur.
                       </div>
                     ) : (
-                      activeCategoryOptions.map((category) => (
-                        <label
+                      activeCategoryTree.map((category) => (
+                        <div
                           key={category.id}
-                          className={`flex cursor-pointer gap-3 rounded-2xl border p-3 transition hover:border-border-strong ${
-                            form.categoryIds.includes(category.id)
-                              ? "border-mhgreen/35 bg-mhgreen/10"
-                              : "border-border-soft bg-panel/70"
-                          }`}
+                          className="min-w-0 rounded-2xl border border-border-soft bg-panel/55 p-3 shadow-[0_10px_28px_rgba(0,0,0,0.05)]"
                         >
-                          <input
-                            type="checkbox"
-                            checked={form.categoryIds.includes(category.id)}
-                            onChange={() => toggleCategory(category.id)}
-                            className="mt-1 h-4 w-4 accent-mhgreen"
+                          <CategorySelectionNode
+                            node={category}
+                            depth={0}
+                            selectedCategoryIds={form.categoryIds}
+                            onToggle={toggleCategory}
                           />
-
-                          <span>
-                            <span className="block text-sm font-black text-foreground">
-                              {category.displayName}
-                            </span>
-                            <span className="mt-0.5 block text-xs text-muted">
-                              /{category.slug}
-                            </span>
-                          </span>
-                        </label>
+                        </div>
                       ))
                     )}
                   </div>
