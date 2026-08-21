@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { connection } from "next/server";
 import { ChevronRight, LayoutGrid } from "lucide-react";
 import SearchBand from "../../components/SearchBand";
 import CatalogServiceError from "../../components/CatalogServiceError";
@@ -46,6 +47,8 @@ function CategoryChildren({
 }
 
 export default async function CategoriesPage() {
+  await connection();
+
   const categoriesResult = await getPublicCategories();
   const categories = categoriesResult.ok ? categoriesResult.data : [];
   const categoryIds = new Set(categories.map((category) => category.id));
