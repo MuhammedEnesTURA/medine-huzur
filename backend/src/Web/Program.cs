@@ -8,6 +8,7 @@ using MedineHuzur.Web.Settings;
 using Microsoft.OpenApi.Models;
 using MedineHuzur.Web.Payments;
 using System.Text.Json.Serialization;
+using System.Text.RegularExpressions;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -102,25 +103,31 @@ builder.Services.AddSwaggerGen(options =>
 var allowedOrigins =
     configuration.GetSection("Cors:AllowedOrigins").Get<string[]>()
     ?? Array.Empty<string>();
+var allowedOriginPatterns =
+    configuration.GetSection("Cors:AllowedOriginPatterns").Get<string[]>()
+    ?? Array.Empty<string>();
+var allowedOriginRegexes = allowedOriginPatterns
+    .Where(pattern => !string.IsNullOrWhiteSpace(pattern))
+    .Select(pattern => new Regex(
+        $"^{Regex.Escape(pattern.Trim()).Replace("\\*", "[a-z0-9-]+")}$",
+        RegexOptions.IgnoreCase | RegexOptions.CultureInvariant,
+        TimeSpan.FromMilliseconds(100)))
+    .ToArray();
+var allowedOriginSet = allowedOrigins
+    .Where(origin => !string.IsNullOrWhiteSpace(origin))
+    .Select(origin => origin.TrimEnd('/'))
+    .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("Frontend", policy =>
     {
-        if (allowedOrigins.Length > 0)
-        {
-            policy
-                .WithOrigins(allowedOrigins)
-                .AllowAnyHeader()
-                .AllowAnyMethod();
-        }
-        else
-        {
-            policy
-                .AllowAnyOrigin()
-                .AllowAnyHeader()
-                .AllowAnyMethod();
-        }
+        policy
+            .SetIsOriginAllowed(origin =>
+                allowedOriginSet.Contains(origin.TrimEnd('/')) ||
+                allowedOriginRegexes.Any(regex => regex.IsMatch(origin)))
+            .AllowAnyHeader()
+            .AllowAnyMethod();
     });
 });
 
