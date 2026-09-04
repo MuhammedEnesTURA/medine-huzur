@@ -33,7 +33,7 @@ if (string.IsNullOrWhiteSpace(connectionString) ||
         "Database connection string is missing. Set ConnectionStrings:Default or MEDINE_HUZUR_CONNECTION_STRING.");
 }
 
-builder.Services.AddDbContext<ECommerceContext>(options =>
+builder.Services.AddDbContextPool<ECommerceContext>(options =>
 {
     options.UseSqlServer(connectionString);
 });

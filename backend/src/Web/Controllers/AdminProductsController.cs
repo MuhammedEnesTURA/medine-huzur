@@ -16,10 +16,14 @@ namespace MedineHuzur.Web.Controllers;
 public class AdminProductsController : ControllerBase
 {
     private readonly ECommerceContext _db;
+    private readonly ILogger<AdminProductsController> _logger;
 
-    public AdminProductsController(ECommerceContext db)
+    public AdminProductsController(
+        ECommerceContext db,
+        ILogger<AdminProductsController> logger)
     {
         _db = db;
+        _logger = logger;
     }
 
     [HttpGet]
@@ -212,10 +216,9 @@ public class AdminProductsController : ControllerBase
             return NotFound(new { message = "Ürün bulunamadı." });
         }
 
-        if (request.UpdatedAtUtc != product.UpdatedAtUtc)
-        {
-            return ProductConcurrencyConflict();
-        }
+        _db.Entry(product)
+            .Property(x => x.UpdatedAtUtc)
+            .OriginalValue = request.UpdatedAtUtc;
 
         var name = NormalizeText(request.Name);
         var sku = string.IsNullOrWhiteSpace(request.Sku)
@@ -296,9 +299,10 @@ public class AdminProductsController : ControllerBase
             await _db.SaveChangesAsync(cancellationToken);
             await transaction.CommitAsync(cancellationToken);
         }
-        catch (DbUpdateConcurrencyException)
+        catch (DbUpdateConcurrencyException exception)
         {
             await transaction.RollbackAsync(cancellationToken);
+            LogConcurrencyConflict("update", id, exception);
             return ProductConcurrencyConflict();
         }
 
@@ -334,7 +338,10 @@ public class AdminProductsController : ControllerBase
             product.IsActive = false;
             product.UpdatedAtUtc = DateTime.UtcNow;
 
-            await _db.SaveChangesAsync(cancellationToken);
+            if (!await TrySaveProductMutationAsync("delete", id, cancellationToken))
+            {
+                return ProductConcurrencyConflict();
+            }
 
             return Ok(new
             {
@@ -347,7 +354,10 @@ public class AdminProductsController : ControllerBase
         _db.ProductVariants.RemoveRange(product.Variants);
         _db.Products.Remove(product);
 
-        await _db.SaveChangesAsync(cancellationToken);
+        if (!await TrySaveProductMutationAsync("delete", id, cancellationToken))
+        {
+            return ProductConcurrencyConflict();
+        }
 
         return NoContent();
     }
@@ -368,7 +378,10 @@ public class AdminProductsController : ControllerBase
         product.IsActive = !product.IsActive;
         product.UpdatedAtUtc = DateTime.UtcNow;
 
-        await _db.SaveChangesAsync(cancellationToken);
+        if (!await TrySaveProductMutationAsync("toggle-active", id, cancellationToken))
+        {
+            return ProductConcurrencyConflict();
+        }
 
         var dto = await GetProductDetailByIdAsync(product.Id, cancellationToken);
 
@@ -391,7 +404,10 @@ public class AdminProductsController : ControllerBase
         product.IsFeatured = !product.IsFeatured;
         product.UpdatedAtUtc = DateTime.UtcNow;
 
-        await _db.SaveChangesAsync(cancellationToken);
+        if (!await TrySaveProductMutationAsync("toggle-featured", id, cancellationToken))
+        {
+            return ProductConcurrencyConflict();
+        }
 
         var dto = await GetProductDetailByIdAsync(product.Id, cancellationToken);
 
@@ -719,6 +735,36 @@ public class AdminProductsController : ControllerBase
             code = "product_concurrency_conflict",
             message = "Ürün başka bir işlem tarafından güncellendi. Güncel kayıt yeniden yüklendi; değişiklikleri kontrol edip tekrar deneyin."
         });
+    }
+
+    private async Task<bool> TrySaveProductMutationAsync(
+        string operation,
+        Guid productId,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            await _db.SaveChangesAsync(cancellationToken);
+            return true;
+        }
+        catch (DbUpdateConcurrencyException exception)
+        {
+            LogConcurrencyConflict(operation, productId, exception);
+            return false;
+        }
+    }
+
+    private void LogConcurrencyConflict(
+        string operation,
+        Guid productId,
+        DbUpdateConcurrencyException exception)
+    {
+        _logger.LogWarning(
+            "Admin product mutation failed. Operation: {Operation}, HttpStatus: {HttpStatus}, ErrorType: {ErrorType}, ProductId: {ProductId}, ConcurrencyConflict: true",
+            operation,
+            StatusCodes.Status409Conflict,
+            exception.GetType().Name,
+            productId);
     }
 
     private static string SerializeAttributes(Dictionary<string, string> attributes)
