@@ -18,7 +18,12 @@ import {
   Upload,
   X,
 } from "lucide-react";
-import { apiUrl, authHeaders, readJsonOrThrow } from "../../../lib/api";
+import {
+  ApiResponseError,
+  apiUrl,
+  authHeaders,
+  readJsonOrThrow,
+} from "../../../lib/api";
 import { useAuth } from "../../../context/AuthContext";
 
 type AdminCategoryDto = {
@@ -489,6 +494,19 @@ function buildPayload(form: ProductForm) {
   };
 }
 
+function logProductMutationFailure(
+  operation: "create" | "update" | "delete" | "toggle-active" | "toggle-featured",
+  error: unknown,
+  productId?: string | null
+) {
+  console.error("Admin product mutation failed.", {
+    operation,
+    status: error instanceof ApiResponseError ? error.status : null,
+    errorType: error instanceof Error ? error.name : typeof error,
+    productId: productId ?? null,
+  });
+}
+
 export default function AdminProductsPageClient() {
   const { token, isReady, isAuthenticated, isAdmin } = useAuth();
 
@@ -508,7 +526,7 @@ export default function AdminProductsPageClient() {
   const [isLoadingDetail, setIsLoadingDetail] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [notice, setNotice] = useState<Notice>(null);
-  const saveInFlightRef = useRef(false);
+  const mutationInFlightRef = useRef(false);
 
   const [uploadingImageIndex, setUploadingImageIndex] = useState<number | null>(
     null
@@ -967,7 +985,7 @@ export default function AdminProductsPageClient() {
 
     if (!token || !canUseAdmin) return;
     
-    if (saveInFlightRef.current || isFormLocked) return;
+    if (mutationInFlightRef.current || isFormLocked) return;
 
     const validationError = validateForm();
 
@@ -979,13 +997,13 @@ export default function AdminProductsPageClient() {
       return;
     }
 
-    saveInFlightRef.current = true;
+    mutationInFlightRef.current = true;
     setIsSaving(true);
     setNotice(null);
+    const productIdBeingEdited = editingId;
 
     try {
       const payload = buildPayload(form);
-      const productIdBeingEdited = editingId;
 
       const res = await fetch(
         apiUrl(
@@ -1039,6 +1057,11 @@ export default function AdminProductsPageClient() {
       await loadProducts();
       await loadCategories();
     } catch (error) {
+      logProductMutationFailure(
+        productIdBeingEdited ? "update" : "create",
+        error,
+        productIdBeingEdited
+      );
       setNotice({
         type: "error",
         message:
@@ -1047,13 +1070,13 @@ export default function AdminProductsPageClient() {
             : "Ürün kaydedilirken hata oluştu.",
       });
     } finally {
-      saveInFlightRef.current = false;
+      mutationInFlightRef.current = false;
       setIsSaving(false);
     }
   };
 
   const deleteProduct = async (product: ProductListItemDto | ProductDetailDto) => {
-    if (!token || !canUseAdmin) return;
+    if (!token || !canUseAdmin || mutationInFlightRef.current) return;
 
     const confirmed = window.confirm(
       `"${product.name}" ürününü silmek/pasifleştirmek istediğine emin misin?`
@@ -1061,6 +1084,7 @@ export default function AdminProductsPageClient() {
 
     if (!confirmed) return;
 
+    mutationInFlightRef.current = true;
     setIsSaving(true);
     setNotice(null);
 
@@ -1072,22 +1096,32 @@ export default function AdminProductsPageClient() {
         },
       });
 
-      if (!res.ok && res.status !== 204) {
-        await readJsonOrThrow(res);
-      }
-
-      setNotice({
-        type: "success",
-        message: "Ürün silindi veya geçmiş sipariş bağlantısı olduğu için pasifleştirildi.",
-      });
+      const data = await readJsonOrThrow<{ message?: string } | null>(res);
 
       if (editingId === product.id) {
         resetForm();
       }
 
+      setNotice({
+        type: "success",
+        message:
+          data?.message ??
+          "Ürün silindi veya geçmiş sipariş bağlantısı olduğu için pasifleştirildi.",
+      });
+
       await loadProducts();
       await loadCategories();
     } catch (error) {
+      logProductMutationFailure("delete", error, product.id);
+
+      if (error instanceof ApiResponseError && error.status === 409) {
+        if (editingId === product.id) {
+          await loadProductDetail(product.id);
+        } else {
+          await loadProducts();
+        }
+      }
+
       setNotice({
         type: "error",
         message:
@@ -1096,6 +1130,7 @@ export default function AdminProductsPageClient() {
             : "Ürün silinirken hata oluştu.",
       });
     } finally {
+      mutationInFlightRef.current = false;
       setIsSaving(false);
     }
   };
@@ -1104,8 +1139,9 @@ export default function AdminProductsPageClient() {
     product: ProductListItemDto | ProductDetailDto,
     flag: "active" | "featured"
   ) => {
-    if (!token || !canUseAdmin) return;
+    if (!token || !canUseAdmin || mutationInFlightRef.current) return;
 
+    mutationInFlightRef.current = true;
     setIsSaving(true);
     setNotice(null);
 
@@ -1139,6 +1175,20 @@ export default function AdminProductsPageClient() {
 
       await loadProducts();
     } catch (error) {
+      logProductMutationFailure(
+        flag === "active" ? "toggle-active" : "toggle-featured",
+        error,
+        product.id
+      );
+
+      if (error instanceof ApiResponseError && error.status === 409) {
+        if (editingId === product.id) {
+          await loadProductDetail(product.id);
+        } else {
+          await loadProducts();
+        }
+      }
+
       setNotice({
         type: "error",
         message:
@@ -1147,6 +1197,7 @@ export default function AdminProductsPageClient() {
             : "Ürün durumu güncellenemedi.",
       });
     } finally {
+      mutationInFlightRef.current = false;
       setIsSaving(false);
     }
   };

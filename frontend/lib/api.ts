@@ -30,6 +30,16 @@ export type ApiFetchResult<T> =
       errorType: "http" | "network" | "invalid-response";
     };
 
+export class ApiResponseError extends Error {
+  readonly status: number;
+
+  constructor(status: number, message: string) {
+    super(message);
+    this.name = "ApiResponseError";
+    this.status = status;
+  }
+}
+
 export async function fetchJsonResult<T>(
   path: string,
   init?: ApiFetchInit
@@ -93,15 +103,58 @@ export async function readJsonOrThrow<T>(res: Response): Promise<T> {
   const data = await res.json().catch(() => null);
 
   if (!res.ok) {
-    const message =
-      data && typeof data === "object" && "message" in data
-        ? String((data as { message?: unknown }).message)
-        : "İşlem sırasında bir hata oluştu.";
+    const message = getApiErrorMessage(data, res.status);
 
-    throw new Error(message);
+    throw new ApiResponseError(res.status, message);
   }
 
   return data as T;
+}
+
+function getApiErrorMessage(data: unknown, status: number) {
+  if (data && typeof data === "object") {
+    if ("message" in data) {
+      const message = (data as { message?: unknown }).message;
+
+      if (typeof message === "string" && message.trim()) {
+        return message;
+      }
+    }
+
+    if ("errors" in data) {
+      const errors = (data as { errors?: unknown }).errors;
+
+      if (errors && typeof errors === "object") {
+        for (const value of Object.values(errors)) {
+          if (Array.isArray(value)) {
+            const message = value.find(
+              (item): item is string =>
+                typeof item === "string" && Boolean(item.trim())
+            );
+
+            if (message) return message;
+          }
+        }
+      }
+    }
+  }
+
+  switch (status) {
+    case 400:
+      return "Gönderilen bilgiler geçersiz.";
+    case 401:
+      return "Oturum doğrulanamadı. Lütfen yeniden giriş yapın.";
+    case 403:
+      return "Bu işlem için yetkiniz bulunmuyor.";
+    case 404:
+      return "İstenen kayıt bulunamadı.";
+    case 409:
+      return "İşlem güncel kayıtla çakıştı. Sayfayı yenileyip tekrar deneyin.";
+    case 503:
+      return "Servis geçici olarak kullanılamıyor. Lütfen tekrar deneyin.";
+    default:
+      return "İşlem sırasında bir hata oluştu.";
+  }
 }
 
 export function authHeaders(token?: string | null): HeadersInit {
