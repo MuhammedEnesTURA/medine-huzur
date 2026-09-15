@@ -47,6 +47,8 @@ type CategoryLandingPageProps = {
   params: Promise<{ slug: string }>;
 };
 
+const HAC_MATERIALS_SLUG = "hac-malzemeleri";
+
 const getCategoryLandingData = cache(async (slug: string) => {
   const categoriesResult = await getPublicCategories();
 
@@ -64,7 +66,7 @@ const getCategoryLandingData = cache(async (slug: string) => {
   }
 
   const productsResult = await fetchJsonResult<ProductListResponse>(
-    `/api/catalog/products?categoryId=${encodeURIComponent(category.id)}&page=1&pageSize=60`,
+    `/api/catalog/products?categoryId=${encodeURIComponent(category.id)}&includeDescendants=true&page=1&pageSize=60`,
     { next: { revalidate: PUBLIC_CATALOG_REVALIDATE_SECONDS } }
   );
 
@@ -73,10 +75,22 @@ const getCategoryLandingData = cache(async (slug: string) => {
 
 function categoryDescription(
   categoryName: string,
+  categorySlug: string,
   parentName: string | null,
   productCount: number | null,
   childCount: number
 ) {
+  if (categorySlug === HAC_MATERIALS_SLUG) {
+    if (productCount && productCount > 0) {
+      const childCategoryText = childCount > 0 ? " ve mevcut alt kategorileri" : "";
+      return `Çorum Merkez'de hac ve umre hazırlıkları için Medine Huzur'daki ${productCount} aktif hac malzemesini${childCategoryText} inceleyin.`;
+    }
+
+    return childCount > 0
+      ? "Çorum Merkez'de hac ve umre hazırlıkları için Hac Malzemeleri kategorisini ve mevcut alt kategorileri inceleyin."
+      : "Çorum Merkez'de hac ve umre hazırlıklarına yönelik Hac Malzemeleri kategorisini Medine Huzur'da inceleyin.";
+  }
+
   if (productCount && productCount > 0) {
     return parentName
       ? `${parentName} kategorisine bağlı ${categoryName} sayfasındaki ${productCount} aktif ürünü inceleyin.`
@@ -92,6 +106,25 @@ function categoryDescription(
   }
 
   return `${categoryName} kategori sayfasını Medine Huzur'da inceleyin.`;
+}
+
+function categoryIntro(
+  categorySlug: string,
+  productCount: number | null,
+  childCount: number
+) {
+  if (categorySlug !== HAC_MATERIALS_SLUG) {
+    return "Bu kategoride yer alan ürünleri ve alt kategorileri inceleyin.";
+  }
+
+  if (productCount && productCount > 0) {
+    const childCategoryText = childCount > 0 ? " ve mevcut alt kategorileri" : "";
+    return `Çorum Merkez'de hac ve umre hazırlıklarınız için Medine Huzur'daki ${productCount} aktif hac malzemesini${childCategoryText} inceleyin.`;
+  }
+
+  return childCount > 0
+    ? "Çorum Merkez'de hac ve umre hazırlıklarınız için Hac Malzemeleri alt kategorilerini inceleyin."
+    : "Çorum Merkez'de hac ve umre hazırlıklarına yönelik Hac Malzemeleri kategorisini inceleyin.";
 }
 
 function formatPrice(value: number) {
@@ -134,11 +167,15 @@ export async function generateMetadata({
     : null;
 
   return createPageMetadata({
-    title: parent
-      ? `${data.category.name} - ${parent.name}`
-      : `${data.category.name} Ürünleri`,
+    title:
+      data.category.slug === HAC_MATERIALS_SLUG
+        ? "Çorum Hac Malzemeleri"
+        : parent
+          ? `${data.category.name} - ${parent.name}`
+          : `${data.category.name} Ürünleri`,
     description: categoryDescription(
       data.category.name,
+      data.category.slug,
       parent?.name ?? null,
       productCount,
       childCount
@@ -175,6 +212,9 @@ export default async function CategoryLandingPage({
     categories.filter((item) => item.parentId === category.id)
   );
   const products = data.productsResult?.ok ? data.productsResult.data.items : [];
+  const productCount = data.productsResult?.ok
+    ? data.productsResult.data.totalCount
+    : null;
   const breadcrumbJsonLd = {
     "@context": "https://schema.org",
     "@type": "BreadcrumbList",
@@ -256,10 +296,12 @@ export default async function CategoryLandingPage({
               Ürün Kategorisi
             </p>
             <h1 className="mt-2 text-3xl font-black tracking-[-0.04em] text-foreground md:text-4xl">
-              {category.name}
+              {category.slug === HAC_MATERIALS_SLUG
+                ? "Çorum Hac Malzemeleri"
+                : category.name}
             </h1>
             <p className="mt-3 max-w-2xl text-sm font-medium leading-6 text-muted">
-              Bu kategoride yer alan ürünleri ve alt kategorileri inceleyin.
+              {categoryIntro(category.slug, productCount, children.length)}
             </p>
           </header>
 
@@ -312,7 +354,7 @@ export default async function CategoryLandingPage({
               <div className="mt-4 flex min-h-52 flex-col items-center justify-center rounded-2xl border border-border-soft bg-panel-2/70 p-8 text-center">
                 <PackageSearch className="h-8 w-8 text-mhgreen" />
                 <p className="mt-3 text-sm font-black text-foreground">
-                  Bu kategoride henüz ürün bulunmuyor.
+                  Bu kategori ve alt kategorilerinde henüz ürün bulunmuyor.
                 </p>
               </div>
             ) : (

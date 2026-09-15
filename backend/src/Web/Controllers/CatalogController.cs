@@ -42,6 +42,7 @@ public class CatalogController : ControllerBase
 public async Task<ActionResult<ProductListResponse>> GetProducts(
     [FromQuery] string? q,
     [FromQuery] Guid? categoryId,
+    [FromQuery] bool? includeDescendants,
     [FromQuery] bool? featured,
     [FromQuery] bool? inStock,
     [FromQuery] decimal? minPrice,
@@ -71,8 +72,12 @@ public async Task<ActionResult<ProductListResponse>> GetProducts(
 
     if (categoryId.HasValue)
     {
+        var categoryIds = includeDescendants == true
+            ? await GetCategoryAndDescendantIdsAsync(categoryId.Value, cancellationToken)
+            : new HashSet<Guid> { categoryId.Value };
+
         query = query.Where(x =>
-            x.ProductCategories.Any(pc => pc.CategoryId == categoryId.Value));
+            x.ProductCategories.Any(pc => categoryIds.Contains(pc.CategoryId)));
     }
 
     if (featured.HasValue)
@@ -139,6 +144,39 @@ public async Task<ActionResult<ProductListResponse>> GetProducts(
         (int)Math.Ceiling(totalCount / (double)pageSize)
     ));
 }
+
+    private async Task<HashSet<Guid>> GetCategoryAndDescendantIdsAsync(
+        Guid categoryId,
+        CancellationToken cancellationToken)
+    {
+        var categoryLinks = await _db.Categories
+            .AsNoTracking()
+            .Where(x => x.IsActive)
+            .Select(x => new { x.Id, x.ParentId })
+            .ToListAsync(cancellationToken);
+
+        var childrenByParent = categoryLinks
+            .Where(x => x.ParentId.HasValue)
+            .ToLookup(x => x.ParentId!.Value, x => x.Id);
+        var categoryIds = new HashSet<Guid>();
+        var pending = new Stack<Guid>();
+        pending.Push(categoryId);
+
+        while (pending.TryPop(out var currentId))
+        {
+            if (!categoryIds.Add(currentId))
+            {
+                continue;
+            }
+
+            foreach (var childId in childrenByParent[currentId])
+            {
+                pending.Push(childId);
+            }
+        }
+
+        return categoryIds;
+    }
 
     [HttpGet("products/{id:guid}")]
     public async Task<ActionResult<ProductDetailDto>> GetProductById(
