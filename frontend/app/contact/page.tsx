@@ -9,6 +9,7 @@ import {
   ShieldCheck,
 } from "lucide-react";
 import { businessConfig, createPageMetadata, siteConfig } from "../../lib/seo";
+import { merchantConfig } from "../../lib/merchant";
 
 export const metadata = createPageMetadata({
   title: "İletişim",
@@ -87,6 +88,12 @@ export default function ContactPage() {
 
         <section className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
           <ContactCard
+            icon={<ShieldCheck className="h-5 w-5" />}
+            title="Resmî satıcı"
+            value={merchantConfig.legalName}
+            text={`${siteConfig.name} markasının işletmecisi.`}
+          />
+          <ContactCard
             icon={<Phone className="h-5 w-5" />}
             title="Telefon"
             value={businessConfig.phone.display}
@@ -107,12 +114,42 @@ export default function ContactPage() {
             text="Detaylı talep ve belge gönderimi için."
           />
 
+          {merchantConfig.kepAddress && (
+            <ContactCard
+              icon={<Mail className="h-5 w-5" />}
+              title="KEP adresi"
+              value={merchantConfig.kepAddress}
+              text="Resmî tebligat için kayıtlı elektronik posta."
+            />
+          )}
+
           <ContactCard
   icon={<MapPin className="h-5 w-5" />}
   title="Adres"
   value={businessConfig.address.display}
   text="Mağaza ve sipariş desteği için bizimle iletişime geçebilirsin."
 />
+        </section>
+
+        <section className="mt-5 rounded-[1.35rem] border border-border-soft bg-panel/72 p-5 md:p-6">
+          <h2 className="text-xl font-black text-foreground">Resmî satıcı bilgileri</h2>
+          <p className="mt-2 text-sm text-muted">
+            {merchantConfig.legalName}, {siteConfig.name} markasının işletmecisidir.
+          </p>
+          <div className="mt-4 grid gap-3 text-sm text-muted md:grid-cols-2">
+            {merchantConfig.status === "tacir" && merchantConfig.mersisNumber && (
+              <p>MERSİS: {merchantConfig.mersisNumber}</p>
+            )}
+            {merchantConfig.status === "esnaf" && merchantConfig.ownerName && (
+              <p>İşletme sahibi: {merchantConfig.ownerName}</p>
+            )}
+            {merchantConfig.status === "esnaf" && merchantConfig.taxNumber && (
+              <p>Vergi kimlik numarası: {merchantConfig.taxNumber}</p>
+            )}
+            {merchantConfig.registeredAddress && (
+              <p>Merkez adresi: {merchantConfig.registeredAddress}</p>
+            )}
+          </div>
         </section>
 
         <section className="mt-5 grid gap-5 lg:grid-cols-[1fr_380px]">

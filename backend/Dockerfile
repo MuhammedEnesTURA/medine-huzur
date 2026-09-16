@@ -1,10 +1,11 @@
 ﻿FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 WORKDIR /app
 
-COPY backend/src ./src
+COPY backend/src ./backend/src
+COPY frontend/config/shipping-policy.json ./frontend/config/shipping-policy.json
 
-RUN dotnet restore src/Web/Web.csproj
-RUN dotnet publish src/Web/Web.csproj -c Release -o /app/publish
+RUN dotnet restore backend/src/Web/Web.csproj
+RUN dotnet publish backend/src/Web/Web.csproj -c Release -o /app/publish
 
 FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS final
 WORKDIR /app

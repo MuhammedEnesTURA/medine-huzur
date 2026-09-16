@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { ArrowLeft, FileText } from "lucide-react";
 import { createPageMetadata } from "../../../lib/seo";
+import { merchantConfig } from "../../../lib/merchant";
+import { formatShippingTry, shippingPolicy } from "../../../lib/shippingPolicy";
 
 export const metadata = createPageMetadata({
   title: "Mesafeli Satış Sözleşmesi",
@@ -13,7 +15,7 @@ export default function DistanceSalesPage() {
     <main className="page-shell">
       <section className="page-container py-5 md:py-8">
         <Link
-          href="/sipariş"
+          href="/checkout"
           className="inline-flex min-h-9 items-center gap-2 rounded-xl border border-border-soft bg-panel/70 px-3 text-sm font-bold text-muted transition hover:text-foreground"
         >
           <ArrowLeft className="h-4 w-4" />
@@ -49,7 +51,8 @@ arasındaki temel hak ve yükümlülükleri açıklamak için hazırlanmıştır
               </h2>
 
               <p className="mt-2 text-sm leading-7 text-muted">
-                İşbu sözleşme, sipariş veren alıcı ile Medine Huzur arasında
+                İşbu sözleşme, sipariş veren alıcı ile Medine Huzur markasının
+                işletmecisi {merchantConfig.sellerName} arasında
                 elektronik ortamda kurulmuştur. Alıcı, sipariş adımında verdiği
                 bilgilerin doğru ve güncel olduğunu kabul eder.
               </p>
@@ -86,7 +89,9 @@ arasındaki temel hak ve yükümlülükleri açıklamak için hazırlanmıştır
 
               <p className="mt-2 text-sm leading-7 text-muted">
                 Ürünler, alıcının sipariş adımında bildirdiği teslimat adresine
-                gönderilir. Kargo bilgileri siparişe eklendiğinde alıcı sipariş
+                gönderilir. {formatShippingTry(shippingPolicy.FreeThresholdTry)} TL ve üzeri siparişlerde kargo ücretsiz, altındaki siparişlerde {formatShippingTry(shippingPolicy.FlatFeeTry)} TL’dir.
+                Siparişler {shippingPolicy.DispatchMinBusinessDays}-{shippingPolicy.DispatchMaxBusinessDays} iş günü içerisinde kargoya teslim edilir.
+                Kargo bilgileri siparişe eklendiğinde alıcı sipariş
                 sorgulama ekranından kargo firmasını ve takip numarasını
                 görüntüleyebilir.
               </p>

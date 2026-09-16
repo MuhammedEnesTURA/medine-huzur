@@ -1,4 +1,5 @@
 using System.Text;
+using MedineHuzur.Domain;
 using MedineHuzur.Infrastructure;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
@@ -11,6 +12,14 @@ using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
 
 var builder = WebApplication.CreateBuilder(args);
+
+builder.Configuration.AddJsonFile("shipping-policy.json", optional: false, reloadOnChange: false);
+var shippingSettings = builder.Configuration.GetSection("Shipping");
+builder.Services.AddSingleton(new ShippingPolicy(
+    shippingSettings.GetValue<decimal>("FlatFeeTry"),
+    shippingSettings.GetValue<decimal>("FreeThresholdTry"),
+    shippingSettings.GetValue<int>("DispatchMinBusinessDays"),
+    shippingSettings.GetValue<int>("DispatchMaxBusinessDays")));
 
 var configuration = builder.Configuration;
 

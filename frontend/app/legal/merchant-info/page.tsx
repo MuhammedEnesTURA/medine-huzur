@@ -12,6 +12,7 @@ import {
   createPageMetadata,
   siteConfig,
 } from "../../../lib/seo";
+import { merchantConfig, warnIncompleteMerchantConfig } from "../../../lib/merchant";
 
 export const metadata = createPageMetadata({
   title: "Ticari Bilgiler",
@@ -55,6 +56,8 @@ function QuickLink({
 }
 
 export default function MerchantInfoPage() {
+  warnIncompleteMerchantConfig();
+
   return (
     <main className="page-shell">
       <section className="page-container py-5 md:py-8">
@@ -91,9 +94,28 @@ gösterilir.
 
           <div className="mt-8 grid gap-4 md:grid-cols-2">
             <InfoRow label="Site / Marka" value={siteConfig.name} />
-<InfoRow label="Ticari Unvan" value={siteConfig.name} />
-<InfoRow label="Vergi Dairesi" value="Çorum Vergi Dairesi" />
-<InfoRow label="Vergi / TCKN No" value="Resmi işlem ve başvuru süreçlerinde paylaşılır." />
+<InfoRow label="Resmî Satıcı / İşletme Unvanı" value={merchantConfig.legalName} />
+{merchantConfig.status === "esnaf" && (
+  <InfoRow label="İşletme Türü" value="Esnaf" />
+)}
+{merchantConfig.status === "tacir" && merchantConfig.mersisNumber && (
+  <InfoRow label="MERSİS Numarası" value={merchantConfig.mersisNumber} />
+)}
+{merchantConfig.status === "esnaf" && merchantConfig.ownerName && (
+  <InfoRow label="İşletme Sahibi" value={merchantConfig.ownerName} />
+)}
+{merchantConfig.status === "esnaf" && merchantConfig.taxNumber && (
+  <InfoRow label="Vergi Kimlik Numarası" value={merchantConfig.taxNumber} />
+)}
+{merchantConfig.taxOffice && (
+  <InfoRow label="Vergi Dairesi" value={merchantConfig.taxOffice} />
+)}
+{merchantConfig.registeredAddress && (
+  <InfoRow label="Merkez Adresi" value={merchantConfig.registeredAddress} />
+)}
+{merchantConfig.kepAddress && (
+  <InfoRow label="KEP Adresi" value={merchantConfig.kepAddress} />
+)}
 <InfoRow label="Telefon" value={businessConfig.phone.display} />
 <InfoRow label="WhatsApp" value={businessConfig.whatsapp.display} />
 <InfoRow label="E-posta" value={businessConfig.email} />

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { ArrowLeft, LockKeyhole } from "lucide-react";
 import { createPageMetadata } from "../../../lib/seo";
+import { merchantConfig } from "../../../lib/merchant";
 
 export const metadata = createPageMetadata({
   title: "Gizlilik Politikası",
@@ -35,6 +36,7 @@ export default function PrivacyPolicyPage() {
                 Bu metin, Medine Huzur e-ticaret sitesi üzerinde kullanıcı
 bilgilerinin hangi amaçlarla işlendiğini ve nasıl korunduğunu
 açıklamak için hazırlanmıştır.
+                Site, {merchantConfig.sellerName} tarafından işletilir.
               </p>
             </div>
 

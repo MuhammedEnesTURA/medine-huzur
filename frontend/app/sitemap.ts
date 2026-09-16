@@ -22,6 +22,7 @@ const staticPublicPaths = [
   "/products",
   "/categories",
   "/contact",
+  "/islem-rehberi",
   "/legal/merchant-info",
   "/legal/pre-information",
   "/legal/distance-sales",

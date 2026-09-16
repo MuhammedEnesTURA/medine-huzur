@@ -5,6 +5,9 @@ import {
   createPageMetadata,
   siteConfig,
 } from "../../../lib/seo";
+import { merchantConfig } from "../../../lib/merchant";
+import { isPaymentProviderActive } from "../../../lib/paymentAvailability";
+import { formatShippingTry, shippingPolicy } from "../../../lib/shippingPolicy";
 
 export const metadata = createPageMetadata({
   title: "Ön Bilgilendirme Formu",
@@ -54,7 +57,7 @@ export default function PreInformationPage() {
               </h2>
 
               <p className="mt-2 text-sm leading-7 text-muted">
-  Satıcı: {siteConfig.name}
+  Satıcı: {merchantConfig.sellerName} ({siteConfig.name} markası)
   <br />
   E-posta: {businessConfig.email}
   <br />
@@ -86,9 +89,9 @@ export default function PreInformationPage() {
 
               <p className="mt-2 text-sm leading-7 text-muted">
                 Ürün fiyatları Türk Lirası üzerinden gösterilir. Ödeme yöntemi
-                sipariş tamamlama adımında müşteriye sunulur. Kartlı ödeme
-                işlemleri güvenli ödeme altyapısı üzerinden tamamlanır; kart
-                bilgileri Medine Huzur tarafından saklanmaz.
+                sipariş tamamlama adımında müşteriye sunulur. {isPaymentProviderActive()
+                  ? "Kartlı ödeme işlemleri güvenli ödeme altyapısı üzerinden tamamlanır; kart bilgileri Medine Huzur tarafından saklanmaz."
+                  : "Kuveyt Türk Sanal POS henüz aktif değildir; şu anda kartla ödeme ve sipariş onayı yapılamaz."}
               </p>
             </section>
 
@@ -99,6 +102,9 @@ export default function PreInformationPage() {
 
               <p className="mt-2 text-sm leading-7 text-muted">
                 Teslimat, müşterinin sipariş adımında bildirdiği adrese yapılır.
+                {" "}{formatShippingTry(shippingPolicy.FreeThresholdTry)} TL ve üzeri siparişlerde kargo ücretsizdir;
+                altında sabit {formatShippingTry(shippingPolicy.FlatFeeTry)} TL kargo ücreti uygulanır.
+                Siparişler {shippingPolicy.DispatchMinBusinessDays}-{shippingPolicy.DispatchMaxBusinessDays} iş günü içerisinde kargoya teslim edilir.
                 Kargo firması, takip numarası ve sevkiyat bilgileri sipariş
                 kaydına eklendiğinde müşteri sipariş sorgulama ekranından
                 gönderi durumunu takip edebilir.

@@ -358,6 +358,10 @@ entity.HasIndex(x => x.OrderNumber)
             entity.Property(x => x.DiscountTotal)
                 .HasPrecision(18, 2);
 
+            entity.Property(x => x.ShippingAmount)
+                .HasPrecision(18, 2)
+                .HasDefaultValue(0m);
+
             entity.Property(x => x.Total)
                 .HasPrecision(18, 2);
 

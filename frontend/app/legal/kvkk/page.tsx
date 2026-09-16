@@ -11,6 +11,7 @@ import {
   createPageMetadata,
   siteConfig,
 } from "../../../lib/seo";
+import { merchantConfig } from "../../../lib/merchant";
 
 export const metadata = createPageMetadata({
   title: "KVKK Aydınlatma Metni",
@@ -71,7 +72,7 @@ kişisel verilere ilişkin bilgilendirme amacıyla hazırlanmıştır.
           <div className="mt-8 grid gap-5">
             <Section title="1. Veri Sorumlusu">
               <p>
-  Veri sorumlusu: {siteConfig.name}
+  Veri sorumlusu: {merchantConfig.sellerName} ({siteConfig.name} markası)
   <br />
   Adres: {businessConfig.address.display}
   <br />
@@ -152,7 +153,7 @@ kişisel verilere ilişkin bilgilendirme amacıyla hazırlanmıştır.
 
                 <div className="flex items-center gap-2 rounded-xl border border-border-soft bg-panel/70 p-3 text-sm text-muted">
                   <UserCheck className="h-4 w-4 text-mhgreen" />
-                  {siteConfig.name}
+                  {merchantConfig.sellerName}
                 </div>
               </div>
             </Section>
