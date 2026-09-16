@@ -12,6 +12,7 @@ import {
   Trash2,
 } from "lucide-react";
 import { useCart, CartItem, getCartLineKey } from "../../context/CartContext";
+import { useShippingQuote } from "../../lib/useShippingQuote";
 
 const MIN_CART_TOTAL = 250;
 
@@ -75,7 +76,6 @@ function CartLine({
     removeGiftItem,
     giftPackage,
   } = useCart();
-
   const key = getCartLineKey(item);
   const attrs = formatAttributes(item.selectedAttributes);
   const boxQuantity = Math.max(1, giftPackage.quantity || 1);
@@ -409,6 +409,8 @@ function OrderSummary() {
     giftPackage,
     clearCart,
   } = useCart();
+  const shippingState = useShippingQuote(total);
+  const shippingQuote = shippingState?.quote;
 
   const missingAmount = Math.max(0, MIN_CART_TOTAL - total);
   const canCheckout = total >= MIN_CART_TOTAL && total > 0;
@@ -437,13 +439,32 @@ function OrderSummary() {
 
         <div className="border-t border-border-soft pt-3">
           <div className="flex items-center justify-between">
-            <span className="text-sm font-black text-foreground">Toplam</span>
+            <span className="text-sm font-black text-foreground">Ürünler Ara Toplamı</span>
             <span className="text-2xl font-black tracking-[-0.03em] text-mhgreen">
               {formatPrice(total)}
             </span>
           </div>
+          <div className="mt-3 flex items-center justify-between text-sm">
+            <span className="text-muted">Kargo</span>
+            <span className="font-black text-foreground">
+              {shippingQuote ? (shippingQuote.shippingAmount === 0 ? "Ücretsiz" : formatPrice(shippingQuote.shippingAmount)) : shippingState?.error ? "Hesaplanamadı" : "Hesaplanıyor"}
+            </span>
+          </div>
+          <div className="mt-3 flex items-center justify-between border-t border-border-soft pt-3">
+            <span className="text-sm font-black text-foreground">Genel Toplam</span>
+            <span className="text-xl font-black text-mhgreen">
+              {shippingQuote ? formatPrice(shippingQuote.total) : "—"}
+            </span>
+          </div>
         </div>
       </div>
+
+      {shippingState?.error && (
+        <p className="relative z-10 mt-3 text-xs text-danger">Kargo tutarı şu anda hesaplanamıyor. Sipariş öncesinde tekrar deneyin.</p>
+      )}
+      {shippingQuote && shippingQuote.amountUntilFreeShipping > 0 && (
+        <p className="relative z-10 mt-3 text-xs text-muted">Ücretsiz kargo için {formatPrice(shippingQuote.amountUntilFreeShipping)} daha ekleyin.</p>
+      )}
 
       {total > 0 && !canCheckout && (
         <div className="relative z-10 mt-4 rounded-2xl border border-warning/25 bg-warning/10 p-3 text-xs font-bold leading-5 text-warning">

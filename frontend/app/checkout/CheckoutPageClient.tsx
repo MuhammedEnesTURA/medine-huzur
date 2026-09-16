@@ -16,6 +16,8 @@ import {
 } from "lucide-react";
 import { apiUrl, authHeaders, readJsonOrThrow } from "../../lib/api";
 import { useAuth } from "../../context/AuthContext";
+import { usePaymentAvailability } from "../../context/PaymentAvailabilityContext";
+import { useShippingQuote } from "../../lib/useShippingQuote";
 import {
   CartItem,
   getCartLineKey,
@@ -197,6 +199,7 @@ function CheckoutLine({
 export default function CheckoutPageClient() {
   const router = useRouter();
   const { user, token } = useAuth();
+  const paymentActive = usePaymentAvailability();
   const {
     items,
     giftPackage,
@@ -206,6 +209,8 @@ export default function CheckoutPageClient() {
     total,
     clearCart,
   } = useCart();
+  const shippingState = useShippingQuote(total);
+  const shippingQuote = shippingState?.quote;
 
   const [form, setForm] = useState<CheckoutForm>({
     fullName: "",
@@ -216,7 +221,7 @@ export default function CheckoutPageClient() {
     addressLine: "",
     postalCode: "",
     orderNote: "",
-    paymentMethod: "CreditCard",
+    paymentMethod: paymentActive ? "CreditCard" : "",
   });
 
   const [legalConsents, setLegalConsents] = useState<LegalConsents>({
@@ -245,6 +250,8 @@ export default function CheckoutPageClient() {
   const missingAmount = Math.max(0, MIN_CART_TOTAL - total);
 
   const canSubmit =
+    paymentActive &&
+    !!shippingQuote &&
     !isEmpty &&
     total >= MIN_CART_TOTAL &&
     form.fullName.trim().length >= 2 &&
@@ -490,8 +497,9 @@ export default function CheckoutPageClient() {
                 </h1>
 
                 <p className="mt-1.5 max-w-2xl text-[13px] font-medium leading-6 text-muted">
-                  Teslimat ve iletişim bilgilerini doldur. Sipariş oluşturulduktan
-                  sonra güvenli ödeme adımına yönlendirileceksin.
+                  {paymentActive
+                    ? "Teslimat ve iletişim bilgilerini doldur. Sipariş oluşturulduktan sonra güvenli ödeme adımına yönlendirileceksin."
+                    : "Teslimat ve iletişim bilgilerini inceleyebilirsin. Sanal POS henüz aktif olmadığından sipariş onayı kapalıdır."}
                 </p>
               </div>
 
@@ -733,19 +741,21 @@ export default function CheckoutPageClient() {
                     </h2>
 
                     <p className="mt-1 text-[13px] font-medium leading-6 text-muted">
-                      Sipariş oluşturulduktan sonra güvenli ödeme adımına
-                      yönlendirileceksin.
+                      {paymentActive
+                        ? "Sipariş oluşturulduktan sonra güvenli ödeme adımına yönlendirileceksin."
+                        : "Kuveyt Türk Sanal POS aktivasyonu sonrası kullanılacaktır."}
                     </p>
                   </div>
                 </div>
 
                 <div className="mt-3 grid gap-3">
-                  <label className="flex cursor-pointer gap-3 rounded-2xl border border-mhgreen/35 bg-mhgreen/10 p-3.5 transition hover:border-mhgreen/50">
+                  <label className="flex gap-3 rounded-2xl border border-mhgreen/35 bg-mhgreen/10 p-3.5">
                     <input
                       type="radio"
                       name="paymentMethod"
                       checked={form.paymentMethod === "CreditCard"}
                       onChange={() => updateForm("paymentMethod", "CreditCard")}
+                      disabled={!paymentActive}
                       className="mt-1 h-4 w-4 accent-mhgreen"
                     />
 
@@ -761,13 +771,14 @@ export default function CheckoutPageClient() {
                       </span>
 
                       <span className="mt-1 block text-xs leading-5 text-muted">
-  Ödeme işlemi güvenli ödeme altyapısı üzerinden tamamlanır. Kart
-  bilgileri Medine Huzur tarafından saklanmaz.
+  {paymentActive
+    ? "Ödeme işlemi güvenli ödeme altyapısı üzerinden tamamlanır. Kart bilgileri Medine Huzur tarafından saklanmaz."
+    : "Kuveyt Türk Sanal POS aktivasyonu sonrası kullanılacaktır."}
 </span>
                     </span>
                   </label>
 
-                  <div className="rounded-2xl border border-border-soft bg-panel/65 p-3.5">
+                  {paymentActive && <div className="rounded-2xl border border-border-soft bg-panel/65 p-3.5">
                     <div className="flex gap-3">
                       <ShieldCheck className="mt-0.5 h-5 w-5 shrink-0 text-mhgreen" />
 
@@ -783,7 +794,7 @@ export default function CheckoutPageClient() {
                         </p>
                       </div>
                     </div>
-                  </div>
+                  </div>}
                 </div>
               </div>
             </section>
@@ -906,13 +917,35 @@ export default function CheckoutPageClient() {
                   </span>
                 </div>
 
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-muted">Ürünler Ara Toplamı</span>
+                  <span className="font-black text-foreground">{formatPrice(total)}</span>
+                </div>
+
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-muted">Kargo</span>
+                  <span className="font-black text-foreground">
+                    {shippingQuote ? (shippingQuote.shippingAmount === 0 ? "Ücretsiz" : formatPrice(shippingQuote.shippingAmount)) : shippingState?.error ? "Hesaplanamadı" : "Hesaplanıyor"}
+                  </span>
+                </div>
+
+                {shippingState?.error && (
+                  <p className="text-xs leading-5 text-danger">Kargo tutarı şu anda hesaplanamıyor. Lütfen tekrar deneyin.</p>
+                )}
+                {shippingQuote && shippingQuote.amountUntilFreeShipping > 0 && (
+                  <p className="text-xs leading-5 text-muted">Ücretsiz kargo için {formatPrice(shippingQuote.amountUntilFreeShipping)} daha ekleyin.</p>
+                )}
+                {shippingQuote && (
+                  <p className="text-xs leading-5 text-muted">Siparişler {shippingQuote.dispatchMinBusinessDays}-{shippingQuote.dispatchMaxBusinessDays} iş günü içerisinde kargoya teslim edilir.</p>
+                )}
+
                 <div className="flex items-center justify-between border-t border-border-soft pt-3">
                   <span className="text-sm font-black text-foreground">
-                    Toplam
+                    Genel Toplam
                   </span>
 
                   <span className="text-xl font-black tracking-[-0.03em] text-mhgreen">
-                    {formatPrice(total)}
+                    {shippingQuote ? formatPrice(shippingQuote.total) : "—"}
                   </span>
                 </div>
               </div>
@@ -1018,8 +1051,9 @@ export default function CheckoutPageClient() {
                 </p>
 
                 <p className="relative z-10 mt-1 text-xs leading-5 text-muted">
-                  Sipariş oluşturulduktan sonra güvenli ödeme adımına
-                  yönlendirileceksin. Kart bilgileri Medine Huzur tarafından saklanmaz.
+                  {paymentActive
+                    ? "Sipariş oluşturulduktan sonra güvenli ödeme adımına yönlendirileceksin. Kart bilgileri Medine Huzur tarafından saklanmaz."
+                    : "Sanal POS henüz aktif değildir. Bu ekrandan kartla ödeme veya sipariş onayı yapılamaz."}
                 </p>
               </div>
 

@@ -4,10 +4,12 @@ import "./globals.css";
 
 import { CartProvider } from "../context/CartContext";
 import { AuthProvider } from "../context/AuthContext";
+import { PaymentAvailabilityProvider } from "../context/PaymentAvailabilityContext";
 import SiteHeader from "../components/SiteHeader";
 import SiteFooter from "../components/SiteFooter";
 import EmailVerificationNotice from "../components/EmailVerificationNotice";
 import { absoluteUrl, siteConfig } from "../lib/seo";
+import { isPaymentProviderActive } from "../lib/paymentAvailability";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -60,22 +62,26 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const paymentActive = isPaymentProviderActive();
+
   return (
     <html lang="tr" suppressHydrationWarning>
       <body
         className={`${geistSans.variable} antialiased bg-background text-foreground`}
       >
-        <AuthProvider>
-          <CartProvider>
-            <SiteHeader />
+        <PaymentAvailabilityProvider active={paymentActive}>
+          <AuthProvider>
+            <CartProvider>
+              <SiteHeader />
 
-            <div className="min-h-screen flex flex-col pt-[86px] sm:pt-[88px] lg:pt-[88px] xl:pt-[88px]">
-              <EmailVerificationNotice />
-              <main className="flex-1">{children}</main>
-              <SiteFooter />
-            </div>
-          </CartProvider>
-        </AuthProvider>
+              <div className="min-h-screen flex flex-col pt-[86px] sm:pt-[88px] lg:pt-[88px] xl:pt-[88px]">
+                <EmailVerificationNotice />
+                <main className="flex-1">{children}</main>
+                <SiteFooter paymentActive={paymentActive} />
+              </div>
+            </CartProvider>
+          </AuthProvider>
+        </PaymentAvailabilityProvider>
       </body>
     </html>
   );

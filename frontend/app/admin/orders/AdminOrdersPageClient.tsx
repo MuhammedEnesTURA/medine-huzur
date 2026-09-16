@@ -104,6 +104,7 @@ type AdminOrderDetailDto = {
   status: string;
   subtotal: number;
   discountTotal: number;
+  shippingAmount: number;
   total: number;
   createdAtUtc: string;
   shippingCompany?: string | null;
@@ -970,6 +971,7 @@ const copyPaymentLink = async () => {
                     <p className="mt-1 text-2xl font-black text-mhgreen">
                       {formatPrice(detail.total)}
                     </p>
+                    <p className="mt-1 text-xs text-muted">Ürünler: {formatPrice(detail.subtotal)} · Kargo: {detail.shippingAmount === 0 ? "Ücretsiz" : formatPrice(detail.shippingAmount)}</p>
                   </div>
 
                   <div className="rounded-2xl border border-border-soft bg-panel/65 p-4">

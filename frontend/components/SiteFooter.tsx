@@ -9,6 +9,7 @@ import {
   FileText,
 } from "lucide-react";
 import { businessConfig, siteConfig } from "../lib/seo";
+import { merchantConfig } from "../lib/merchant";
 
 function FooterLink({
   href,
@@ -68,7 +69,7 @@ function TrustCard({
   );
 }
 
-export default function SiteFooter() {
+export default function SiteFooter({ paymentActive }: { paymentActive: boolean }) {
   return (
     <footer className="mt-16 border-t border-border-soft bg-panel/90">
       <div className="border-b border-border-soft bg-panel-2/70">
@@ -166,6 +167,12 @@ seçenekleriyle güvenilir alışveriş deneyimi.
                 {businessConfig.email}
               </ContactRow>
 
+              {merchantConfig.kepAddress && (
+                <ContactRow icon={<Mail size={16} />}>
+                  KEP: {merchantConfig.kepAddress}
+                </ContactRow>
+              )}
+
               <ContactRow icon={<MapPin size={16} />}>
   {businessConfig.address.display}
 </ContactRow>
@@ -238,13 +245,16 @@ seçenekleriyle güvenilir alışveriş deneyimi.
             </div>
 
             <div className="flex flex-wrap items-center gap-3">
-              <span className="rounded-xl border border-border-soft bg-panel-2/60 px-4 py-2 text-sm font-black text-foreground">
-                VISA
-              </span>
-
-              <span className="rounded-xl border border-border-soft bg-panel-2/60 px-4 py-2 text-sm font-black text-foreground">
-                Mastercard
-              </span>
+              {paymentActive && (
+                <>
+                  <span className="rounded-xl border border-border-soft bg-panel-2/60 px-4 py-2 text-sm font-black text-foreground">
+                    VISA
+                  </span>
+                  <span className="rounded-xl border border-border-soft bg-panel-2/60 px-4 py-2 text-sm font-black text-foreground">
+                    Mastercard
+                  </span>
+                </>
+              )}
 
               <span className="rounded-xl border border-mhgreen/25 bg-mhgreen/10 px-4 py-2 text-sm font-black text-mhgreen">
                 SSL Güvenli
@@ -290,6 +300,7 @@ seçenekleriyle güvenilir alışveriş deneyimi.
   <FooterLink href="/legal/delivery">
     Teslimat ve Kargo
   </FooterLink>
+  <FooterLink href="/islem-rehberi">İşlem Rehberi</FooterLink>
 </div>
           </div>
         </div>
