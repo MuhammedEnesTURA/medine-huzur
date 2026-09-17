@@ -282,6 +282,12 @@ namespace Infrastructure.Migrations
                     b.Property<DateTime?>("ShippedAtUtc")
                         .HasColumnType("datetime2");
 
+                    b.Property<decimal>("ShippingAmount")
+                        .ValueGeneratedOnAdd()
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)")
+                        .HasDefaultValue(0m);
+
                     b.Property<string>("ShippingCompany")
                         .HasMaxLength(120)
                         .HasColumnType("nvarchar(120)");
@@ -588,6 +594,7 @@ namespace Infrastructure.Migrations
                         .HasDefaultValue(0);
 
                     b.Property<DateTime?>("UpdatedAtUtc")
+                        .IsConcurrencyToken()
                         .HasColumnType("datetime2");
 
                     b.HasKey("Id");

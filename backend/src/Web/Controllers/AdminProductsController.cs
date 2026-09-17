@@ -16,10 +16,14 @@ namespace MedineHuzur.Web.Controllers;
 public class AdminProductsController : ControllerBase
 {
     private readonly ECommerceContext _db;
+    private readonly ILogger<AdminProductsController> _logger;
 
-    public AdminProductsController(ECommerceContext db)
+    public AdminProductsController(
+        ECommerceContext db,
+        ILogger<AdminProductsController> logger)
     {
         _db = db;
+        _logger = logger;
     }
 
     [HttpGet]
@@ -112,17 +116,15 @@ public class AdminProductsController : ControllerBase
         CancellationToken cancellationToken)
     {
         var name = NormalizeText(request.Name);
-        var sku = NormalizeSku(request.Sku);
 
         if (string.IsNullOrWhiteSpace(name))
         {
             return BadRequest(new { message = "Ürün adı zorunludur." });
         }
 
-        if (string.IsNullOrWhiteSpace(sku))
-        {
-            return BadRequest(new { message = "SKU zorunludur." });
-        }
+        var sku = string.IsNullOrWhiteSpace(request.Sku)
+            ? await CreateUniqueSkuAsync(name, cancellationToken)
+            : NormalizeSku(request.Sku);
 
         if (request.BasePrice < 0)
         {
@@ -214,8 +216,14 @@ public class AdminProductsController : ControllerBase
             return NotFound(new { message = "Ürün bulunamadı." });
         }
 
+        _db.Entry(product)
+            .Property(x => x.UpdatedAtUtc)
+            .OriginalValue = request.UpdatedAtUtc;
+
         var name = NormalizeText(request.Name);
-        var sku = NormalizeSku(request.Sku);
+        var sku = string.IsNullOrWhiteSpace(request.Sku)
+            ? product.Sku
+            : NormalizeSku(request.Sku);
 
         if (string.IsNullOrWhiteSpace(name))
         {
@@ -260,11 +268,13 @@ public class AdminProductsController : ControllerBase
             }
         }
 
-        var slug = await CreateUniqueSlugAsync(
-            request.Slug,
-            name,
-            ignoredProductId: id,
-            cancellationToken);
+        var slug = string.IsNullOrWhiteSpace(request.Slug)
+            ? product.Slug
+            : await CreateUniqueSlugAsync(
+                request.Slug,
+                name,
+                ignoredProductId: id,
+                cancellationToken);
 
         product.Sku = sku;
         product.Name = name;
@@ -279,20 +289,21 @@ public class AdminProductsController : ControllerBase
         product.IsGiftBoxEligible = request.IsGiftBoxEligible;
         product.UpdatedAtUtc = DateTime.UtcNow;
 
-        await UpdateProductCategoriesAsync(product.Id, categoryIds, cancellationToken);
-        await UpdateImagesAsync(product.Id, request.Images, cancellationToken);
-        await UpdateVariantsAsync(product, request.Variants, cancellationToken);
+        await using var transaction = await _db.Database.BeginTransactionAsync(cancellationToken);
 
         try
         {
+            await UpdateProductCategoriesAsync(product.Id, categoryIds, cancellationToken);
+            await UpdateImagesAsync(product.Id, request.Images, cancellationToken);
+            await UpdateVariantsAsync(product, request.Variants, cancellationToken);
             await _db.SaveChangesAsync(cancellationToken);
+            await transaction.CommitAsync(cancellationToken);
         }
-        catch (DbUpdateConcurrencyException)
+        catch (DbUpdateConcurrencyException exception)
         {
-            return Conflict(new
-            {
-                message = "Ürün güncellenirken kayıt durumu değişmiş görünüyor. Sayfayı yenileyip tekrar deneyin."
-            });
+            await transaction.RollbackAsync(cancellationToken);
+            LogConcurrencyConflict("update", id, exception);
+            return ProductConcurrencyConflict();
         }
 
         var dto = await GetProductDetailByIdAsync(product.Id, cancellationToken);
@@ -327,7 +338,10 @@ public class AdminProductsController : ControllerBase
             product.IsActive = false;
             product.UpdatedAtUtc = DateTime.UtcNow;
 
-            await _db.SaveChangesAsync(cancellationToken);
+            if (!await TrySaveProductMutationAsync("delete", id, cancellationToken))
+            {
+                return ProductConcurrencyConflict();
+            }
 
             return Ok(new
             {
@@ -340,7 +354,10 @@ public class AdminProductsController : ControllerBase
         _db.ProductVariants.RemoveRange(product.Variants);
         _db.Products.Remove(product);
 
-        await _db.SaveChangesAsync(cancellationToken);
+        if (!await TrySaveProductMutationAsync("delete", id, cancellationToken))
+        {
+            return ProductConcurrencyConflict();
+        }
 
         return NoContent();
     }
@@ -361,7 +378,10 @@ public class AdminProductsController : ControllerBase
         product.IsActive = !product.IsActive;
         product.UpdatedAtUtc = DateTime.UtcNow;
 
-        await _db.SaveChangesAsync(cancellationToken);
+        if (!await TrySaveProductMutationAsync("toggle-active", id, cancellationToken))
+        {
+            return ProductConcurrencyConflict();
+        }
 
         var dto = await GetProductDetailByIdAsync(product.Id, cancellationToken);
 
@@ -384,7 +404,10 @@ public class AdminProductsController : ControllerBase
         product.IsFeatured = !product.IsFeatured;
         product.UpdatedAtUtc = DateTime.UtcNow;
 
-        await _db.SaveChangesAsync(cancellationToken);
+        if (!await TrySaveProductMutationAsync("toggle-featured", id, cancellationToken))
+        {
+            return ProductConcurrencyConflict();
+        }
 
         var dto = await GetProductDetailByIdAsync(product.Id, cancellationToken);
 
@@ -674,6 +697,76 @@ public class AdminProductsController : ControllerBase
         return slug;
     }
 
+    private async Task<string> CreateUniqueSkuAsync(
+        string productName,
+        CancellationToken cancellationToken)
+    {
+        const int maxSkuLength = 80;
+        var readableName = Slugify(productName).ToUpperInvariant();
+        var baseSku = string.IsNullOrWhiteSpace(readableName) ? "URUN" : readableName;
+
+        for (var counter = 1; counter < int.MaxValue; counter++)
+        {
+            var suffix = $"-{counter:000}";
+            var allowedBaseLength = maxSkuLength - suffix.Length;
+            var normalizedBase = baseSku[..Math.Min(baseSku.Length, allowedBaseLength)]
+                .Trim('-');
+
+            if (string.IsNullOrWhiteSpace(normalizedBase))
+            {
+                normalizedBase = "URUN";
+            }
+
+            var sku = $"{normalizedBase}{suffix}";
+
+            if (!await _db.Products.AnyAsync(x => x.Sku == sku, cancellationToken))
+            {
+                return sku;
+            }
+        }
+
+        throw new InvalidOperationException("Ürün için benzersiz SKU üretilemedi.");
+    }
+
+    private ConflictObjectResult ProductConcurrencyConflict()
+    {
+        return Conflict(new
+        {
+            code = "product_concurrency_conflict",
+            message = "Ürün başka bir işlem tarafından güncellendi. Güncel kayıt yeniden yüklendi; değişiklikleri kontrol edip tekrar deneyin."
+        });
+    }
+
+    private async Task<bool> TrySaveProductMutationAsync(
+        string operation,
+        Guid productId,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            await _db.SaveChangesAsync(cancellationToken);
+            return true;
+        }
+        catch (DbUpdateConcurrencyException exception)
+        {
+            LogConcurrencyConflict(operation, productId, exception);
+            return false;
+        }
+    }
+
+    private void LogConcurrencyConflict(
+        string operation,
+        Guid productId,
+        DbUpdateConcurrencyException exception)
+    {
+        _logger.LogWarning(
+            "Admin product mutation failed. Operation: {Operation}, HttpStatus: {HttpStatus}, ErrorType: {ErrorType}, ProductId: {ProductId}, ConcurrencyConflict: true",
+            operation,
+            StatusCodes.Status409Conflict,
+            exception.GetType().Name,
+            productId);
+    }
+
     private static string SerializeAttributes(Dictionary<string, string> attributes)
     {
         var cleaned = attributes
@@ -753,7 +846,7 @@ public class AdminProductsController : ControllerBase
 }
 
 public sealed record UpsertProductRequest(
-    string Sku,
+    string? Sku,
     string Name,
     string? Slug,
     string? Description,
@@ -766,7 +859,8 @@ public sealed record UpsertProductRequest(
     bool IsGiftBoxEligible,
     List<Guid> CategoryIds,
     List<UpsertProductImageRequest> Images,
-    List<UpsertProductVariantRequest> Variants);
+    List<UpsertProductVariantRequest> Variants,
+    DateTime? UpdatedAtUtc);
 
 public sealed record UpsertProductImageRequest(
     string ImageUrl,

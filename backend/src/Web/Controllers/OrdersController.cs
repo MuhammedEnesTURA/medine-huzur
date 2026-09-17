@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Net;
 using System.Security.Claims;
 using System.Security.Cryptography;
+using MedineHuzur.Domain;
 using MedineHuzur.Domain.Entities;
 using MedineHuzur.Infrastructure;
 using MedineHuzur.Web.Services;
@@ -21,17 +22,20 @@ public class OrdersController : ControllerBase
     private readonly IEmailService _emailService;
     private readonly IConfiguration _configuration;
     private readonly ILogger<OrdersController> _logger;
+    private readonly ShippingPolicy _shippingPolicy;
 
     public OrdersController(
         ECommerceContext db,
         IEmailService emailService,
         IConfiguration configuration,
-        ILogger<OrdersController> logger)
+        ILogger<OrdersController> logger,
+        ShippingPolicy shippingPolicy)
     {
         _db = db;
         _emailService = emailService;
         _configuration = configuration;
         _logger = logger;
+        _shippingPolicy = shippingPolicy;
     }
 
     [HttpPost("checkout")]
@@ -39,6 +43,11 @@ public class OrdersController : ControllerBase
         CheckoutRequest request,
         CancellationToken cancellationToken)
     {
+        if (!_configuration.GetValue<bool>("PAYMENT_PROVIDER_ACTIVE"))
+        {
+            return StatusCode(503, new { message = "Ödeme ve sipariş onayı şu anda kullanılamıyor." });
+        }
+
         var validationError = ValidateCheckoutRequest(request);
         if (validationError is not null)
         {
@@ -143,7 +152,8 @@ public class OrdersController : ControllerBase
             }
 
             order.Subtotal = subtotal;
-            order.Total = subtotal - order.DiscountTotal;
+            order.ShippingAmount = _shippingPolicy.CalculateShipping(subtotal);
+            order.Total = subtotal - order.DiscountTotal + order.ShippingAmount;
 
             order.StatusHistory.Add(new OrderStatusHistory
             {
@@ -456,6 +466,8 @@ public class OrdersController : ControllerBase
                                         <td style="padding:8px 0;text-align:right;color:#111827;font-weight:700">{HtmlEncode(order.PaymentStatus.ToString())}</td>
                                     </tr>
                                     {giftPackageHtml}
+                                    <tr><td style="padding:8px 0;color:#4b5563">Ürünler Ara Toplamı</td><td style="padding:8px 0;text-align:right">{FormatMoney(order.Subtotal)}</td></tr>
+                                    <tr><td style="padding:8px 0;color:#4b5563">Kargo</td><td style="padding:8px 0;text-align:right">{FormatMoney(order.ShippingAmount)}</td></tr>
                                     <tr>
                                         <td style="padding:8px 0;color:#4b5563;border-top:1px solid #d8eadf">Toplam</td>
                                         <td style="padding:8px 0;text-align:right;color:#0f8a43;font-size:20px;font-weight:900;border-top:1px solid #d8eadf">{FormatMoney(order.Total)}</td>
@@ -534,6 +546,8 @@ public class OrdersController : ControllerBase
                                         <td style="padding:8px 0;color:#4b5563">Telefon</td>
                                         <td style="padding:8px 0;text-align:right;font-weight:700">{HtmlEncode(order.Phone)}</td>
                                     </tr>
+                                    <tr><td style="padding:8px 0;color:#4b5563">Ürünler Ara Toplamı</td><td style="padding:8px 0;text-align:right">{FormatMoney(order.Subtotal)}</td></tr>
+                                    <tr><td style="padding:8px 0;color:#4b5563">Kargo</td><td style="padding:8px 0;text-align:right">{FormatMoney(order.ShippingAmount)}</td></tr>
                                     <tr>
                                         <td style="padding:8px 0;color:#4b5563;border-top:1px solid #d8eadf">Toplam</td>
                                         <td style="padding:8px 0;text-align:right;color:#0f8a43;font-size:20px;font-weight:900;border-top:1px solid #d8eadf">{FormatMoney(order.Total)}</td>
@@ -944,6 +958,7 @@ public class OrdersController : ControllerBase
             order.Status.ToString(),
             order.Subtotal,
             order.DiscountTotal,
+            order.ShippingAmount,
             order.Total,
             order.CreatedAtUtc,
             order.ShippingCompany,
@@ -1101,6 +1116,7 @@ public sealed record OrderDetailDto(
     string Status,
     decimal Subtotal,
     decimal DiscountTotal,
+    decimal ShippingAmount,
     decimal Total,
     DateTime CreatedAtUtc,
     string? ShippingCompany,

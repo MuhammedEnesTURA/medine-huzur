@@ -1,39 +1,32 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Geist } from "next/font/google";
 import "./globals.css";
+
 import { CartProvider } from "../context/CartContext";
 import { AuthProvider } from "../context/AuthContext";
+import { PaymentAvailabilityProvider } from "../context/PaymentAvailabilityContext";
 import SiteHeader from "../components/SiteHeader";
 import SiteFooter from "../components/SiteFooter";
 import EmailVerificationNotice from "../components/EmailVerificationNotice";
+import { absoluteUrl, siteConfig } from "../lib/seo";
+import { isPaymentProviderActive } from "../lib/paymentAvailability";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
   subsets: ["latin"],
 });
 
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
-});
-
 export const metadata: Metadata = {
-  metadataBase: new URL("https://medinehuzur.com"),
+  metadataBase: new URL(siteConfig.url),
   title: {
-    default: "Medine Huzur | İslami Tesettür, Hediyelik ve Hac Malzemeleri",
+    default: "Medine Huzur | İslami Hediyelik, Seccade ve Tesbih",
     template: "%s | Medine Huzur",
   },
-  description:
-    "Medine Huzur; İslami tesettür, hediyelik ve hac malzemelerini güvenilir ve modern bir alışveriş yapısıyla sunar.",
-  keywords: [
-    "Medine Huzur",
-    "seccade",
-    "tesbih",
-    "İslami ürünler",
-    "hediyelik ürünler",
-    "hac malzemeleri",
-    "e-ticaret",
-  ],
+  description: siteConfig.description,
+  icons: {
+    icon: "/icon.png",
+    apple: "/icon.png",
+  },
   applicationName: "Medine Huzur",
   authors: [{ name: "Medine Huzur" }],
   creator: "Medine Huzur",
@@ -43,22 +36,24 @@ export const metadata: Metadata = {
     follow: true,
   },
   openGraph: {
-    title: "Medine Huzur | İslami Tesettür, Hediyelik ve Hac Malzemeleri",
-    description:
-      "İslami tesettür, hediyelik ve hac malzemelerini Medine Huzur güvencesiyle keşfedin.",
-    url: "https://medinehuzur.com",
-    siteName: "Medine Huzur",
+    title: "Medine Huzur | İslami Hediyelik, Seccade ve Tesbih",
+    description: siteConfig.description,
+    url: siteConfig.url,
+    siteName: siteConfig.name,
     locale: "tr_TR",
     type: "website",
+    images: [
+      {
+        url: absoluteUrl(siteConfig.ogImage),
+        alt: "Medine Huzur",
+      },
+    ],
   },
   twitter: {
     card: "summary_large_image",
-    title: "Medine Huzur | İslami Tesettür, Hediyelik ve Hac Malzemeleri",
-    description:
-      "İslami tesettür, hediyelik ve hac malzemelerini Medine Huzur güvencesiyle keşfedin.",
-  },
-  alternates: {
-    canonical: "/",
+    title: "Medine Huzur | İslami Hediyelik, Seccade ve Tesbih",
+    description: siteConfig.description,
+    images: [absoluteUrl(siteConfig.ogImage)],
   },
 };
 
@@ -67,21 +62,26 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const paymentActive = isPaymentProviderActive();
+
   return (
     <html lang="tr" suppressHydrationWarning>
       <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased bg-background text-foreground`}
+        className={`${geistSans.variable} antialiased bg-background text-foreground`}
       >
-        <AuthProvider>
-  <CartProvider>
-    <SiteHeader />
-    <div className="min-h-screen flex flex-col pt-[86px] sm:pt-[88px] lg:pt-[88px] xl:pt-[88px]">
-      <EmailVerificationNotice />
-      <main className="flex-1">{children}</main>
-      <SiteFooter />
-    </div>
-  </CartProvider>
-</AuthProvider>
+        <PaymentAvailabilityProvider active={paymentActive}>
+          <AuthProvider>
+            <CartProvider>
+              <SiteHeader />
+
+              <div className="min-h-screen flex flex-col pt-[86px] sm:pt-[88px] lg:pt-[88px] xl:pt-[88px]">
+                <EmailVerificationNotice />
+                <main className="flex-1">{children}</main>
+                <SiteFooter paymentActive={paymentActive} />
+              </div>
+            </CartProvider>
+          </AuthProvider>
+        </PaymentAvailabilityProvider>
       </body>
     </html>
   );

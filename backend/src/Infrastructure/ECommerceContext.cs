@@ -202,6 +202,9 @@ public class ECommerceContext : DbContext
             entity.Property(x => x.CreatedAtUtc)
                 .HasDefaultValueSql("SYSUTCDATETIME()");
 
+            entity.Property(x => x.UpdatedAtUtc)
+                .IsConcurrencyToken();
+
             entity.HasMany(x => x.Variants)
                 .WithOne(x => x.Product)
                 .HasForeignKey(x => x.ProductId)
@@ -354,6 +357,10 @@ entity.HasIndex(x => x.OrderNumber)
 
             entity.Property(x => x.DiscountTotal)
                 .HasPrecision(18, 2);
+
+            entity.Property(x => x.ShippingAmount)
+                .HasPrecision(18, 2)
+                .HasDefaultValue(0m);
 
             entity.Property(x => x.Total)
                 .HasPrecision(18, 2);

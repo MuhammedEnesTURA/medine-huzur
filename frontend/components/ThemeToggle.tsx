@@ -12,7 +12,8 @@ function applyTheme(theme: ThemeMode) {
 }
 
 export default function ThemeToggle() {
-  const [theme, setTheme] = useState<ThemeMode>("dark");
+  // 1. Başlangıç state'ini "light" olarak değiştirdik
+  const [theme, setTheme] = useState<ThemeMode>("light");
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
@@ -21,7 +22,8 @@ export default function ThemeToggle() {
         ? window.localStorage.getItem(STORAGE_KEY)
         : null;
 
-    const nextTheme: ThemeMode = stored === "light" ? "light" : "dark";
+    // 2. Tarayıcıda önceden "dark" seçilmemişse, HERKES için varsayılanı "light" yaptık
+    const nextTheme: ThemeMode = stored === "dark" ? "dark" : "light";
 
     setTheme(nextTheme);
     applyTheme(nextTheme);

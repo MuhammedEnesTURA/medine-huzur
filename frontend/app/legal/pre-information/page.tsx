@@ -1,5 +1,19 @@
 import Link from "next/link";
-import { ArrowLeft, FileText, ShieldCheck } from "lucide-react";
+import { ArrowLeft, FileText } from "lucide-react";
+import {
+  businessConfig,
+  createPageMetadata,
+  siteConfig,
+} from "../../../lib/seo";
+import { merchantConfig } from "../../../lib/merchant";
+import { isPaymentProviderActive } from "../../../lib/paymentAvailability";
+import { formatShippingTry, shippingPolicy } from "../../../lib/shippingPolicy";
+
+export const metadata = createPageMetadata({
+  title: "Ön Bilgilendirme Formu",
+  description: "Medine Huzur sipariş öncesi bilgilendirme metnini inceleyin.",
+  path: "/legal/pre-information",
+});
 
 export default function PreInformationPage() {
   return (
@@ -43,16 +57,15 @@ export default function PreInformationPage() {
               </h2>
 
               <p className="mt-2 text-sm leading-7 text-muted">
-  Satıcı: Medine Huzur
+  Satıcı: {merchantConfig.sellerName} ({siteConfig.name} markası)
   <br />
-  E-posta: corum.medinehuzur@gmail.com
+  E-posta: {businessConfig.email}
   <br />
-  Telefon: 0 (545) 616 45 33
+  Telefon: {businessConfig.phone.display}
   <br />
-  WhatsApp: 0 (531) 161 01 55
+  WhatsApp: {businessConfig.whatsapp.display}
   <br />
-  Adres: Üçtutlar Mah. Osmancık Cad. 10/A, Ulu Camii karşısı,
-  Medine Huzur, Çorum/Merkez
+  Adres: {businessConfig.address.display}
 </p>
             </section>
 
@@ -76,9 +89,9 @@ export default function PreInformationPage() {
 
               <p className="mt-2 text-sm leading-7 text-muted">
                 Ürün fiyatları Türk Lirası üzerinden gösterilir. Ödeme yöntemi
-                sipariş tamamlama adımında müşteriye sunulur. Kartlı ödeme
-                işlemleri güvenli ödeme altyapısı üzerinden tamamlanır; kart
-                bilgileri Medine Huzur tarafından saklanmaz.
+                sipariş tamamlama adımında müşteriye sunulur. {isPaymentProviderActive()
+                  ? "Kartlı ödeme işlemleri güvenli ödeme altyapısı üzerinden tamamlanır; kart bilgileri Medine Huzur tarafından saklanmaz."
+                  : "Kuveyt Türk Sanal POS henüz aktif değildir; şu anda kartla ödeme ve sipariş onayı yapılamaz."}
               </p>
             </section>
 
@@ -89,6 +102,9 @@ export default function PreInformationPage() {
 
               <p className="mt-2 text-sm leading-7 text-muted">
                 Teslimat, müşterinin sipariş adımında bildirdiği adrese yapılır.
+                {" "}{formatShippingTry(shippingPolicy.FreeThresholdTry)} TL ve üzeri siparişlerde kargo ücretsizdir;
+                altında sabit {formatShippingTry(shippingPolicy.FlatFeeTry)} TL kargo ücreti uygulanır.
+                Siparişler {shippingPolicy.DispatchMinBusinessDays}-{shippingPolicy.DispatchMaxBusinessDays} iş günü içerisinde kargoya teslim edilir.
                 Kargo firması, takip numarası ve sevkiyat bilgileri sipariş
                 kaydına eklendiğinde müşteri sipariş sorgulama ekranından
                 gönderi durumunu takip edebilir.

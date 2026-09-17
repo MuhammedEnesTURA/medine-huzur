@@ -1,4 +1,5 @@
 using System.Text;
+using MedineHuzur.Domain;
 using MedineHuzur.Infrastructure;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
@@ -8,14 +9,31 @@ using MedineHuzur.Web.Settings;
 using Microsoft.OpenApi.Models;
 using MedineHuzur.Web.Payments;
 using System.Text.Json.Serialization;
+using System.Text.RegularExpressions;
 
 var builder = WebApplication.CreateBuilder(args);
 
+builder.Configuration.AddJsonFile("shipping-policy.json", optional: false, reloadOnChange: false);
+var shippingSettings = builder.Configuration.GetSection("Shipping");
+builder.Services.AddSingleton(new ShippingPolicy(
+    shippingSettings.GetValue<decimal>("FlatFeeTry"),
+    shippingSettings.GetValue<decimal>("FreeThresholdTry"),
+    shippingSettings.GetValue<int>("DispatchMinBusinessDays"),
+    shippingSettings.GetValue<int>("DispatchMaxBusinessDays")));
+
 var configuration = builder.Configuration;
 
-var connectionString =
-    configuration.GetConnectionString("Default")
-    ?? Environment.GetEnvironmentVariable("MEDINE_HUZUR_CONNECTION_STRING");
+var primaryConnectionString =
+    Environment.GetEnvironmentVariable("ConnectionStrings__Default");
+
+var legacyConnectionString =
+    Environment.GetEnvironmentVariable("MEDINE_HUZUR_CONNECTION_STRING");
+
+var connectionString = !string.IsNullOrWhiteSpace(primaryConnectionString)
+    ? primaryConnectionString
+    : !string.IsNullOrWhiteSpace(legacyConnectionString)
+        ? legacyConnectionString
+        : configuration.GetConnectionString("Default");
 
 if (string.IsNullOrWhiteSpace(connectionString) ||
     connectionString == "SET_FROM_ENV_OR_DEVELOPMENT_SETTINGS")
@@ -24,7 +42,7 @@ if (string.IsNullOrWhiteSpace(connectionString) ||
         "Database connection string is missing. Set ConnectionStrings:Default or MEDINE_HUZUR_CONNECTION_STRING.");
 }
 
-builder.Services.AddDbContext<ECommerceContext>(options =>
+builder.Services.AddDbContextPool<ECommerceContext>(options =>
 {
     options.UseSqlServer(connectionString);
 });
@@ -50,6 +68,7 @@ builder.Services.Configure<AdminSeedSettings>(configuration.GetSection("AdminSee
 builder.Services.Configure<CloudinarySettings>(configuration.GetSection("Cloudinary"));
 builder.Services.AddScoped<IJwtTokenService, JwtTokenService>();
 builder.Services.AddScoped<IEmailService, SmtpEmailService>();
+builder.Services.AddScoped<DatabaseDiagnosticsService>();
 
 
 
@@ -93,25 +112,31 @@ builder.Services.AddSwaggerGen(options =>
 var allowedOrigins =
     configuration.GetSection("Cors:AllowedOrigins").Get<string[]>()
     ?? Array.Empty<string>();
+var allowedOriginPatterns =
+    configuration.GetSection("Cors:AllowedOriginPatterns").Get<string[]>()
+    ?? Array.Empty<string>();
+var allowedOriginRegexes = allowedOriginPatterns
+    .Where(pattern => !string.IsNullOrWhiteSpace(pattern))
+    .Select(pattern => new Regex(
+        $"^{Regex.Escape(pattern.Trim()).Replace("\\*", "[a-z0-9-]+")}$",
+        RegexOptions.IgnoreCase | RegexOptions.CultureInvariant,
+        TimeSpan.FromMilliseconds(100)))
+    .ToArray();
+var allowedOriginSet = allowedOrigins
+    .Where(origin => !string.IsNullOrWhiteSpace(origin))
+    .Select(origin => origin.TrimEnd('/'))
+    .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("Frontend", policy =>
     {
-        if (allowedOrigins.Length > 0)
-        {
-            policy
-                .WithOrigins(allowedOrigins)
-                .AllowAnyHeader()
-                .AllowAnyMethod();
-        }
-        else
-        {
-            policy
-                .AllowAnyOrigin()
-                .AllowAnyHeader()
-                .AllowAnyMethod();
-        }
+        policy
+            .SetIsOriginAllowed(origin =>
+                allowedOriginSet.Contains(origin.TrimEnd('/')) ||
+                allowedOriginRegexes.Any(regex => regex.IsMatch(origin)))
+            .AllowAnyHeader()
+            .AllowAnyMethod();
     });
 });
 
@@ -164,6 +189,8 @@ app.UseStaticFiles();
 
 app.UseCors("Frontend");
 
+app.UseMiddleware<DatabaseExceptionMiddleware>();
+
 app.UseAuthentication();
 app.UseAuthorization();
 
@@ -177,6 +204,34 @@ app.MapGet("/health", () =>
         app = "Medine Huzur API",
         utc = DateTime.UtcNow
     });
+});
+
+app.MapGet("/health/process", () =>
+{
+    return Results.Ok(new
+    {
+        status = "ok",
+        app = "Medine Huzur API",
+        utc = DateTime.UtcNow
+    });
+});
+
+app.MapGet("/health/database", async (
+    DatabaseDiagnosticsService diagnostics,
+    CancellationToken cancellationToken) =>
+{
+    var reachable = await diagnostics.CanConnectAsync(cancellationToken);
+
+    return reachable
+        ? Results.Ok(new { status = "ok", database = "reachable" })
+        : Results.Json(
+            new
+            {
+                status = "degraded",
+                database = "unreachable",
+                message = "Veritabanı hizmetine şu anda erişilemiyor."
+            },
+            statusCode: StatusCodes.Status503ServiceUnavailable);
 });
 
 app.Run();

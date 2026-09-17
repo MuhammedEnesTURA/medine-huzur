@@ -12,12 +12,14 @@ namespace MedineHuzur.Web.Controllers;
 public sealed class PaymentsController : ControllerBase
 {
     private readonly ECommerceContext _db;
+private readonly IConfiguration _configuration;
 private readonly PaymentProviderFactory _paymentProviderFactory;
 
-public PaymentsController(ECommerceContext db, PaymentProviderFactory paymentProviderFactory)
+public PaymentsController(ECommerceContext db, PaymentProviderFactory paymentProviderFactory, IConfiguration configuration)
 {
     _db = db;
     _paymentProviderFactory = paymentProviderFactory;
+    _configuration = configuration;
 }
 
     [HttpPost("start")]
@@ -26,6 +28,11 @@ public PaymentsController(ECommerceContext db, PaymentProviderFactory paymentPro
         StartPaymentRequest request,
         CancellationToken cancellationToken)
     {
+        if (!_configuration.GetValue<bool>("PAYMENT_PROVIDER_ACTIVE"))
+        {
+            return StatusCode(503, new { message = "Ödeme şu anda kullanılamıyor." });
+        }
+
         var orderNumber = NormalizeText(request.OrderNumber).ToUpperInvariant();
         var email = NormalizeEmail(request.Email);
 
@@ -115,6 +122,11 @@ public async Task<ActionResult<CompleteMockPaymentResponse>> CompleteMock(
     CompleteMockPaymentRequest request,
     CancellationToken cancellationToken)
 {
+    if (!_configuration.GetValue<bool>("PAYMENT_PROVIDER_ACTIVE"))
+    {
+        return StatusCode(503, new { message = "Ödeme şu anda kullanılamıyor." });
+    }
+
     var reference = NormalizeText(request.PaymentReference);
 
     if (string.IsNullOrWhiteSpace(reference))

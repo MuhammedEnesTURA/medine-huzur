@@ -1,0 +1,8 @@
+{
+  "Shipping": {
+    "FlatFeeTry": 199.90,
+    "FreeThresholdTry": 1500.00,
+    "DispatchMinBusinessDays": 1,
+    "DispatchMaxBusinessDays": 3
+  }
+}
