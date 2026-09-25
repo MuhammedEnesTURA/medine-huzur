@@ -17,6 +17,7 @@ public sealed class MockPaymentProvider : IPaymentProvider
         return Task.FromResult(new PaymentStartResult(
             ProviderName,
             paymentReference,
-            redirectUrl));
+            redirectUrl,
+            null));
     }
 }

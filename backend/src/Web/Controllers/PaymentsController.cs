@@ -4,6 +4,7 @@ using MedineHuzur.Web.Payments;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using System.Text;
 
 namespace MedineHuzur.Web.Controllers;
 
@@ -14,18 +15,44 @@ public sealed class PaymentsController : ControllerBase
     private readonly ECommerceContext _db;
 private readonly IConfiguration _configuration;
 private readonly PaymentProviderFactory _paymentProviderFactory;
+private readonly KuveytTurkPaymentProcessor _kuveytTurkProcessor;
+private readonly ILogger<PaymentsController> _logger;
 
-public PaymentsController(ECommerceContext db, PaymentProviderFactory paymentProviderFactory, IConfiguration configuration)
+public PaymentsController(
+    ECommerceContext db,
+    PaymentProviderFactory paymentProviderFactory,
+    KuveytTurkPaymentProcessor kuveytTurkProcessor,
+    IConfiguration configuration,
+    ILogger<PaymentsController> logger)
 {
     _db = db;
     _paymentProviderFactory = paymentProviderFactory;
+    _kuveytTurkProcessor = kuveytTurkProcessor;
     _configuration = configuration;
+    _logger = logger;
 }
 
     [HttpPost("start")]
     [AllowAnonymous]
-    public async Task<ActionResult<StartPaymentResponse>> Start(
+    [Consumes("application/json")]
+    public Task<IActionResult> Start(
+        [FromBody] StartPaymentRequest request,
+        CancellationToken cancellationToken) =>
+        StartCore(request, renderBankHtml: false, cancellationToken);
+
+    [HttpPost("kuveytturk/3d/start")]
+    [AllowAnonymous]
+    [Consumes("application/x-www-form-urlencoded")]
+    [RequestSizeLimit(50_000)]
+    [RequestFormLimits(ValueLengthLimit = 1_000)]
+    public Task<IActionResult> StartKuveytTurk3d(
+        [FromForm] StartPaymentRequest request,
+        CancellationToken cancellationToken) =>
+        StartCore(request, renderBankHtml: true, cancellationToken);
+
+    private async Task<IActionResult> StartCore(
         StartPaymentRequest request,
+        bool renderBankHtml,
         CancellationToken cancellationToken)
     {
         if (!_configuration.GetValue<bool>("PAYMENT_PROVIDER_ACTIVE"))
@@ -77,34 +104,145 @@ public PaymentsController(ECommerceContext db, PaymentProviderFactory paymentPro
 
         var paymentProvider = _paymentProviderFactory.GetProvider();
 
-var paymentResult = await paymentProvider.StartAsync(
-    new PaymentStartContext(
-        order.Id,
-        order.OrderNumber,
-        order.Email,
-        order.CustomerName,
-        order.Total),
-    cancellationToken);
+        var isKuveytTurk = paymentProvider is KuveytTurkPaymentProvider;
+        if (isKuveytTurk != renderBankHtml)
+        {
+            return BadRequest(new
+            {
+                message = isKuveytTurk
+                    ? "Kuveyt Türk ödemesi üst seviye tarayıcı akışıyla başlatılmalıdır."
+                    : "Kuveyt Türk ödeme sağlayıcısı seçili değil."
+            });
+        }
+
+        if (isKuveytTurk && ValidateKuveytTurkInput(request) is { } cardError)
+        {
+            return BadRequest(new { message = cardError });
+        }
+        if (isKuveytTurk && order.Email.Length > 254)
+        {
+            return BadRequest(new { message = "E-posta adresi geçersiz." });
+        }
+
+        var merchantOrderId = order.OrderNumber;
+        PaymentTransaction? transaction = null;
+        if (isKuveytTurk)
+        {
+            transaction = await _db.PaymentTransactions.SingleOrDefaultAsync(
+                x => x.Provider == KuveytTurkPaymentProvider.ProviderName &&
+                     x.MerchantOrderId == merchantOrderId,
+                cancellationToken);
+
+            if (transaction is not null && transaction.State != PaymentTransactionState.Failed)
+            {
+                return Conflict(new { message = "Bu sipariş için ödeme işlemi zaten başlatıldı." });
+            }
+
+            if (transaction is null)
+            {
+                transaction = new PaymentTransaction
+                {
+                    OrderId = order.Id,
+                    Provider = KuveytTurkPaymentProvider.ProviderName,
+                    PaymentReference = merchantOrderId,
+                    MerchantOrderId = merchantOrderId,
+                    Amount = order.Total,
+                    Status = PaymentStatus.Pending,
+                    State = PaymentTransactionState.Created,
+                    CreatedAtUtc = DateTime.UtcNow
+                };
+                _db.PaymentTransactions.Add(transaction);
+            }
+            else
+            {
+                transaction.Amount = order.Total;
+                transaction.Status = PaymentStatus.Pending;
+                transaction.State = PaymentTransactionState.Created;
+                transaction.CompletedAtUtc = null;
+            }
+
+            await _db.SaveChangesAsync(cancellationToken);
+        }
+
+        PaymentStartResult paymentResult;
+        try
+        {
+            var phone = ParseTurkishPhone(order.Phone);
+            paymentResult = await paymentProvider.StartAsync(
+                new PaymentStartContext
+                {
+                    OrderId = order.Id,
+                    OrderNumber = order.OrderNumber,
+                    MerchantOrderId = merchantOrderId,
+                    Email = order.Email,
+                    CustomerName = order.CustomerName,
+                    Total = order.Total,
+                    ClientIp = ResolveClientIpv4(),
+                    PhoneCountryCode = phone.CountryCode,
+                    PhoneSubscriber = phone.Subscriber,
+                    Card = request.Card ?? new KuveytTurkCardInput(),
+                    Billing = request.Billing ?? new KuveytTurkBillingInput()
+                },
+                cancellationToken);
+        }
+        catch (Exception exception) when (
+            isKuveytTurk && exception is HttpRequestException or TaskCanceledException or KuveytTurkProtocolException)
+        {
+            if (transaction is not null)
+            {
+                transaction.State = PaymentTransactionState.Failed;
+                transaction.Status = PaymentStatus.Failed;
+                transaction.CompletedAtUtc = DateTime.UtcNow;
+                await _db.SaveChangesAsync(CancellationToken.None);
+            }
+            _logger.LogWarning(
+                "KuveytTurk authentication request failed. MerchantOrderId: {MerchantOrderId}, PaymentTransactionId: {PaymentTransactionId}, ErrorType: {ErrorType}",
+                merchantOrderId,
+                transaction?.Id,
+                exception.GetType().Name);
+            return StatusCode(502, new { message = "Banka doğrulama hizmetine şu anda erişilemiyor." });
+        }
 
         order.PaymentProvider = paymentResult.Provider;
 order.PaymentReference = paymentResult.PaymentReference;
 order.PaymentStatus = PaymentStatus.Pending;
 
-_db.PaymentTransactions.Add(new PaymentTransaction
-{
-    OrderId = order.Id,
-    Provider = paymentResult.Provider,
-    PaymentReference = paymentResult.PaymentReference,
-    Amount = order.Total,
-    Status = PaymentStatus.Pending,
-    RequestPayload =
-        $"OrderNumber={order.OrderNumber};Email={order.Email};Amount={order.Total};Provider={paymentResult.Provider}",
-    ResponsePayload =
-        $"RedirectUrl={paymentResult.RedirectUrl}",
-    CreatedAtUtc = DateTime.UtcNow
-});
+        if (transaction is not null)
+        {
+            transaction.PaymentReference = paymentResult.PaymentReference;
+            transaction.State = PaymentTransactionState.AuthenticationStarted;
+        }
+        else
+        {
+            _db.PaymentTransactions.Add(new PaymentTransaction
+            {
+                OrderId = order.Id,
+                Provider = paymentResult.Provider,
+                PaymentReference = paymentResult.PaymentReference,
+                Amount = order.Total,
+                Status = PaymentStatus.Pending,
+                RequestPayload = $"OrderNumber={order.OrderNumber};Amount={order.Total};Provider={paymentResult.Provider}",
+                ResponsePayload = $"RedirectUrl={paymentResult.RedirectUrl}",
+                CreatedAtUtc = DateTime.UtcNow
+            });
+        }
 
-await _db.SaveChangesAsync(cancellationToken);
+        await _db.SaveChangesAsync(cancellationToken);
+
+        if (isKuveytTurk)
+        {
+            if (string.IsNullOrWhiteSpace(paymentResult.BankHtml))
+            {
+                return StatusCode(502, new { message = "Banka doğrulama sayfası alınamadı." });
+            }
+
+            Response.Headers.CacheControl = "no-store, no-cache";
+            Response.Headers.Pragma = "no-cache";
+            Response.Headers.XFrameOptions = "DENY";
+            Response.Headers.ContentSecurityPolicy = "frame-ancestors 'none'";
+            Response.Headers["Referrer-Policy"] = "no-referrer";
+            return Content(paymentResult.BankHtml, "text/html", Encoding.UTF8);
+        }
 
         return Ok(new StartPaymentResponse(
             order.Id,
@@ -301,34 +439,94 @@ public async Task<ActionResult<CompleteMockPaymentResponse>> CompleteMock(
         "Ödeme başarısız olarak işaretlendi."));
 }
 
-    [HttpPost("kuveytturk/callback")]
+    [HttpPost("kuveytturk/3d/callback")]
     [AllowAnonymous]
+    [RequestSizeLimit(300_000)]
+    [RequestFormLimits(ValueLengthLimit = 250_000)]
     public async Task<ActionResult<KuveytTurkCallbackResponse>> KuveytTurkCallback(
         [FromForm] KuveytTurkCallbackRequest request,
         CancellationToken cancellationToken)
     {
-        /*
-         * Kuveyt Türk Sanal POS gerçek entegrasyonunda burada:
-         *
-         * 1. Bankadan gelen form/body alanları okunacak.
-         * 2. Hash / imza doğrulaması yapılacak.
-         * 3. Sipariş numarası veya ödeme referansı bulunacak.
-         * 4. Banka sonucu başarılıysa:
-         *      PaymentStatus = Paid
-         *      PaidAtUtc = DateTime.UtcNow
-         *      OrderStatus Pending ise Preparing yapılacak
-         * 5. Banka sonucu başarısızsa:
-         *      PaymentStatus = Failed
-         * 6. Aynı callback tekrar gelirse idempotent çalışacak.
-         *
-         * Şimdilik gerçek banka dokümanı ve alan isimleri gelmeden işlem yapmıyoruz.
-         */
+        if (!_configuration.GetValue<bool>("PAYMENT_PROVIDER_ACTIVE"))
+        {
+            return StatusCode(503, new { message = "Ödeme şu anda kullanılamıyor." });
+        }
 
-        await Task.CompletedTask;
+        if (string.IsNullOrWhiteSpace(request.AuthenticationResponse))
+        {
+            return BadRequest(new KuveytTurkCallbackResponse(false, false, false, "Banka cevabı eksik."));
+        }
 
-        return Ok(new KuveytTurkCallbackResponse(
-            false,
-            "Kuveyt Türk callback endpoint hazır, fakat gerçek entegrasyon henüz aktif değil."));
+        try
+        {
+            var result = await _kuveytTurkProcessor.ProcessAsync(
+                request.AuthenticationResponse,
+                cancellationToken);
+            return Ok(new KuveytTurkCallbackResponse(
+                result.Processed,
+                result.Paid,
+                result.Duplicate,
+                result.Message));
+        }
+        catch (KuveytTurkCallbackRejectedException exception)
+        {
+            _logger.LogWarning("KuveytTurk callback rejected. ErrorType: {ErrorType}", exception.GetType().Name);
+            return BadRequest(new KuveytTurkCallbackResponse(false, false, false, exception.Message));
+        }
+        catch (KuveytTurkProtocolException exception)
+        {
+            _logger.LogWarning("KuveytTurk callback malformed. ErrorType: {ErrorType}", exception.GetType().Name);
+            return BadRequest(new KuveytTurkCallbackResponse(false, false, false, "Banka cevabı geçersiz."));
+        }
+        catch (Exception exception) when (exception is HttpRequestException or TaskCanceledException)
+        {
+            _logger.LogWarning(
+                "KuveytTurk provision request failed. ErrorType: {ErrorType}",
+                exception.GetType().Name);
+            return StatusCode(
+                StatusCodes.Status502BadGateway,
+                new KuveytTurkCallbackResponse(false, false, false, "Banka provizyon hizmetine şu anda erişilemiyor."));
+        }
+    }
+
+    private string ResolveClientIpv4()
+    {
+        var address = HttpContext.Connection.RemoteIpAddress;
+        if (address?.IsIPv4MappedToIPv6 == true) address = address.MapToIPv4();
+        return address?.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork
+            ? address.ToString()
+            : throw new KuveytTurkProtocolException("Müşteri IP adresi doğrulanamadı.");
+    }
+
+    private static (string CountryCode, string Subscriber) ParseTurkishPhone(string value)
+    {
+        var digits = new string(value.Where(char.IsDigit).ToArray());
+        if (digits.StartsWith("90", StringComparison.Ordinal) && digits.Length == 12) digits = digits[2..];
+        if (digits.StartsWith('0') && digits.Length == 11) digits = digits[1..];
+        if (digits.Length != 10) throw new KuveytTurkProtocolException("Telefon numarası doğrulanamadı.");
+        return ("90", digits);
+    }
+
+    private static string? ValidateKuveytTurkInput(StartPaymentRequest request)
+    {
+        var card = request.Card;
+        var billing = request.Billing;
+        if (card is null || billing is null) return "Kart ve fatura bilgileri zorunludur.";
+        if (card.CardNumber.Length != 16 || !card.CardNumber.All(char.IsDigit)) return "Kart numarası geçersiz.";
+        if (card.Cvv.Length != 3 || !card.Cvv.All(char.IsDigit)) return "Kart güvenlik kodu geçersiz.";
+        if (card.ExpireMonth.Length != 2 || !card.ExpireMonth.All(char.IsDigit) ||
+            card.ExpireYear.Length != 2 || !card.ExpireYear.All(char.IsDigit)) return "Kart son kullanma tarihi geçersiz.";
+        if (!int.TryParse(card.ExpireMonth, out var expireMonth) || expireMonth is < 1 or > 12)
+            return "Kart son kullanma tarihi geçersiz.";
+        if (card.CardHolderName.Trim().Length is < 2 or > 45) return "Kart sahibi adı geçersiz.";
+        if (string.IsNullOrWhiteSpace(billing.City) || string.IsNullOrWhiteSpace(billing.State) ||
+            string.IsNullOrWhiteSpace(billing.AddressLine1) || string.IsNullOrWhiteSpace(billing.PostCode))
+            return "Fatura adresi eksik.";
+        if (billing.City.Length > 50 || billing.State.Length > 100 ||
+            billing.AddressLine1.Length > 150 || billing.PostCode.Length > 20 ||
+            billing.CountryCode.Length != 3 || !billing.CountryCode.All(char.IsDigit))
+            return "Fatura adresi geçersiz.";
+        return null;
     }
 
     private static string NormalizeText(string? value)
@@ -346,9 +544,14 @@ public async Task<ActionResult<CompleteMockPaymentResponse>> CompleteMock(
     }
 }
 
-public sealed record StartPaymentRequest(
-    string OrderNumber,
-    string? Email);
+public sealed class StartPaymentRequest
+{
+    public string OrderNumber { get; init; } = string.Empty;
+    public string? Email { get; init; }
+    public KuveytTurkCardInput? Card { get; init; }
+    public KuveytTurkBillingInput? Billing { get; init; }
+    public override string ToString() => $"StartPaymentRequest(OrderNumber={OrderNumber}, Card=[REDACTED])";
+}
 
 public sealed record StartPaymentResponse(
     Guid OrderId,
@@ -357,7 +560,7 @@ public sealed record StartPaymentResponse(
     string PaymentStatus,
     string PaymentProvider,
     string PaymentReference,
-    string RedirectUrl);
+    string? RedirectUrl);
 
 public sealed record CompleteMockPaymentRequest(
     string PaymentReference,
@@ -370,17 +573,14 @@ public sealed record CompleteMockPaymentResponse(
     string OrderStatus,
     string Message);
 
-public sealed record KuveytTurkCallbackRequest(
-    string? OrderId,
-    string? MerchantOrderId,
-    string? TransactionId,
-    string? ResponseCode,
-    string? ResponseMessage,
-    string? MdStatus,
-    string? HashData,
-    string? Amount,
-    string? RawData);
+public sealed class KuveytTurkCallbackRequest
+{
+    public string? AuthenticationResponse { get; init; }
+    public override string ToString() => "KuveytTurkCallbackRequest([REDACTED])";
+}
 
 public sealed record KuveytTurkCallbackResponse(
     bool Processed,
+    bool Paid,
+    bool Duplicate,
     string Message);
