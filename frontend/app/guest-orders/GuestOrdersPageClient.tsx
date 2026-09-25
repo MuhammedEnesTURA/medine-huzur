@@ -14,7 +14,7 @@ import {
   Truck,
   XCircle,
 } from "lucide-react";
-import { apiUrl, readJsonOrThrow } from "../../lib/api";
+import { apiUrl } from "../../lib/api";
 import { usePaymentAvailability } from "../../context/PaymentAvailabilityContext";
 
 type OrderLineDto = {
@@ -321,46 +321,17 @@ export default function GuestOrdersPageClient() {
     }
   };
 
-  const startPayment = async () => {
+  const startPayment = () => {
     if (!order || !paymentActive) return;
 
     setIsStartingPayment(true);
-    setResult({
-      type: "success",
-      order,
+
+    const params = new URLSearchParams({
+      orderNumber: order.orderNumber,
+      email: order.email,
     });
 
-    try {
-      const res = await fetch(apiUrl("/api/payments/start"), {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          orderNumber: order.orderNumber,
-          email: order.email,
-        }),
-      });
-
-      const data = await readJsonOrThrow<{
-        orderId: string;
-        orderNumber: string;
-        total: number;
-        paymentStatus: string;
-        paymentReference: string;
-        redirectUrl: string;
-      }>(res);
-
-      router.push(data.redirectUrl);
-    } catch (error) {
-      setResult({
-        type: "error",
-        message:
-          error instanceof Error ? error.message : "Ödeme başlatılamadı.",
-      });
-    } finally {
-      setIsStartingPayment(false);
-    }
+    router.push(`/payment/kuveytturk?${params.toString()}`);
   };
 
   return (
