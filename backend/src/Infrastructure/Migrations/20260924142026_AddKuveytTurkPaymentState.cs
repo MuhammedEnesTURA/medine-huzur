@@ -32,6 +32,12 @@ namespace Infrastructure.Migrations
                 maxLength: 180,
                 nullable: true);
 
+            migrationBuilder.AddColumn<DateTime>(
+                name: "ProvisioningStartedAtUtc",
+                table: "PaymentTransactions",
+                type: "datetime2",
+                nullable: true);
+
             migrationBuilder.AddColumn<string>(
                 name: "ProvisionNumber",
                 table: "PaymentTransactions",
@@ -114,6 +120,10 @@ namespace Infrastructure.Migrations
 
             migrationBuilder.DropColumn(
                 name: "MerchantOrderId",
+                table: "PaymentTransactions");
+
+            migrationBuilder.DropColumn(
+                name: "ProvisioningStartedAtUtc",
                 table: "PaymentTransactions");
 
             migrationBuilder.DropColumn(
