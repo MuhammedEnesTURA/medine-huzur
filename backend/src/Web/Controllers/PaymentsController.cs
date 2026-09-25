@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.EntityFrameworkCore;
 using System.Net;
 using System.Text;
+using System.Xml.Linq;
 
 namespace MedineHuzur.Web.Controllers;
 
@@ -510,13 +511,61 @@ public async Task<ActionResult<CompleteMockPaymentResponse>> CompleteMock(
         }
         catch (KuveytTurkProtocolException exception)
         {
-            _logger.LogWarning("KuveytTurk callback malformed. ErrorType: {ErrorType}", exception.GetType().Name);
+            var bankError = TryReadKuveytTurkError(request.AuthenticationResponse);
+
+            _logger.LogWarning(
+                "KuveytTurk callback malformed. ErrorType: {ErrorType}, ResponseCode: {ResponseCode}, MerchantOrderId: {MerchantOrderId}",
+                exception.GetType().Name,
+                bankError.ResponseCode ?? "unknown",
+                bankError.MerchantOrderId ?? "unknown");
+
+            var reason = !string.IsNullOrWhiteSpace(bankError.ResponseCode)
+                ? $"Banka cevabı: {bankError.ResponseCode} - {bankError.ResponseMessage ?? "İşlem reddedildi."}"
+                : "Banka ödeme cevabı geçersiz.";
+
             return RedirectToPaymentResult(
                 paid: false,
                 reviewRequired: false,
-                orderNumber: null,
-                paymentReference: null,
-                message: "Banka ödeme cevabı geçersiz.");
+                orderNumber: bankError.MerchantOrderId,
+                paymentReference: bankError.MerchantOrderId,
+                message: reason);
+        }
+    }
+
+    private static (string? ResponseCode, string? ResponseMessage, string? MerchantOrderId)
+        TryReadKuveytTurkError(string encodedResponse)
+    {
+        if (string.IsNullOrWhiteSpace(encodedResponse) || encodedResponse.Length > 250_000)
+        {
+            return (null, null, null);
+        }
+
+        try
+        {
+            var xml = encodedResponse.TrimStart().StartsWith('<')
+                ? encodedResponse
+                : WebUtility.UrlDecode(encodedResponse);
+
+            var document = XDocument.Parse(xml, LoadOptions.None);
+            var root = document.Root;
+            if (root is null)
+            {
+                return (null, null, null);
+            }
+
+            static string? Read(XElement element, string name) =>
+                element.DescendantsAndSelf()
+                    .FirstOrDefault(x => x.Name.LocalName == name)?
+                    .Value.Trim();
+
+            return (
+                Read(root, "ResponseCode"),
+                Read(root, "ResponseMessage"),
+                Read(root, "MerchantOrderId"));
+        }
+        catch
+        {
+            return (null, null, null);
         }
     }
 
