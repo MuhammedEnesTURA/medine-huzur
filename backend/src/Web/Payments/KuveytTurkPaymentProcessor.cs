@@ -41,16 +41,29 @@ public sealed class KuveytTurkPaymentProcessor
                 cancellationToken)
             ?? throw new KuveytTurkCallbackRejectedException("Ödeme işlemi bulunamadı.");
 
+        var merchantOrderId = transaction.MerchantOrderId
+            ?? throw new KuveytTurkCallbackRejectedException("Ödeme referansı bulunamadı.");
+
         if (transaction.State == PaymentTransactionState.Paid ||
             transaction.Order.PaymentStatus == PaymentStatus.Paid)
         {
-            return new KuveytTurkCallbackResult(true, true, true, "Ödeme daha önce tamamlandı.");
+            return Result(
+                merchantOrderId,
+                processed: true,
+                paid: true,
+                duplicate: true,
+                reviewRequired: false,
+                "Ödeme daha önce tamamlandı.");
         }
 
         if (transaction.State == PaymentTransactionState.ReviewRequired)
         {
-            return new KuveytTurkCallbackResult(
-                true, false, true,
+            return Result(
+                merchantOrderId,
+                processed: true,
+                paid: false,
+                duplicate: true,
+                reviewRequired: true,
                 "Ödeme sonucu belirsiz; banka panelinden manuel kontrol gerekiyor.");
         }
 
@@ -60,12 +73,22 @@ public sealed class KuveytTurkPaymentProcessor
             if (transaction.ProvisioningStartedAtUtc is { } startedAt &&
                 now - startedAt < ProvisioningStaleAfter)
             {
-                return new KuveytTurkCallbackResult(true, false, true, "Ödeme provizyonu halen işleniyor.");
+                return Result(
+                    merchantOrderId,
+                    processed: true,
+                    paid: false,
+                    duplicate: true,
+                    reviewRequired: true,
+                    "Ödeme provizyonu halen işleniyor. Tekrar ödeme başlatmayın.");
             }
 
             await MoveToReviewRequiredAsync(transaction.Id, cancellationToken);
-            return new KuveytTurkCallbackResult(
-                true, false, true,
+            return Result(
+                merchantOrderId,
+                processed: true,
+                paid: false,
+                duplicate: true,
+                reviewRequired: true,
                 "Ödeme provizyonu yarım kalmış olabilir; otomatik tekrar denenmedi, manuel kontrol gerekiyor.");
         }
 
@@ -96,7 +119,14 @@ public sealed class KuveytTurkPaymentProcessor
             transaction.CompletedAtUtc = now;
             transaction.Order.PaymentStatus = PaymentStatus.Failed;
             await _db.SaveChangesAsync(cancellationToken);
-            return new KuveytTurkCallbackResult(true, false, false, "Kart doğrulaması başarısız.");
+
+            return Result(
+                merchantOrderId,
+                processed: true,
+                paid: false,
+                duplicate: false,
+                reviewRequired: false,
+                "Kart doğrulaması başarısız.");
         }
 
         if (transaction.State is not (
@@ -104,7 +134,13 @@ public sealed class KuveytTurkPaymentProcessor
             PaymentTransactionState.Created or
             PaymentTransactionState.Authenticated))
         {
-            return new KuveytTurkCallbackResult(true, false, true, "Ödeme işlemi zaten işleniyor.");
+            return Result(
+                merchantOrderId,
+                processed: true,
+                paid: false,
+                duplicate: true,
+                reviewRequired: true,
+                "Ödeme işlemi zaten işleniyor. Tekrar ödeme başlatmayın.");
         }
 
         var claimed = await _db.PaymentTransactions
@@ -122,7 +158,13 @@ public sealed class KuveytTurkPaymentProcessor
 
         if (claimed != 1)
         {
-            return new KuveytTurkCallbackResult(true, false, true, "Ödeme işlemi zaten işleniyor.");
+            return Result(
+                merchantOrderId,
+                processed: true,
+                paid: false,
+                duplicate: true,
+                reviewRequired: true,
+                "Ödeme işlemi başka bir istek tarafından işleniyor. Tekrar ödeme başlatmayın.");
         }
 
         await _db.Entry(transaction).ReloadAsync(cancellationToken);
@@ -144,7 +186,14 @@ public sealed class KuveytTurkPaymentProcessor
             _logger.LogWarning(
                 "KuveytTurk provision outcome is ambiguous. MerchantOrderId: {MerchantOrderId}, PaymentTransactionId: {PaymentTransactionId}, ErrorType: {ErrorType}",
                 transaction.MerchantOrderId, transaction.Id, exception.GetType().Name);
-            throw;
+
+            return Result(
+                merchantOrderId,
+                processed: true,
+                paid: false,
+                duplicate: true,
+                reviewRequired: true,
+                "Banka provizyon sonucu kesinleşmedi. Tekrar ödeme başlatmayın; sipariş durumunu kontrol edin.");
         }
 
         if (!_gateway.VerifyProvisionResponse(provision) ||
@@ -155,8 +204,14 @@ public sealed class KuveytTurkPaymentProcessor
             _logger.LogWarning(
                 "KuveytTurk provision response rejected and requires review. MerchantOrderId: {MerchantOrderId}, PaymentTransactionId: {PaymentTransactionId}, ResponseCode: {ResponseCode}",
                 transaction.MerchantOrderId, transaction.Id, provision.ResponseCode);
-            throw new KuveytTurkCallbackRejectedException(
-                "Provizyon cevabı doğrulanamadı; işlem otomatik tekrar edilmeyecek.");
+
+            return Result(
+                merchantOrderId,
+                processed: true,
+                paid: false,
+                duplicate: true,
+                reviewRequired: true,
+                "Provizyon cevabı doğrulanamadı. Tekrar ödeme başlatmayın; işlem manuel kontrol edilecek.");
         }
 
         await _db.Entry(transaction).ReloadAsync(cancellationToken);
@@ -170,8 +225,13 @@ public sealed class KuveytTurkPaymentProcessor
             transaction.CompletedAtUtc = null;
             transaction.Order.PaymentStatus = PaymentStatus.Pending;
             await _db.SaveChangesAsync(cancellationToken);
-            return new KuveytTurkCallbackResult(
-                true, false, true,
+
+            return Result(
+                merchantOrderId,
+                processed: true,
+                paid: false,
+                duplicate: true,
+                reviewRequired: true,
                 "İşlem bankada daha önce işlenmiş görünüyor; tekrar provizyon gönderilmedi, manuel kontrol gerekiyor.");
         }
 
@@ -182,7 +242,14 @@ public sealed class KuveytTurkPaymentProcessor
             transaction.CompletedAtUtc = now;
             transaction.Order.PaymentStatus = PaymentStatus.Failed;
             await _db.SaveChangesAsync(cancellationToken);
-            return new KuveytTurkCallbackResult(true, false, false, "Ödeme başarısız.");
+
+            return Result(
+                merchantOrderId,
+                processed: true,
+                paid: false,
+                duplicate: false,
+                reviewRequired: false,
+                "Ödeme başarısız.");
         }
 
         transaction.State = PaymentTransactionState.Paid;
@@ -191,7 +258,7 @@ public sealed class KuveytTurkPaymentProcessor
         transaction.Order.PaymentStatus = PaymentStatus.Paid;
         transaction.Order.PaidAtUtc = now;
         transaction.Order.PaymentProvider = KuveytTurkPaymentProvider.ProviderName;
-        transaction.Order.PaymentReference = transaction.MerchantOrderId;
+        transaction.Order.PaymentReference = merchantOrderId;
 
         if (transaction.Order.Status == OrderStatus.Pending)
         {
@@ -208,8 +275,30 @@ public sealed class KuveytTurkPaymentProcessor
         }
 
         await _db.SaveChangesAsync(cancellationToken);
-        return new KuveytTurkCallbackResult(true, true, false, "Ödeme başarılı.");
+
+        return Result(
+            merchantOrderId,
+            processed: true,
+            paid: true,
+            duplicate: false,
+            reviewRequired: false,
+            "Ödeme başarılı.");
     }
+
+    private static KuveytTurkCallbackResult Result(
+        string merchantOrderId,
+        bool processed,
+        bool paid,
+        bool duplicate,
+        bool reviewRequired,
+        string message) =>
+        new(
+            Processed: processed,
+            Paid: paid,
+            Duplicate: duplicate,
+            ReviewRequired: reviewRequired,
+            MerchantOrderId: merchantOrderId,
+            Message: message);
 
     private async Task MoveToReviewRequiredAsync(Guid transactionId, CancellationToken cancellationToken)
     {
