@@ -75,6 +75,7 @@ public sealed class KuveytTurkPaymentProcessorTests
 
         Assert.True(result.Duplicate);
         Assert.False(result.Paid);
+        Assert.True(result.ReviewRequired);
         Assert.Equal(0, gateway.ProvisionCalls);
         Assert.Equal(PaymentTransactionState.Provisioning, (await db.PaymentTransactions.SingleAsync()).State);
     }
@@ -93,6 +94,7 @@ public sealed class KuveytTurkPaymentProcessorTests
 
         Assert.True(result.Duplicate);
         Assert.False(result.Paid);
+        Assert.True(result.ReviewRequired);
         Assert.Equal(0, gateway.ProvisionCalls);
         Assert.Equal(PaymentTransactionState.ReviewRequired, (await db.PaymentTransactions.SingleAsync()).State);
     }
@@ -108,6 +110,7 @@ public sealed class KuveytTurkPaymentProcessorTests
 
         Assert.True(result.Duplicate);
         Assert.False(result.Paid);
+        Assert.True(result.ReviewRequired);
         Assert.Equal(0, gateway.ProvisionCalls);
     }
 
@@ -200,9 +203,12 @@ public sealed class KuveytTurkPaymentProcessorTests
         await SeedAsync(db);
         var gateway = new FakeGateway { ProvisionException = new HttpRequestException("network") };
 
-        await Assert.ThrowsAsync<HttpRequestException>(
-            () => CreateProcessor(db, gateway).ProcessAsync("payload", CancellationToken.None));
+        var result = await CreateProcessor(db, gateway).ProcessAsync("payload", CancellationToken.None);
 
+        Assert.False(result.Paid);
+        Assert.True(result.ReviewRequired);
+        Assert.True(result.Duplicate);
+        Assert.Equal("ORDER-123", result.MerchantOrderId);
         Assert.Equal(PaymentTransactionState.ReviewRequired, (await db.PaymentTransactions.SingleAsync()).State);
         Assert.Equal(1, gateway.ProvisionCalls);
     }
@@ -214,9 +220,12 @@ public sealed class KuveytTurkPaymentProcessorTests
         await SeedAsync(db);
         var gateway = new FakeGateway { ProvisionHashValid = false };
 
-        await Assert.ThrowsAsync<KuveytTurkCallbackRejectedException>(
-            () => CreateProcessor(db, gateway).ProcessAsync("payload", CancellationToken.None));
+        var result = await CreateProcessor(db, gateway).ProcessAsync("payload", CancellationToken.None);
 
+        Assert.False(result.Paid);
+        Assert.True(result.ReviewRequired);
+        Assert.True(result.Duplicate);
+        Assert.Equal("ORDER-123", result.MerchantOrderId);
         Assert.Equal(PaymentTransactionState.ReviewRequired, (await db.PaymentTransactions.SingleAsync()).State);
     }
 
