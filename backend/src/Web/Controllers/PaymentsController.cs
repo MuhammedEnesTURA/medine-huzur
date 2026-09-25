@@ -508,7 +508,20 @@ public async Task<ActionResult<CompleteMockPaymentResponse>> CompleteMock(
 
     private string ResolveClientIpv4()
     {
-        var address = HttpContext.Connection.RemoteIpAddress;
+        IPAddress? address = null;
+
+        if (Request.Headers.TryGetValue("CF-Connecting-IP", out var cloudflareValues))
+        {
+            var cloudflareIp = cloudflareValues.ToString().Trim();
+            if (!string.IsNullOrWhiteSpace(cloudflareIp) &&
+                IPAddress.TryParse(cloudflareIp, out var parsedCloudflareIp))
+            {
+                address = parsedCloudflareIp;
+            }
+        }
+
+        address ??= HttpContext.Connection.RemoteIpAddress;
+
         if (address?.IsIPv4MappedToIPv6 == true)
         {
             address = address.MapToIPv4();
@@ -522,8 +535,7 @@ public async Task<ActionResult<CompleteMockPaymentResponse>> CompleteMock(
         var allowPrivate = _configuration.GetValue<bool>("KUVEYTTURK_ALLOW_PRIVATE_CLIENT_IP");
         if (!allowPrivate && !IsPublicIpv4(address))
         {
-            throw new KuveytTurkProtocolException(
-                "Müşteri IP adresi güvenilir proxy zincirinden doğrulanamadı.");
+            throw new KuveytTurkProtocolException("Müşteri IP adresi doğrulanamadı.");
         }
 
         return address.ToString();
