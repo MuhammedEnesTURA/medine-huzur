@@ -8,6 +8,15 @@ import {
   Phone,
   ShieldCheck,
 } from "lucide-react";
+import { businessConfig, createPageMetadata, siteConfig } from "../../lib/seo";
+import { merchantConfig } from "../../lib/merchant";
+
+export const metadata = createPageMetadata({
+  title: "İletişim",
+  description:
+    "Medine Huzur telefon, WhatsApp, e-posta ve mağaza adresi bilgilerine ulaşın.",
+  path: "/contact",
+});
 
 function ContactCard({
   icon,
@@ -49,7 +58,7 @@ export default function ContactPage() {
           <div className="flex flex-col gap-5 md:flex-row md:items-start md:justify-between">
             <div>
               <p className="text-xs font-black uppercase tracking-[0.16em] text-mhgreen">
-                İletişim
+                {siteConfig.name} İletişim
               </p>
 
               <h1 className="mt-3 text-3xl font-black tracking-[-0.04em] text-foreground md:text-5xl">
@@ -79,32 +88,68 @@ export default function ContactPage() {
 
         <section className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
           <ContactCard
+            icon={<ShieldCheck className="h-5 w-5" />}
+            title="Resmî satıcı"
+            value={merchantConfig.legalName}
+            text={`${siteConfig.name} markasının işletmecisi.`}
+          />
+          <ContactCard
             icon={<Phone className="h-5 w-5" />}
             title="Telefon"
-            value="0 (545) 616 45 33"
+            value={businessConfig.phone.display}
             text="Sipariş ve ürün destek hattı."
           />
 
           <ContactCard
             icon={<MessageCircle className="h-5 w-5" />}
             title="WhatsApp"
-            value="0 (531) 161 01 55"
+            value={businessConfig.whatsapp.display}
             text="Hızlı destek ve sipariş bilgilendirme."
           />
 
           <ContactCard
             icon={<Mail className="h-5 w-5" />}
             title="E-posta"
-            value="corum.medinehuzur@gmail.com"
+            value={businessConfig.email}
             text="Detaylı talep ve belge gönderimi için."
           />
+
+          {merchantConfig.kepAddress && (
+            <ContactCard
+              icon={<Mail className="h-5 w-5" />}
+              title="KEP adresi"
+              value={merchantConfig.kepAddress}
+              text="Resmî tebligat için kayıtlı elektronik posta."
+            />
+          )}
 
           <ContactCard
   icon={<MapPin className="h-5 w-5" />}
   title="Adres"
-  value="Üçtutlar Mah. Osmancık Cad. 10/A, Ulu Camii karşısı, Medine Huzur, Çorum/Merkez"
+  value={businessConfig.address.display}
   text="Mağaza ve sipariş desteği için bizimle iletişime geçebilirsin."
 />
+        </section>
+
+        <section className="mt-5 rounded-[1.35rem] border border-border-soft bg-panel/72 p-5 md:p-6">
+          <h2 className="text-xl font-black text-foreground">Resmî satıcı bilgileri</h2>
+          <p className="mt-2 text-sm text-muted">
+            {merchantConfig.legalName}, {siteConfig.name} markasının işletmecisidir.
+          </p>
+          <div className="mt-4 grid gap-3 text-sm text-muted md:grid-cols-2">
+            {merchantConfig.status === "tacir" && merchantConfig.mersisNumber && (
+              <p>MERSİS: {merchantConfig.mersisNumber}</p>
+            )}
+            {merchantConfig.status === "esnaf" && merchantConfig.ownerName && (
+              <p>İşletme sahibi: {merchantConfig.ownerName}</p>
+            )}
+            {merchantConfig.status === "esnaf" && merchantConfig.taxNumber && (
+              <p>Vergi kimlik numarası: {merchantConfig.taxNumber}</p>
+            )}
+            {merchantConfig.registeredAddress && (
+              <p>Merkez adresi: {merchantConfig.registeredAddress}</p>
+            )}
+          </div>
         </section>
 
         <section className="mt-5 grid gap-5 lg:grid-cols-[1fr_380px]">
@@ -215,14 +260,14 @@ export default function ContactPage() {
 
   <div className="mt-3 grid gap-2">
     <a
-      href="tel:05456164533"
+      href={businessConfig.phone.href}
       className="inline-flex min-h-9 items-center justify-center rounded-xl border border-border-soft bg-panel-2 px-3 text-xs font-black text-foreground transition hover:bg-panel-3"
     >
       Telefonla Ara
     </a>
 
     <a
-      href="mailto:corum.medinehuzur@gmail.com"
+      href={`mailto:${businessConfig.email}`}
       className="inline-flex min-h-9 items-center justify-center rounded-xl border border-mhgreen/25 bg-mhgreen/10 px-3 text-xs font-black text-mhgreen transition hover:bg-mhgreen/15"
     >
       E-posta Gönder

@@ -14,7 +14,8 @@ import {
   Truck,
   XCircle,
 } from "lucide-react";
-import { apiUrl, readJsonOrThrow } from "../../lib/api";
+import { apiUrl } from "../../lib/api";
+import { usePaymentAvailability } from "../../context/PaymentAvailabilityContext";
 
 type OrderLineDto = {
   id: string;
@@ -49,6 +50,7 @@ type OrderDetailDto = {
   status: string;
   subtotal: number;
   discountTotal: number;
+  shippingAmount: number;
   total: number;
   createdAtUtc: string;
   shippingCompany?: string | null;
@@ -223,6 +225,7 @@ function EmptyState() {
 
 export default function GuestOrdersPageClient() {
   const router = useRouter();
+  const paymentActive = usePaymentAvailability();
 
   const [orderNumber, setOrderNumber] = useState("");
   const [email, setEmail] = useState("");
@@ -318,46 +321,17 @@ export default function GuestOrdersPageClient() {
     }
   };
 
-  const startPayment = async () => {
-    if (!order) return;
+  const startPayment = () => {
+    if (!order || !paymentActive) return;
 
     setIsStartingPayment(true);
-    setResult({
-      type: "success",
-      order,
+
+    const params = new URLSearchParams({
+      orderNumber: order.orderNumber,
+      email: order.email,
     });
 
-    try {
-      const res = await fetch(apiUrl("/api/payments/start"), {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          orderNumber: order.orderNumber,
-          email: order.email,
-        }),
-      });
-
-      const data = await readJsonOrThrow<{
-        orderId: string;
-        orderNumber: string;
-        total: number;
-        paymentStatus: string;
-        paymentReference: string;
-        redirectUrl: string;
-      }>(res);
-
-      router.push(data.redirectUrl);
-    } catch (error) {
-      setResult({
-        type: "error",
-        message:
-          error instanceof Error ? error.message : "Ödeme başlatılamadı.",
-      });
-    } finally {
-      setIsStartingPayment(false);
-    }
+    router.push(`/payment/kuveytturk?${params.toString()}`);
   };
 
   return (
@@ -498,6 +472,7 @@ export default function GuestOrdersPageClient() {
                       <p className="mt-1 text-2xl font-black text-mhgreen">
                         {formatPrice(order.total)}
                       </p>
+                      <p className="mt-1 text-xs text-muted">Ürünler: {formatPrice(order.subtotal)} · Kargo: {order.shippingAmount === 0 ? "Ücretsiz" : formatPrice(order.shippingAmount)}</p>
                     </div>
 
                     <div className="rounded-2xl border border-border-soft bg-panel/65 p-4">
@@ -535,12 +510,14 @@ export default function GuestOrdersPageClient() {
 
                           <p className="mt-1 text-sm leading-6 text-muted">
                             Bu sipariş için ödeme tamamlanmamış görünüyor.
-                            Ödeme adımını tekrar başlatabilirsin.
+                            {paymentActive
+                              ? "Ödeme adımını tekrar başlatabilirsin."
+                              : "Kuveyt Türk Sanal POS henüz aktif değil; ödeme şu anda başlatılamaz."}
                           </p>
                         </div>
                       </div>
 
-                      <button
+                      {paymentActive && <button
                         type="button"
                         onClick={startPayment}
                         disabled={isStartingPayment}
@@ -557,7 +534,7 @@ export default function GuestOrdersPageClient() {
                             Ödemeye Geç
                           </>
                         )}
-                      </button>
+                      </button>}
                     </div>
                   </section>
                 )}

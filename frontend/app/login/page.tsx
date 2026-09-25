@@ -112,7 +112,8 @@ function LoginContent() {
     <main className="page-shell">
       <section className="page-container py-5 md:py-8">
         <div className="grid items-start gap-5 lg:grid-cols-[0.95fr_1.05fr]">
-          <section className="rounded-[1.35rem] border border-border-soft bg-panel/72 p-4 shadow-[0_18px_50px_rgba(0,0,0,0.18)] md:p-6 lg:sticky lg:top-24">
+          {/* BİLGİ KUTULARI (Mobilde Altta, PC'de Solda) */}
+          <section className="order-2 lg:order-1 rounded-[1.35rem] border border-border-soft bg-panel/72 p-4 shadow-[0_18px_50px_rgba(0,0,0,0.18)] md:p-6 lg:sticky lg:top-24">
             <p className="text-xs font-black uppercase tracking-[0.16em] text-mhgreen">
               Medine Huzur
             </p>
@@ -151,7 +152,8 @@ function LoginContent() {
             </div>
           </section>
 
-          <section className="rounded-[1.35rem] border border-border-soft bg-panel/72 p-4 shadow-[0_18px_50px_rgba(0,0,0,0.18)] md:p-6">
+          {/* FORM KISMI (Mobilde Üstte, PC'de Sağda) */}
+          <section className="order-1 lg:order-2 rounded-[1.35rem] border border-border-soft bg-panel/72 p-4 shadow-[0_18px_50px_rgba(0,0,0,0.18)] md:p-6">
             <div className="mx-auto max-w-md">
               <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-mhgreen/25 bg-mhgreen/10 text-mhgreen">
                 <LockKeyhole className="h-6 w-6" />

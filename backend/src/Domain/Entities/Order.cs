@@ -32,6 +32,8 @@ public class Order
 
     public decimal DiscountTotal { get; set; }
 
+    public decimal ShippingAmount { get; set; }
+
     public decimal Total { get; set; }
 
     public OrderStatus Status { get; set; } = OrderStatus.Pending;

@@ -14,11 +14,12 @@ import {
   Search,
   ShieldCheck,
 } from "lucide-react";
-import { apiUrl, readJsonOrThrow } from "../../lib/api";
 import { useAuth } from "../../context/AuthContext";
+import { usePaymentAvailability } from "../../context/PaymentAvailabilityContext";
 
 function OrderSuccessContent() {
   const router = useRouter();
+  const paymentActive = usePaymentAvailability();
   const searchParams = useSearchParams();
   const { isAuthenticated } = useAuth();
 
@@ -37,44 +38,22 @@ function OrderSuccessContent() {
         ? `/guest-orders?orderNumber=${encodeURIComponent(orderNumber)}`
         : "/guest-orders";
 
-  const startPayment = async () => {
-    if (!orderNumber) {
-      setPaymentError("Sipariş numarası bulunamadı.");
+  const startPayment = () => {
+    if (!paymentActive) return;
+    if (!orderNumber || !email) {
+      setPaymentError("Ödeme için sipariş numarası ve e-posta bilgisi eksik.");
       return;
     }
 
     setIsStartingPayment(true);
     setPaymentError(null);
 
-    try {
-      const res = await fetch(apiUrl("/api/payments/start"), {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          orderNumber,
-          email,
-        }),
-      });
+    const params = new URLSearchParams({
+      orderNumber,
+      email,
+    });
 
-      const data = await readJsonOrThrow<{
-        orderId: string;
-        orderNumber: string;
-        total: number;
-        paymentStatus: string;
-        paymentReference: string;
-        redirectUrl: string;
-      }>(res);
-
-      router.push(data.redirectUrl);
-    } catch (error) {
-      setPaymentError(
-        error instanceof Error ? error.message : "Ödeme başlatılamadı."
-      );
-    } finally {
-      setIsStartingPayment(false);
-    }
+    router.push(`/payment/kuveytturk?${params.toString()}`);
   };
 
   return (
@@ -94,8 +73,9 @@ function OrderSuccessContent() {
           </h1>
 
           <p className="relative z-10 mx-auto mt-4 max-w-2xl text-sm font-medium leading-7 text-muted md:text-base">
-            Siparişin başarıyla oluşturuldu. Güvenli ödeme adımına geçebilir
-            veya siparişini takip ekranından kontrol edebilirsin.
+            {paymentActive
+              ? "Siparişin başarıyla oluşturuldu. Güvenli ödeme adımına geçebilir veya siparişini takip ekranından kontrol edebilirsin."
+              : "Siparişini takip ekranından kontrol edebilirsin. Sanal POS henüz aktif olmadığından kartla ödeme şu anda yapılamaz."}
           </p>
 
           {orderNumber && (
@@ -122,8 +102,8 @@ function OrderSuccessContent() {
             </div>
           )}
 
-          <div className="relative z-10 mt-6 grid gap-3 sm:grid-cols-3">
-            <button
+          <div className={`relative z-10 mt-6 grid gap-3 ${paymentActive ? "sm:grid-cols-3" : "sm:grid-cols-2"}`}>
+            {paymentActive && <button
               type="button"
               onClick={startPayment}
               disabled={isStartingPayment || !orderNumber}
@@ -140,7 +120,7 @@ function OrderSuccessContent() {
                   Ödemeye Geç
                 </>
               )}
-            </button>
+            </button>}
 
             <Link
               href={isAuthenticated ? "/account/orders" : guestOrderHref}
@@ -160,18 +140,20 @@ function OrderSuccessContent() {
           </div>
         </div>
 
-        <div className="mx-auto mt-5 grid max-w-5xl gap-4 md:grid-cols-4">
+        <div className={`mx-auto mt-5 grid max-w-5xl gap-4 ${paymentActive ? "md:grid-cols-4" : "md:grid-cols-3"}`}>
           <div className="concept-corner rounded-[1.25rem] border border-border-soft bg-panel/72 p-4 shadow-[0_12px_32px_rgba(0,0,0,0.08)]">
             <PackageCheck className="relative z-10 h-5 w-5 text-mhgreen" />
             <p className="relative z-10 mt-3 text-sm font-black text-foreground">
               Sipariş alındı
             </p>
             <p className="relative z-10 mt-1 text-xs leading-5 text-muted">
-              Siparişin güvenle alındı ve ödeme adımına hazırlandı.
+              {paymentActive
+                ? "Siparişin güvenle alındı ve ödeme adımına hazırlandı."
+                : "Sipariş kaydın oluşturuldu; ödeme şu anda başlatılamaz."}
             </p>
           </div>
 
-          <div className="concept-corner rounded-[1.25rem] border border-border-soft bg-panel/72 p-4 shadow-[0_12px_32px_rgba(0,0,0,0.08)]">
+          {paymentActive && <div className="concept-corner rounded-[1.25rem] border border-border-soft bg-panel/72 p-4 shadow-[0_12px_32px_rgba(0,0,0,0.08)]">
             <CreditCard className="relative z-10 h-5 w-5 text-mhgreen" />
             <p className="relative z-10 mt-3 text-sm font-black text-foreground">
               Ödeme adımı
@@ -179,7 +161,7 @@ function OrderSuccessContent() {
             <p className="relative z-10 mt-1 text-xs leading-5 text-muted">
               Güvenli ödeme ekranı üzerinden ödeme işlemini tamamlayabilirsin.
             </p>
-          </div>
+          </div>}
 
           <div className="concept-corner rounded-[1.25rem] border border-border-soft bg-panel/72 p-4 shadow-[0_12px_32px_rgba(0,0,0,0.08)]">
             <Gift className="relative z-10 h-5 w-5 text-mhgreen" />
