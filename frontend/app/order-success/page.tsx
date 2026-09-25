@@ -14,7 +14,6 @@ import {
   Search,
   ShieldCheck,
 } from "lucide-react";
-import { apiUrl, readJsonOrThrow } from "../../lib/api";
 import { useAuth } from "../../context/AuthContext";
 import { usePaymentAvailability } from "../../context/PaymentAvailabilityContext";
 
@@ -39,45 +38,22 @@ function OrderSuccessContent() {
         ? `/guest-orders?orderNumber=${encodeURIComponent(orderNumber)}`
         : "/guest-orders";
 
-  const startPayment = async () => {
+  const startPayment = () => {
     if (!paymentActive) return;
-    if (!orderNumber) {
-      setPaymentError("Sipariş numarası bulunamadı.");
+    if (!orderNumber || !email) {
+      setPaymentError("Ödeme için sipariş numarası ve e-posta bilgisi eksik.");
       return;
     }
 
     setIsStartingPayment(true);
     setPaymentError(null);
 
-    try {
-      const res = await fetch(apiUrl("/api/payments/start"), {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          orderNumber,
-          email,
-        }),
-      });
+    const params = new URLSearchParams({
+      orderNumber,
+      email,
+    });
 
-      const data = await readJsonOrThrow<{
-        orderId: string;
-        orderNumber: string;
-        total: number;
-        paymentStatus: string;
-        paymentReference: string;
-        redirectUrl: string;
-      }>(res);
-
-      router.push(data.redirectUrl);
-    } catch (error) {
-      setPaymentError(
-        error instanceof Error ? error.message : "Ödeme başlatılamadı."
-      );
-    } finally {
-      setIsStartingPayment(false);
-    }
+    router.push(`/payment/kuveytturk?${params.toString()}`);
   };
 
   return (
