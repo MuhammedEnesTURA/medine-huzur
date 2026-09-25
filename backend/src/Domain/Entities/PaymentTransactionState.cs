@@ -7,5 +7,6 @@ public enum PaymentTransactionState
     Authenticated = 2,
     Provisioning = 3,
     Paid = 4,
-    Failed = 5
+    Failed = 5,
+    ReviewRequired = 6
 }
