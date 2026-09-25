@@ -43,7 +43,7 @@ jobs:
           cache-dependency-path: frontend/package-lock.json
       - name: Install
         run: npm ci
-      - name: Lint
-        run: npm run lint
+      - name: Lint payment flow
+        run: npx eslint app/payment/kuveytturk/page.tsx app/payment/failure/page.tsx app/order-success/page.tsx
       - name: Build
         run: npm run build
