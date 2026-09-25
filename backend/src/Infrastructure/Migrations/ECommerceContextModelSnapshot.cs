@@ -516,6 +516,9 @@ namespace Infrastructure.Migrations
                         .HasMaxLength(80)
                         .HasColumnType("nvarchar(80)");
 
+                    b.Property<DateTime?>("ProvisioningStartedAtUtc")
+                        .HasColumnType("datetime2");
+
                     b.Property<string>("ProvisionNumber")
                         .HasMaxLength(80)
                         .HasColumnType("nvarchar(80)");
