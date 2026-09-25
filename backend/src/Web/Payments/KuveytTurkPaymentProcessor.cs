@@ -213,7 +213,7 @@ public sealed class KuveytTurkPaymentProcessor
 
     private async Task MoveToReviewRequiredAsync(Guid transactionId, CancellationToken cancellationToken)
     {
-        await _db.PaymentTransactions
+        var updated = await _db.PaymentTransactions
             .Where(x =>
                 x.Id == transactionId &&
                 x.State == PaymentTransactionState.Provisioning)
@@ -223,6 +223,18 @@ public sealed class KuveytTurkPaymentProcessor
                     .SetProperty(x => x.Status, PaymentStatus.Pending)
                     .SetProperty(x => x.CompletedAtUtc, (DateTime?)null),
                 cancellationToken);
+
+        if (updated == 1)
+        {
+            var tracked = _db.ChangeTracker
+                .Entries<PaymentTransaction>()
+                .FirstOrDefault(entry => entry.Entity.Id == transactionId);
+
+            if (tracked is not null)
+            {
+                await tracked.ReloadAsync(cancellationToken);
+            }
+        }
     }
 
     private static void ApplyBankResponse(PaymentTransaction transaction, KuveytTurkBankResponse response)
