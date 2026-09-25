@@ -1,3 +1,4 @@
+using System.Net;
 using System.Text;
 using MedineHuzur.Domain;
 using MedineHuzur.Infrastructure;
@@ -8,6 +9,7 @@ using MedineHuzur.Web.Services;
 using MedineHuzur.Web.Settings;
 using Microsoft.OpenApi.Models;
 using MedineHuzur.Web.Payments;
+using Microsoft.AspNetCore.HttpOverrides;
 using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
 
@@ -56,12 +58,49 @@ builder.Services
 builder.Services.Configure<PaymentOptions>(
     builder.Configuration.GetSection(PaymentOptions.SectionName));
 
-builder.Services.Configure<KuveytTurkOptions>(
-    builder.Configuration.GetSection(KuveytTurkOptions.SectionName));
+builder.Services.Configure<KuveytTurkOptions>(options =>
+{
+    builder.Configuration.GetSection(KuveytTurkOptions.SectionName).Bind(options);
+    options.Environment = configuration["KUVEYTTURK_ENVIRONMENT"] ?? options.Environment;
+    options.CustomerId = configuration["KUVEYTTURK_CUSTOMER_ID"] ?? options.CustomerId;
+    options.MerchantId = configuration["KUVEYTTURK_MERCHANT_ID"] ?? options.MerchantId;
+    options.ApiUserName = configuration["KUVEYTTURK_API_USERNAME"] ?? options.ApiUserName;
+    options.ApiPassword = configuration["KUVEYTTURK_API_PASSWORD"] ?? options.ApiPassword;
+    options.OkUrl = configuration["KUVEYTTURK_OK_URL"] ?? options.OkUrl;
+    options.FailUrl = configuration["KUVEYTTURK_FAIL_URL"] ?? options.FailUrl;
+});
 
 builder.Services.AddScoped<MockPaymentProvider>();
-builder.Services.AddScoped<KuveytTurkPaymentProvider>();
+builder.Services.AddHttpClient<KuveytTurkPaymentProvider>(client =>
+{
+    client.Timeout = TimeSpan.FromSeconds(120);
+});
+builder.Services.AddScoped<IKuveytTurkGateway>(serviceProvider =>
+    serviceProvider.GetRequiredService<KuveytTurkPaymentProvider>());
+builder.Services.AddSingleton<KuveytTurkHashService>();
+builder.Services.AddSingleton<KuveytTurkXmlService>();
+builder.Services.AddScoped<KuveytTurkPaymentProcessor>();
 builder.Services.AddScoped<PaymentProviderFactory>();
+var trustedForwardedProxyIps = (configuration["FORWARDED_HEADERS_TRUSTED_PROXIES"] ?? string.Empty)
+    .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+    .Select(value =>
+        IPAddress.TryParse(value, out var address)
+            ? address
+            : throw new InvalidOperationException(
+                $"Invalid FORWARDED_HEADERS_TRUSTED_PROXIES IP address: {value}"))
+    .ToArray();
+
+builder.Services.Configure<ForwardedHeadersOptions>(options =>
+{
+    options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
+    options.ForwardLimit = 1;
+    options.RequireHeaderSymmetry = false;
+
+    foreach (var proxy in trustedForwardedProxyIps)
+    {
+        options.KnownProxies.Add(proxy);
+    }
+});
 builder.Services.Configure<JwtSettings>(configuration.GetSection("Jwt"));
 builder.Services.Configure<EmailSettings>(configuration.GetSection("Email"));
 builder.Services.Configure<AdminSeedSettings>(configuration.GetSection("AdminSeed"));
@@ -181,6 +220,8 @@ builder.Services
 builder.Services.AddAuthorization();
 
 var app = builder.Build();
+
+app.UseForwardedHeaders();
 
 app.UseSwagger();
 app.UseSwaggerUI();
