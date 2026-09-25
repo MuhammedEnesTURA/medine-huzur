@@ -412,6 +412,146 @@ if (shouldSendShippingEmail)
         return Ok(ToDetailDto(order));
     }
 
+    [HttpPost("live-pos-smoke")]
+    public async Task<ActionResult<LivePosSmokeOrderResponse>> CreateLivePosSmokeOrder(
+        LivePosSmokeOrderRequest request,
+        CancellationToken cancellationToken)
+    {
+        if (!_configuration.GetValue<bool>("LIVE_PAYMENT_SMOKE_TEST_ENABLED"))
+        {
+            return NotFound();
+        }
+
+        if (!_configuration.GetValue<bool>("PAYMENT_PROVIDER_ACTIVE"))
+        {
+            return Conflict(new
+            {
+                message = "Canlı POS smoke testi için PAYMENT_PROVIDER_ACTIVE=true olmalıdır."
+            });
+        }
+
+        var kuveytEnvironment =
+            (_configuration["KUVEYTTURK_ENVIRONMENT"] ?? string.Empty).Trim();
+
+        if (!string.Equals(
+                kuveytEnvironment,
+                "Production",
+                StringComparison.OrdinalIgnoreCase))
+        {
+            return Conflict(new
+            {
+                message = "Canlı POS smoke testi yalnız KUVEYTTURK_ENVIRONMENT=Production iken çalışır."
+            });
+        }
+
+        var provider =
+            (_configuration["Payments:Provider"] ??
+             _configuration["Payments__Provider"] ??
+             string.Empty).Trim();
+
+        if (!string.Equals(
+                provider,
+                "KuveytTurk",
+                StringComparison.OrdinalIgnoreCase))
+        {
+            return Conflict(new
+            {
+                message = "Canlı POS smoke testi için ödeme sağlayıcısı KuveytTurk olmalıdır."
+            });
+        }
+
+        var email = (request.Email ?? string.Empty).Trim().ToLowerInvariant();
+
+        if (string.IsNullOrWhiteSpace(email) ||
+            email.Length > 256 ||
+            !email.Contains('@'))
+        {
+            return BadRequest(new { message = "Geçerli bir test e-posta adresi zorunludur." });
+        }
+
+        var now = DateTime.UtcNow;
+
+        var existingOrder = await _db.Orders
+            .AsNoTracking()
+            .Where(x =>
+                x.OrderNumber.StartsWith("POSLIVE-") &&
+                x.Email == email &&
+                x.PaymentStatus == PaymentStatus.Pending &&
+                x.CreatedAtUtc >= now.AddHours(-2))
+            .OrderByDescending(x => x.CreatedAtUtc)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        if (existingOrder is not null)
+        {
+            return Ok(BuildLivePosSmokeResponse(existingOrder, reused: true));
+        }
+
+        var order = new Order
+        {
+            OrderNumber =
+                $"POSLIVE-{now:yyyyMMdd}-{Guid.NewGuid().ToString("N")[..8].ToUpperInvariant()}",
+            CustomerName = "CANLI POS TEST",
+            Email = email,
+            Phone = "05000000000",
+            AddressText = "CANLI POS TEST SIPARISI - KARGO GONDERILMEYECEK",
+            PaymentMethod = "CreditCard",
+            PaymentStatus = PaymentStatus.Pending,
+            PaymentProvider = "KuveytTurk",
+            Subtotal = 1.00m,
+            DiscountTotal = 0m,
+            ShippingAmount = 0m,
+            Total = 1.00m,
+            Status = OrderStatus.Pending,
+            CreatedAtUtc = now,
+            IsGiftPackage = false,
+            GiftPackageQuantity = 1,
+            PreInformationAccepted = true,
+            DistanceSalesAccepted = true,
+            LegalConsentsAcceptedAtUtc = now
+        };
+
+        order.StatusHistory.Add(new OrderStatusHistory
+        {
+            OrderId = order.Id,
+            FromStatus = OrderStatus.Pending,
+            ToStatus = OrderStatus.Pending,
+            Note = "1,00 TL canlı Kuveyt Türk POS smoke test siparişi. Kargo gönderilmez.",
+            ChangedBy = "Admin-LivePosSmokeTest",
+            ChangedAtUtc = now
+        });
+
+        _db.Orders.Add(order);
+        await _db.SaveChangesAsync(cancellationToken);
+
+        _logger.LogWarning(
+            "Live POS smoke-test order created. OrderNumber: {OrderNumber}, Amount: {Amount}",
+            order.OrderNumber,
+            order.Total);
+
+        return Ok(BuildLivePosSmokeResponse(order, reused: false));
+    }
+
+    private LivePosSmokeOrderResponse BuildLivePosSmokeResponse(
+        Order order,
+        bool reused)
+    {
+        var frontendBaseUrl =
+            (_configuration["Frontend:BaseUrl"] ?? "https://medinehuzur.com")
+            .TrimEnd('/');
+
+        var paymentUrl =
+            $"{frontendBaseUrl}/payment/kuveytturk?orderNumber={Uri.EscapeDataString(order.OrderNumber)}&email={Uri.EscapeDataString(order.Email)}";
+
+        return new LivePosSmokeOrderResponse(
+            order.Id,
+            order.OrderNumber,
+            order.Total,
+            order.Email,
+            paymentUrl,
+            reused,
+            "GERÇEK CANLI POS İŞLEMİDİR. Başarılı olursa karttan gerçek tahsilat yapılır.");
+    }
+
     [HttpPost("{id:guid}/cancel")]
     public async Task<ActionResult<AdminOrderDetailDto>> Cancel(
         Guid id,
@@ -911,6 +1051,17 @@ public sealed record UpdateOrderStatusRequest(
 public sealed record UpdateShippingRequest(
     string? ShippingCompany,
     string? TrackingNumber);
+
+public sealed record LivePosSmokeOrderRequest(string? Email);
+
+public sealed record LivePosSmokeOrderResponse(
+    Guid OrderId,
+    string OrderNumber,
+    decimal Total,
+    string Email,
+    string PaymentUrl,
+    bool Reused,
+    string Warning);
 
 public sealed record UpdatePaymentStatusRequest(
     PaymentStatus PaymentStatus);
