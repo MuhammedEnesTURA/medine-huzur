@@ -1,4 +1,3 @@
-using System.Net;
 using System.Text;
 using MedineHuzur.Domain;
 using MedineHuzur.Infrastructure;
@@ -9,7 +8,6 @@ using MedineHuzur.Web.Services;
 using MedineHuzur.Web.Settings;
 using Microsoft.OpenApi.Models;
 using MedineHuzur.Web.Payments;
-using Microsoft.AspNetCore.HttpOverrides;
 using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
 
@@ -221,7 +219,6 @@ builder.Services.AddAuthorization();
 
 var app = builder.Build();
 
-app.UseForwardedHeaders();
 
 app.UseSwagger();
 app.UseSwaggerUI();
