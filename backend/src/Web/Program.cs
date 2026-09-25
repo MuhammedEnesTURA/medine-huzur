@@ -1,3 +1,4 @@
+using System.Net;
 using System.Text;
 using MedineHuzur.Domain;
 using MedineHuzur.Infrastructure;
@@ -80,13 +81,25 @@ builder.Services.AddSingleton<KuveytTurkHashService>();
 builder.Services.AddSingleton<KuveytTurkXmlService>();
 builder.Services.AddScoped<KuveytTurkPaymentProcessor>();
 builder.Services.AddScoped<PaymentProviderFactory>();
+var trustedForwardedProxyIps = (configuration["FORWARDED_HEADERS_TRUSTED_PROXIES"] ?? string.Empty)
+    .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+    .Select(value =>
+        IPAddress.TryParse(value, out var address)
+            ? address
+            : throw new InvalidOperationException(
+                $"Invalid FORWARDED_HEADERS_TRUSTED_PROXIES IP address: {value}"))
+    .ToArray();
+
 builder.Services.Configure<ForwardedHeadersOptions>(options =>
 {
     options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
     options.ForwardLimit = 1;
     options.RequireHeaderSymmetry = false;
-    options.KnownIPNetworks.Clear();
-    options.KnownProxies.Clear();
+
+    foreach (var proxy in trustedForwardedProxyIps)
+    {
+        options.KnownProxies.Add(proxy);
+    }
 });
 builder.Services.Configure<JwtSettings>(configuration.GetSection("Jwt"));
 builder.Services.Configure<EmailSettings>(configuration.GetSection("Email"));
