@@ -32,6 +32,8 @@ public class PaymentTransaction
 
     public PaymentTransactionState State { get; set; } = PaymentTransactionState.Created;
 
+    public DateTime? ProvisioningStartedAtUtc { get; set; }
+
     public decimal Amount { get; set; }
 
     public PaymentStatus Status { get; set; } = PaymentStatus.Pending;
