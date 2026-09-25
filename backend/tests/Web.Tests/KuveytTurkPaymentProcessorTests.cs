@@ -350,8 +350,20 @@ public sealed class KuveytTurkPaymentProcessorTests
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);
+
+            foreach (var property in modelBuilder.Model
+                         .GetEntityTypes()
+                         .SelectMany(entity => entity.GetProperties()))
+            {
+                if (property.GetColumnType()?.Contains("(max)", StringComparison.OrdinalIgnoreCase) == true)
+                {
+                    property.SetColumnType("TEXT");
+                }
+            }
+
             var rowVersion = modelBuilder.Entity<PaymentTransaction>()
                 .Property(x => x.RowVersion);
+            rowVersion.HasColumnType("BLOB");
             rowVersion.IsConcurrencyToken(false).ValueGeneratedNever();
             rowVersion.Metadata.SetBeforeSaveBehavior(PropertySaveBehavior.Save);
             rowVersion.Metadata.SetAfterSaveBehavior(PropertySaveBehavior.Save);
