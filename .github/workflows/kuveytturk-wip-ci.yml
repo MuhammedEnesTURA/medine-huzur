@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - kuveytturk-integration-wip
+      - live-pos-smoke-test
   workflow_dispatch:
 
 permissions:
