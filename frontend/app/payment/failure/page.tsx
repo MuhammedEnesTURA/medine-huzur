@@ -34,6 +34,7 @@ function PaymentFailureContent() {
   const orderNumber = searchParams.get("orderNumber") ?? "";
   const reference = searchParams.get("reference") ?? "";
   const reason = searchParams.get("reason") ?? "Ödeme işlemi başarısız oldu.";
+  const reviewRequired = searchParams.get("review") === "1";
 
   const retryHref = orderNumber
     ? `/order-success?orderNumber=${encodeURIComponent(orderNumber)}`
@@ -46,23 +47,43 @@ function PaymentFailureContent() {
   return (
     <main className="page-shell">
       <section className="page-container py-5 md:py-7">
-        <div className="concept-surface mx-auto max-w-3xl rounded-[1.7rem] border border-danger/25 bg-panel/78 p-5 text-center shadow-[0_22px_70px_rgba(0,0,0,0.18)] backdrop-blur md:p-8">
-          <div className="relative z-10 mx-auto flex h-20 w-20 items-center justify-center rounded-[1.35rem] border border-danger/30 bg-danger/15 text-danger shadow-[0_18px_44px_rgba(239,68,68,0.14)]">
-            <XCircle className="h-11 w-11" />
+        <div
+          className={`concept-surface mx-auto max-w-3xl rounded-[1.7rem] border bg-panel/78 p-5 text-center shadow-[0_22px_70px_rgba(0,0,0,0.18)] backdrop-blur md:p-8 ${
+            reviewRequired ? "border-warning/30" : "border-danger/25"
+          }`}
+        >
+          <div
+            className={`relative z-10 mx-auto flex h-20 w-20 items-center justify-center rounded-[1.35rem] border ${
+              reviewRequired
+                ? "border-warning/30 bg-warning/15 text-warning"
+                : "border-danger/30 bg-danger/15 text-danger"
+            }`}
+          >
+            {reviewRequired ? (
+              <AlertTriangle className="h-11 w-11" />
+            ) : (
+              <XCircle className="h-11 w-11" />
+            )}
           </div>
 
-          <p className="relative z-10 mt-6 text-xs font-black uppercase tracking-[0.18em] text-danger">
-            Ödeme başarısız
+          <p
+            className={`relative z-10 mt-6 text-xs font-black uppercase tracking-[0.18em] ${
+              reviewRequired ? "text-warning" : "text-danger"
+            }`}
+          >
+            {reviewRequired ? "Ödeme kontrol ediliyor" : "Ödeme başarısız"}
           </p>
 
           <h1 className="relative z-10 mt-3 text-3xl font-black tracking-[-0.04em] text-foreground md:text-5xl">
-            Ödeme tamamlanamadı
+            {reviewRequired
+              ? "Tekrar ödeme başlatma"
+              : "Ödeme tamamlanamadı"}
           </h1>
 
           <p className="relative z-10 mx-auto mt-4 max-w-2xl text-sm font-medium leading-7 text-muted md:text-base">
-            {reason} Sipariş numaran varsa ödeme durumunu sipariş sorgulama
-            ekranından kontrol edebilir veya ödeme adımını tekrar
-            deneyebilirsin.
+            {reviewRequired
+              ? `${reason} Aynı sipariş için yeni bir ödeme başlatmadan önce sipariş durumunu kontrol et.`
+              : `${reason} Sipariş numaran varsa ödeme durumunu kontrol edebilir veya tekrar deneyebilirsin.`}
           </p>
 
           <div className="relative z-10 mx-auto mt-6 grid max-w-xl gap-3 text-left sm:grid-cols-2">
@@ -71,7 +92,11 @@ function PaymentFailureContent() {
                 Sipariş numarası
               </p>
 
-              <p className="mt-2 break-all text-lg font-black tracking-[-0.02em] text-danger">
+              <p
+                className={`mt-2 break-all text-lg font-black tracking-[-0.02em] ${
+                  reviewRequired ? "text-warning" : "text-danger"
+                }`}
+              >
                 {orderNumber || "-"}
               </p>
             </div>
@@ -87,14 +112,20 @@ function PaymentFailureContent() {
             </div>
           </div>
 
-          <div className="relative z-10 mt-6 grid gap-3 sm:grid-cols-3">
-            <Link
-              href={retryHref}
-              className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl bg-mhgreen px-5 text-sm font-black text-white shadow-[0_14px_30px_rgba(34,197,94,0.22)] transition hover:-translate-y-0.5 hover:bg-mhgreen-dark"
-            >
-              <RefreshCcw className="h-4 w-4" />
-              Tekrar Dene
-            </Link>
+          <div
+            className={`relative z-10 mt-6 grid gap-3 ${
+              reviewRequired ? "sm:grid-cols-2" : "sm:grid-cols-3"
+            }`}
+          >
+            {!reviewRequired && (
+              <Link
+                href={retryHref}
+                className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl bg-mhgreen px-5 text-sm font-black text-white shadow-[0_14px_30px_rgba(34,197,94,0.22)] transition hover:-translate-y-0.5 hover:bg-mhgreen-dark"
+              >
+                <RefreshCcw className="h-4 w-4" />
+                Tekrar Dene
+              </Link>
+            )}
 
             <Link
               href={trackingHref}
@@ -119,12 +150,13 @@ function PaymentFailureContent() {
             <AlertTriangle className="relative z-10 h-5 w-5 text-warning" />
 
             <p className="relative z-10 mt-3 text-sm font-black text-warning">
-              Kart / banka kontrolü
+              {reviewRequired ? "İşlem sonucu belirsiz" : "Kart / banka kontrolü"}
             </p>
 
             <p className="relative z-10 mt-1 text-xs leading-5 text-muted">
-              Bakiye, limit, 3D doğrulama veya banka kaynaklı nedenlerle ödeme
-              başarısız olabilir.
+              {reviewRequired
+                ? "Provizyon sonucu kesinleşmediğinde sistem güvenlik için otomatik tekrar ödeme göndermez."
+                : "Bakiye, limit, 3D doğrulama veya banka kaynaklı nedenlerle ödeme başarısız olabilir."}
             </p>
           </div>
 
@@ -132,11 +164,15 @@ function PaymentFailureContent() {
             <CreditCard className="relative z-10 h-5 w-5 text-mhgreen" />
 
             <p className="relative z-10 mt-3 text-sm font-black text-foreground">
-              Ödeme adımı tekrar denenebilir
+              {reviewRequired
+                ? "Önce sipariş durumunu kontrol et"
+                : "Ödeme adımı tekrar denenebilir"}
             </p>
 
             <p className="relative z-10 mt-1 text-xs leading-5 text-muted">
-              Sipariş iptal edilmediyse ödeme adımını tekrar başlatabilirsin.
+              {reviewRequired
+                ? "Sipariş ödeme durumu netleşmeden aynı sipariş için yeni ödeme denemesi yapma."
+                : "Sipariş iptal edilmediyse ödeme adımını tekrar başlatabilirsin."}
             </p>
           </div>
         </div>
