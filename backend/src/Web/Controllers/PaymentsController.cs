@@ -4,6 +4,7 @@ using MedineHuzur.Web.Payments;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using System.Net;
 using System.Text;
 
 namespace MedineHuzur.Web.Controllers;
@@ -133,7 +134,11 @@ public PaymentsController(
                      x.MerchantOrderId == merchantOrderId,
                 cancellationToken);
 
-            if (transaction is not null && transaction.State != PaymentTransactionState.Failed)
+            if (transaction is not null &&
+                transaction.State is not (
+                    PaymentTransactionState.Created or
+                    PaymentTransactionState.Failed or
+                    PaymentTransactionState.AuthenticationStarted))
             {
                 return Conflict(new { message = "Bu sipariş için ödeme işlemi zaten başlatıldı." });
             }
@@ -148,7 +153,7 @@ public PaymentsController(
                     MerchantOrderId = merchantOrderId,
                     Amount = order.Total,
                     Status = PaymentStatus.Pending,
-                    State = PaymentTransactionState.Created,
+                    State = PaymentTransactionState.AuthenticationStarted,
                     CreatedAtUtc = DateTime.UtcNow
                 };
                 _db.PaymentTransactions.Add(transaction);
@@ -157,11 +162,23 @@ public PaymentsController(
             {
                 transaction.Amount = order.Total;
                 transaction.Status = PaymentStatus.Pending;
-                transaction.State = PaymentTransactionState.Created;
+                transaction.State = PaymentTransactionState.AuthenticationStarted;
                 transaction.CompletedAtUtc = null;
+                transaction.ProvisioningStartedAtUtc = null;
             }
 
-            await _db.SaveChangesAsync(cancellationToken);
+            try
+            {
+                await _db.SaveChangesAsync(cancellationToken);
+            }
+            catch (DbUpdateConcurrencyException)
+            {
+                return Conflict(new { message = "Bu sipariş için ödeme işlemi başka bir istek tarafından başlatılıyor." });
+            }
+            catch (DbUpdateException)
+            {
+                return Conflict(new { message = "Bu sipariş için ödeme işlemi zaten başlatıldı." });
+            }
         }
 
         PaymentStartResult paymentResult;
@@ -181,7 +198,7 @@ public PaymentsController(
                     PhoneCountryCode = phone.CountryCode,
                     PhoneSubscriber = phone.Subscriber,
                     Card = request.Card ?? new KuveytTurkCardInput(),
-                    Billing = request.Billing ?? new KuveytTurkBillingInput()
+                    Billing = NormalizeBilling(request.Billing ?? new KuveytTurkBillingInput())
                 },
                 cancellationToken);
         }
@@ -492,10 +509,41 @@ public async Task<ActionResult<CompleteMockPaymentResponse>> CompleteMock(
     private string ResolveClientIpv4()
     {
         var address = HttpContext.Connection.RemoteIpAddress;
-        if (address?.IsIPv4MappedToIPv6 == true) address = address.MapToIPv4();
-        return address?.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork
-            ? address.ToString()
-            : throw new KuveytTurkProtocolException("Müşteri IP adresi doğrulanamadı.");
+        if (address?.IsIPv4MappedToIPv6 == true)
+        {
+            address = address.MapToIPv4();
+        }
+
+        if (address?.AddressFamily != System.Net.Sockets.AddressFamily.InterNetwork)
+        {
+            throw new KuveytTurkProtocolException("Müşteri IP adresi doğrulanamadı.");
+        }
+
+        var allowPrivate = _configuration.GetValue<bool>("KUVEYTTURK_ALLOW_PRIVATE_CLIENT_IP");
+        if (!allowPrivate && !IsPublicIpv4(address))
+        {
+            throw new KuveytTurkProtocolException(
+                "Müşteri IP adresi güvenilir proxy zincirinden doğrulanamadı.");
+        }
+
+        return address.ToString();
+    }
+
+    private static bool IsPublicIpv4(IPAddress address)
+    {
+        var bytes = address.GetAddressBytes();
+        if (bytes.Length != 4) return false;
+
+        return bytes[0] switch
+        {
+            0 or 10 or 127 => false,
+            100 when bytes[1] is >= 64 and <= 127 => false,
+            169 when bytes[1] == 254 => false,
+            172 when bytes[1] is >= 16 and <= 31 => false,
+            192 when bytes[1] == 168 => false,
+            >= 224 => false,
+            _ => true
+        };
     }
 
     private static (string CountryCode, string Subscriber) ParseTurkishPhone(string value)
@@ -522,11 +570,43 @@ public async Task<ActionResult<CompleteMockPaymentResponse>> CompleteMock(
         if (string.IsNullOrWhiteSpace(billing.City) || string.IsNullOrWhiteSpace(billing.State) ||
             string.IsNullOrWhiteSpace(billing.AddressLine1) || string.IsNullOrWhiteSpace(billing.PostCode))
             return "Fatura adresi eksik.";
-        if (billing.City.Length > 50 || billing.State.Length > 100 ||
-            billing.AddressLine1.Length > 150 || billing.PostCode.Length > 20 ||
-            billing.CountryCode.Length != 3 || !billing.CountryCode.All(char.IsDigit))
+        if (billing.City.Trim().Length > 50 ||
+            billing.AddressLine1.Trim().Length > 150 ||
+            !string.Equals(billing.CountryCode.Trim(), "792", StringComparison.Ordinal) ||
+            billing.PostCode.Trim().Length != 5 ||
+            !billing.PostCode.Trim().All(char.IsDigit) ||
+            !IsValidTurkeyStateCode(billing.State))
             return "Fatura adresi geçersiz.";
         return null;
+    }
+
+    private static bool IsValidTurkeyStateCode(string value)
+    {
+        var state = value.Trim().ToUpperInvariant();
+        if (state.StartsWith("TR-", StringComparison.Ordinal))
+        {
+            state = state[3..];
+        }
+
+        return state.Length == 2 && state.All(char.IsDigit);
+    }
+
+    private static KuveytTurkBillingInput NormalizeBilling(KuveytTurkBillingInput billing)
+    {
+        var state = billing.State.Trim().ToUpperInvariant();
+        if (state.StartsWith("TR-", StringComparison.Ordinal))
+        {
+            state = state[3..];
+        }
+
+        return new KuveytTurkBillingInput
+        {
+            City = billing.City.Trim(),
+            CountryCode = "792",
+            AddressLine1 = billing.AddressLine1.Trim(),
+            PostCode = billing.PostCode.Trim(),
+            State = state
+        };
     }
 
     private static string NormalizeText(string? value)
