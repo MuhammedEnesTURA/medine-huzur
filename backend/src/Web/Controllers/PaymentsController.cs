@@ -3,6 +3,7 @@ using MedineHuzur.Infrastructure;
 using MedineHuzur.Web.Payments;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.EntityFrameworkCore;
 using System.Net;
 using System.Text;
@@ -67,6 +68,11 @@ public PaymentsController(
         if (string.IsNullOrWhiteSpace(orderNumber))
         {
             return BadRequest(new { message = "Sipariş numarası zorunludur." });
+        }
+
+        if (renderBankHtml && string.IsNullOrWhiteSpace(email))
+        {
+            return BadRequest(new { message = "Ödeme için sipariş e-posta adresi zorunludur." });
         }
 
         var query = _db.Orders
@@ -460,7 +466,7 @@ public async Task<ActionResult<CompleteMockPaymentResponse>> CompleteMock(
     [AllowAnonymous]
     [RequestSizeLimit(300_000)]
     [RequestFormLimits(ValueLengthLimit = 250_000)]
-    public async Task<ActionResult<KuveytTurkCallbackResponse>> KuveytTurkCallback(
+    public async Task<IActionResult> KuveytTurkCallback(
         [FromForm] KuveytTurkCallbackRequest request,
         CancellationToken cancellationToken)
     {
@@ -471,7 +477,12 @@ public async Task<ActionResult<CompleteMockPaymentResponse>> CompleteMock(
 
         if (string.IsNullOrWhiteSpace(request.AuthenticationResponse))
         {
-            return BadRequest(new KuveytTurkCallbackResponse(false, false, false, "Banka cevabı eksik."));
+            return RedirectToPaymentResult(
+                paid: false,
+                reviewRequired: false,
+                orderNumber: null,
+                paymentReference: null,
+                message: "Banka ödeme cevabı alınamadı.");
         }
 
         try
@@ -479,31 +490,83 @@ public async Task<ActionResult<CompleteMockPaymentResponse>> CompleteMock(
             var result = await _kuveytTurkProcessor.ProcessAsync(
                 request.AuthenticationResponse,
                 cancellationToken);
-            return Ok(new KuveytTurkCallbackResponse(
-                result.Processed,
+
+            return RedirectToPaymentResult(
                 result.Paid,
-                result.Duplicate,
-                result.Message));
+                result.ReviewRequired,
+                result.MerchantOrderId,
+                result.MerchantOrderId,
+                result.Message);
         }
         catch (KuveytTurkCallbackRejectedException exception)
         {
             _logger.LogWarning("KuveytTurk callback rejected. ErrorType: {ErrorType}", exception.GetType().Name);
-            return BadRequest(new KuveytTurkCallbackResponse(false, false, false, exception.Message));
+            return RedirectToPaymentResult(
+                paid: false,
+                reviewRequired: false,
+                orderNumber: null,
+                paymentReference: null,
+                message: "Ödeme cevabı doğrulanamadı. Sipariş durumunu kontrol edin.");
         }
         catch (KuveytTurkProtocolException exception)
         {
             _logger.LogWarning("KuveytTurk callback malformed. ErrorType: {ErrorType}", exception.GetType().Name);
-            return BadRequest(new KuveytTurkCallbackResponse(false, false, false, "Banka cevabı geçersiz."));
+            return RedirectToPaymentResult(
+                paid: false,
+                reviewRequired: false,
+                orderNumber: null,
+                paymentReference: null,
+                message: "Banka ödeme cevabı geçersiz.");
         }
-        catch (Exception exception) when (exception is HttpRequestException or TaskCanceledException)
+    }
+
+    private IActionResult RedirectToPaymentResult(
+        bool paid,
+        bool reviewRequired,
+        string? orderNumber,
+        string? paymentReference,
+        string message)
+    {
+        var frontendBaseUrl = GetFrontendBaseUrl();
+        var path = paid ? "/payment/success" : "/payment/failure";
+        var target = $"{frontendBaseUrl}{path}";
+
+        var query = new Dictionary<string, string?>
         {
-            _logger.LogWarning(
-                "KuveytTurk provision request failed. ErrorType: {ErrorType}",
-                exception.GetType().Name);
-            return StatusCode(
-                StatusCodes.Status502BadGateway,
-                new KuveytTurkCallbackResponse(false, false, false, "Banka provizyon hizmetine şu anda erişilemiyor."));
+            ["orderNumber"] = orderNumber,
+            ["reference"] = paymentReference
+        };
+
+        if (!paid)
+        {
+            query["reason"] = message;
         }
+
+        if (reviewRequired)
+        {
+            query["review"] = "1";
+        }
+
+        Response.Headers.CacheControl = "no-store, no-cache";
+        Response.Headers.Pragma = "no-cache";
+        Response.Headers["Referrer-Policy"] = "no-referrer";
+
+        return Redirect(QueryHelpers.AddQueryString(target, query));
+    }
+
+    private string GetFrontendBaseUrl()
+    {
+        var configured = _configuration["Frontend:BaseUrl"]?.Trim();
+
+        if (Uri.TryCreate(configured, UriKind.Absolute, out var uri) &&
+            (uri.Scheme == Uri.UriSchemeHttps ||
+             (uri.Scheme == Uri.UriSchemeHttp && uri.IsLoopback)))
+        {
+            return configured!.TrimEnd('/');
+        }
+
+        _logger.LogWarning("Frontend BaseUrl is invalid; using production fallback.");
+        return "https://medinehuzur.com";
     }
 
     private string ResolveClientIpv4()
