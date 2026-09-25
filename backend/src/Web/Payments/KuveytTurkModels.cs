@@ -39,4 +39,6 @@ public sealed record KuveytTurkCallbackResult(
     bool Processed,
     bool Paid,
     bool Duplicate,
+    bool ReviewRequired,
+    string MerchantOrderId,
     string Message);
