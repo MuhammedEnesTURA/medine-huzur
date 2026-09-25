@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - kuveytturk-integration-wip
+      - fix-kuveytturk-error-callback
   workflow_dispatch:
 
 permissions:
