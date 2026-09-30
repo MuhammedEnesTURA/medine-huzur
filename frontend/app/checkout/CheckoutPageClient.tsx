@@ -106,6 +106,24 @@ function toCheckoutItem(item: CartItem): CheckoutItemPayload {
   };
 }
 
+function normalizePhone(value: string) {
+  const digits = value.replace(/\D/g, "");
+  if (digits.startsWith("90") && digits.length === 12) return `0${digits.slice(2)}`;
+  if (digits.length === 10 && digits.startsWith("5")) return `0${digits}`;
+  return digits;
+}
+
+function formatPhoneInput(value: string) {
+  const digits = normalizePhone(value).slice(0, 11);
+  const parts = [
+    digits.slice(0, 4),
+    digits.slice(4, 7),
+    digits.slice(7, 9),
+    digits.slice(9, 11),
+  ].filter(Boolean);
+  return parts.join(" ");
+}
+
 function buildAddressText(form: CheckoutForm) {
   const parts = [
     form.addressLine.trim(),
@@ -255,11 +273,11 @@ export default function CheckoutPageClient() {
     !isEmpty &&
     total >= MIN_CART_TOTAL &&
     form.fullName.trim().length >= 2 &&
-    form.email.trim().length >= 5 &&
-    form.email.includes("@") &&
-    form.phone.trim().length >= 8 &&
+    (!form.email.trim() || form.email.includes("@")) &&
+    normalizePhone(form.phone).length === 11 &&
     form.city.trim().length >= 2 &&
     form.district.trim().length >= 2 &&
+    /^\d{5}$/.test(form.postalCode.trim()) &&
     form.addressLine.trim().length >= 10 &&
     legalConsents.preInformationAccepted &&
     legalConsents.distanceSalesAccepted;
@@ -373,7 +391,7 @@ export default function CheckoutPageClient() {
     const payload = {
       customerName: form.fullName.trim(),
       email: form.email.trim().toLowerCase(),
-      phone: form.phone.trim(),
+      phone: normalizePhone(form.phone),
       address: buildAddressText(form),
       paymentMethod: form.paymentMethod,
       items: normalItemsPayload,
@@ -417,22 +435,34 @@ export default function CheckoutPageClient() {
         return;
       }
 
-      clearCart();
-
       const orderNumber = data?.orderNumber ?? "";
-      const email = form.email.trim().toLowerCase();
-
-      const params = new URLSearchParams();
+      const phone = normalizePhone(form.phone);
 
       if (orderNumber) {
-        params.set("orderNumber", orderNumber);
+        try {
+          sessionStorage.setItem(
+            `mh-payment-address:${orderNumber}`,
+            JSON.stringify({
+              city: form.city.trim(),
+              district: form.district.trim(),
+              addressLine: form.addressLine.trim(),
+              postCode: form.postalCode.trim(),
+              phone,
+            })
+          );
+        } catch {
+          // Ödeme akışı sessionStorage olmadan da çalışır.
+        }
       }
 
-      if (email) {
-        params.set("email", email);
-      }
+      clearCart();
 
-      router.push(`/order-success?${params.toString()}`);
+      const params = new URLSearchParams({
+        orderNumber,
+        phone,
+      });
+
+      router.push(`/payment/kuveytturk?${params.toString()}`);
     } catch {
       setSubmitState({
         type: "error",
@@ -495,6 +525,10 @@ export default function CheckoutPageClient() {
                 <h1 className="mt-2 text-[1.65rem] font-black tracking-[-0.03em] text-foreground md:text-[1.9rem]">
                   Sipariş bilgileri
                 </h1>
+
+                <p className="mt-1 text-xs font-bold text-danger">
+                  * işaretli alanlar zorunludur.
+                </p>
 
                 <p className="mt-1.5 max-w-2xl text-[13px] font-medium leading-6 text-muted">
                   {paymentActive
@@ -567,7 +601,7 @@ export default function CheckoutPageClient() {
                 <div className="mt-3 grid gap-3 md:grid-cols-2">
                   <label className="rounded-2xl border border-border-soft bg-panel/64 p-2.5">
                     <span className="text-[11px] font-black uppercase tracking-[0.12em] text-muted-2">
-                      Ad soyad
+                      Ad soyad <span className="text-danger">*</span>
                     </span>
                     <input
                       value={form.fullName}
@@ -576,26 +610,29 @@ export default function CheckoutPageClient() {
                       }
                       className="input-premium mt-2 min-h-9 py-2 text-sm"
                       placeholder="Ad Soyad"
+                      required
                     />
                   </label>
 
                   <label className="rounded-2xl border border-border-soft bg-panel/64 p-2.5">
                     <span className="text-[11px] font-black uppercase tracking-[0.12em] text-muted-2">
-                      Telefon
+                      Telefon <span className="text-danger">*</span>
                     </span>
                     <input
                       value={form.phone}
                       onChange={(event) =>
-                        updateForm("phone", event.target.value)
+                        updateForm("phone", formatPhoneInput(event.target.value))
                       }
                       className="input-premium mt-2 min-h-9 py-2 text-sm"
                       placeholder="05xx xxx xx xx"
+                      inputMode="tel"
+                      required
                     />
                   </label>
 
                   <label className="rounded-2xl border border-border-soft bg-panel/64 p-2.5 md:col-span-2">
                     <span className="text-[11px] font-black uppercase tracking-[0.12em] text-muted-2">
-                      E-posta
+                      E-posta <span className="normal-case tracking-normal text-muted">(opsiyonel)</span>
                     </span>
                     <input
                       value={form.email}
@@ -673,19 +710,20 @@ export default function CheckoutPageClient() {
                 <div className="mt-3 grid gap-3 md:grid-cols-2">
                   <label className="rounded-2xl border border-border-soft bg-panel/64 p-2.5">
                     <span className="text-[11px] font-black uppercase tracking-[0.12em] text-muted-2">
-                      İl
+                      İl <span className="text-danger">*</span>
                     </span>
                     <input
                       value={form.city}
                       onChange={(event) => updateForm("city", event.target.value)}
                       className="input-premium mt-2 min-h-9 py-2 text-sm"
                       placeholder="İstanbul"
+                      required
                     />
                   </label>
 
                   <label className="rounded-2xl border border-border-soft bg-panel/64 p-2.5">
                     <span className="text-[11px] font-black uppercase tracking-[0.12em] text-muted-2">
-                      İlçe
+                      İlçe <span className="text-danger">*</span>
                     </span>
                     <input
                       value={form.district}
@@ -694,12 +732,13 @@ export default function CheckoutPageClient() {
                       }
                       className="input-premium mt-2 min-h-9 py-2 text-sm"
                       placeholder="Üsküdar"
+                      required
                     />
                   </label>
 
                   <label className="rounded-2xl border border-border-soft bg-panel/64 p-2.5">
                     <span className="text-[11px] font-black uppercase tracking-[0.12em] text-muted-2">
-                      Posta kodu
+                      Posta kodu <span className="text-danger">*</span>
                     </span>
                     <input
                       value={form.postalCode}
@@ -707,13 +746,17 @@ export default function CheckoutPageClient() {
                         updateForm("postalCode", event.target.value)
                       }
                       className="input-premium mt-2 min-h-9 py-2 text-sm"
-                      placeholder="Opsiyonel"
+                      placeholder="19030"
+                      inputMode="numeric"
+                      pattern="[0-9]{5}"
+                      maxLength={5}
+                      required
                     />
                   </label>
 
                   <label className="rounded-2xl border border-border-soft bg-panel/64 p-2.5 md:col-span-2">
                     <span className="text-[11px] font-black uppercase tracking-[0.12em] text-muted-2">
-                      Açık adres
+                      Açık adres <span className="text-danger">*</span>
                     </span>
                     <textarea
                       value={form.addressLine}
@@ -722,6 +765,7 @@ export default function CheckoutPageClient() {
                       }
                       className="input-premium mt-2 min-h-20 resize-none py-2.5 text-sm"
                       placeholder="Mahalle, cadde, sokak, bina, daire..."
+                      required
                     />
                   </label>
                 </div>
