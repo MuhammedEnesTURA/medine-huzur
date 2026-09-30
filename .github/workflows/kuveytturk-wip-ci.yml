@@ -4,7 +4,6 @@ on:
   push:
     branches:
       - kuveytturk-integration-wip
-      - checkout-payment-ux-phone-flow
   workflow_dispatch:
 
 permissions:
