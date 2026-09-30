@@ -95,7 +95,7 @@ public class OrdersController : ControllerBase
                 UserId = userId,
                 CustomerName = NormalizeText(request.CustomerName),
                 Email = NormalizeEmail(request.Email),
-                Phone = NormalizeText(request.Phone),
+                Phone = NormalizeTurkishPhone(request.Phone),
                 AddressText = NormalizeText(request.Address),
                 PaymentMethod = NormalizeText(request.PaymentMethod) is { Length: > 0 } paymentMethod
                     ? paymentMethod
@@ -172,12 +172,16 @@ public class OrdersController : ControllerBase
 
             await SendOrderCreatedEmailsAsync(order, cancellationToken);
 
+            var checkoutMessage = string.IsNullOrWhiteSpace(order.Email)
+                ? "Siparişiniz alınmıştır. Ödeme adımına geçebilirsiniz."
+                : "Siparişiniz alınmıştır. Sipariş bilgileriniz e-posta adresinize gönderildi.";
+
             return Ok(new CheckoutResponse(
                 order.Id,
                 order.OrderNumber,
                 order.Total,
                 !userId.HasValue,
-                "Siparişiniz alınmıştır. Sipariş bilgileriniz e-posta adresinize gönderildi."));
+                checkoutMessage));
         }
         catch (InvalidOperationException ex)
         {
@@ -261,16 +265,16 @@ public class OrdersController : ControllerBase
     [HttpGet("guest")]
     public async Task<ActionResult<OrderDetailDto>> GetGuestOrder(
         [FromQuery] string orderNumber,
-        [FromQuery] string email,
+        [FromQuery] string phone,
         CancellationToken cancellationToken)
     {
         var normalizedOrderNumber = NormalizeText(orderNumber).ToUpperInvariant();
-        var normalizedEmail = NormalizeEmail(email);
+        var normalizedPhone = NormalizeTurkishPhone(phone);
 
         if (string.IsNullOrWhiteSpace(normalizedOrderNumber) ||
-            string.IsNullOrWhiteSpace(normalizedEmail))
+            string.IsNullOrWhiteSpace(normalizedPhone))
         {
-            return BadRequest(new { message = "Sipariş numarası ve e-posta zorunludur." });
+            return BadRequest(new { message = "Sipariş numarası ve telefon zorunludur." });
         }
 
         var order = await _db.Orders
@@ -280,10 +284,14 @@ public class OrdersController : ControllerBase
             .Include(x => x.StatusHistory)
             .Include(x => x.PaymentTransactions)
             .FirstOrDefaultAsync(
-                x => x.OrderNumber == normalizedOrderNumber && x.Email == normalizedEmail,
+                x => x.OrderNumber == normalizedOrderNumber,
                 cancellationToken);
 
-        if (order is null)
+        if (order is null ||
+            !string.Equals(
+                NormalizeTurkishPhone(order.Phone),
+                normalizedPhone,
+                StringComparison.Ordinal))
         {
             return NotFound(new { message = "Sipariş bulunamadı." });
         }
@@ -386,13 +394,16 @@ public class OrdersController : ControllerBase
         Order order,
         CancellationToken cancellationToken)
     {
-        var customerHtml = BuildCustomerOrderCreatedHtml(order);
+        if (!string.IsNullOrWhiteSpace(order.Email))
+        {
+            var customerHtml = BuildCustomerOrderCreatedHtml(order);
 
-        await SafeSendEmailAsync(
-            order.Email,
-            $"Medine Huzur - Siparişiniz Alındı ({order.OrderNumber})",
-            customerHtml,
-            cancellationToken);
+            await SafeSendEmailAsync(
+                order.Email,
+                $"Medine Huzur - Siparişiniz Alındı ({order.OrderNumber})",
+                customerHtml,
+                cancellationToken);
+        }
 
         var adminEmail = GetAdminOrderNotificationEmail();
 
@@ -412,7 +423,7 @@ public class OrdersController : ControllerBase
     {
         var frontendBaseUrl = GetFrontendBaseUrl();
         var guestOrderUrl =
-            $"{frontendBaseUrl}/guest-orders?orderNumber={Uri.EscapeDataString(order.OrderNumber)}&email={Uri.EscapeDataString(order.Email)}";
+            $"{frontendBaseUrl}/guest-orders?orderNumber={Uri.EscapeDataString(order.OrderNumber)}&phone={Uri.EscapeDataString(order.Phone)}";
 
         var normalItemsHtml = BuildOrderLinesHtml(order.Items);
         var giftItemsHtml = BuildGiftOrderLinesHtml(order.GiftPackageItems, order.GiftPackageQuantity);
@@ -920,14 +931,14 @@ public class OrdersController : ControllerBase
             return "Ad soyad zorunludur.";
         }
 
-        if (string.IsNullOrWhiteSpace(request.Email) || !request.Email.Contains('@'))
+        if (!string.IsNullOrWhiteSpace(request.Email) && !request.Email.Contains('@'))
         {
-            return "Geçerli bir e-posta adresi girin.";
+            return "E-posta adresi geçersiz.";
         }
 
-        if (string.IsNullOrWhiteSpace(request.Phone))
+        if (string.IsNullOrWhiteSpace(NormalizeTurkishPhone(request.Phone)))
         {
-            return "Telefon zorunludur.";
+            return "Geçerli bir telefon numarası girin.";
         }
 
         if (string.IsNullOrWhiteSpace(request.Address))
@@ -1049,11 +1060,30 @@ public class OrdersController : ControllerBase
     {
         return (email ?? string.Empty).Trim().ToLowerInvariant();
     }
+
+    private static string NormalizeTurkishPhone(string? value)
+    {
+        var digits = new string((value ?? string.Empty).Where(char.IsDigit).ToArray());
+
+        if (digits.StartsWith("90", StringComparison.Ordinal) && digits.Length == 12)
+        {
+            digits = $"0{digits[2..]}";
+        }
+        else if (digits.Length == 10 && digits.StartsWith('5'))
+        {
+            digits = $"0{digits}";
+        }
+
+        return digits.Length == 11 &&
+               digits.StartsWith("05", StringComparison.Ordinal)
+            ? digits
+            : string.Empty;
+    }
 }
 
 public sealed record CheckoutRequest(
     string CustomerName,
-    string Email,
+    string? Email,
     string Phone,
     string Address,
     string PaymentMethod,
