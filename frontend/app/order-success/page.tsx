@@ -24,24 +24,24 @@ function OrderSuccessContent() {
   const { isAuthenticated } = useAuth();
 
   const orderNumber = searchParams.get("orderNumber") ?? "";
-  const email = searchParams.get("email") ?? "";
+  const phone = (searchParams.get("phone") ?? "").replace(/\D/g, "");
 
   const [isStartingPayment, setIsStartingPayment] = useState(false);
   const [paymentError, setPaymentError] = useState<string | null>(null);
 
   const guestOrderHref =
-    orderNumber && email
+    orderNumber && phone
       ? `/guest-orders?orderNumber=${encodeURIComponent(
           orderNumber
-        )}&email=${encodeURIComponent(email)}`
+        )}&phone=${encodeURIComponent(phone)}`
       : orderNumber
         ? `/guest-orders?orderNumber=${encodeURIComponent(orderNumber)}`
         : "/guest-orders";
 
   const startPayment = () => {
     if (!paymentActive) return;
-    if (!orderNumber || !email) {
-      setPaymentError("Ödeme için sipariş numarası ve e-posta bilgisi eksik.");
+    if (!orderNumber || !phone) {
+      setPaymentError("Ödeme için sipariş numarası ve telefon bilgisi eksik.");
       return;
     }
 
@@ -50,7 +50,7 @@ function OrderSuccessContent() {
 
     const params = new URLSearchParams({
       orderNumber,
-      email,
+      phone,
     });
 
     router.push(`/payment/kuveytturk?${params.toString()}`);
@@ -88,9 +88,9 @@ function OrderSuccessContent() {
                 {orderNumber}
               </p>
 
-              {email && (
+              {phone && (
                 <p className="mt-1 break-all text-xs font-bold text-muted">
-                  {email}
+                  {phone}
                 </p>
               )}
             </div>
@@ -179,7 +179,7 @@ function OrderSuccessContent() {
               Güvenli takip
             </p>
             <p className="relative z-10 mt-1 text-xs leading-5 text-muted">
-              Sipariş numarası ve e-posta ile durum sorgulanabilir.
+              Sipariş numarası ve telefon ile durum sorgulanabilir.
             </p>
           </div>
         </div>
