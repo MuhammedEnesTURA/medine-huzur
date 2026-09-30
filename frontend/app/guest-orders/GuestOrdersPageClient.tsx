@@ -216,7 +216,7 @@ function EmptyState() {
       </h1>
 
       <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-muted">
-        Sipariş numaranı ve siparişte kullandığın e-posta adresini girerek
+        Sipariş numaranı ve siparişte kullandığın telefon numarasını girerek
         sipariş durumunu görüntüleyebilirsin.
       </p>
     </div>
@@ -228,7 +228,7 @@ export default function GuestOrdersPageClient() {
   const paymentActive = usePaymentAvailability();
 
   const [orderNumber, setOrderNumber] = useState("");
-  const [email, setEmail] = useState("");
+  const [phone, setPhone] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [isStartingPayment, setIsStartingPayment] = useState(false);
   const [result, setResult] = useState<ResultState>(null);
@@ -236,14 +236,14 @@ export default function GuestOrdersPageClient() {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const initialOrderNumber = params.get("orderNumber");
-    const initialEmail = params.get("email");
+    const initialPhone = params.get("phone");
 
     if (initialOrderNumber) {
       setOrderNumber(initialOrderNumber);
     }
 
-    if (initialEmail) {
-      setEmail(initialEmail);
+    if (initialPhone) {
+      setPhone(initialPhone);
     }
   }, []);
 
@@ -269,12 +269,12 @@ export default function GuestOrdersPageClient() {
     event.preventDefault();
 
     const normalizedOrderNumber = orderNumber.trim();
-    const normalizedEmail = email.trim().toLowerCase();
+    const normalizedPhone = phone.replace(/\D/g, "");
 
-    if (!normalizedOrderNumber || !normalizedEmail) {
+    if (!normalizedOrderNumber || !normalizedPhone) {
       setResult({
         type: "error",
-        message: "Sipariş numarası ve e-posta zorunludur.",
+        message: "Sipariş numarası ve telefon zorunludur.",
       });
       return;
     }
@@ -286,7 +286,7 @@ export default function GuestOrdersPageClient() {
       const url = apiUrl(
         `/api/orders/guest?orderNumber=${encodeURIComponent(
           normalizedOrderNumber
-        )}&email=${encodeURIComponent(normalizedEmail)}`
+        )}&phone=${encodeURIComponent(normalizedPhone)}`
       );
 
       const res = await fetch(url, {
@@ -328,7 +328,7 @@ export default function GuestOrdersPageClient() {
 
     const params = new URLSearchParams({
       orderNumber: order.orderNumber,
-      email: order.email,
+      phone: order.phone.replace(/\D/g, ""),
     });
 
     router.push(`/payment/kuveytturk?${params.toString()}`);
@@ -357,7 +357,7 @@ export default function GuestOrdersPageClient() {
               </h1>
 
               <p className="mt-2 text-sm leading-6 text-muted">
-                Sipariş numarası ve e-posta adresiyle misafir siparişlerini
+                Sipariş numarası ve telefon numarasıyla misafir siparişlerini
                 sorgulayabilirsin.
               </p>
 
@@ -380,18 +380,18 @@ export default function GuestOrdersPageClient() {
 
                 <label>
                   <span className="text-xs font-black uppercase tracking-[0.12em] text-muted-2">
-                    E-posta
+                    Telefon
                   </span>
 
                   <input
-                    value={email}
+                    value={phone}
                     onChange={(event) => {
-                      setEmail(event.target.value);
+                      setPhone(event.target.value);
                       setResult(null);
                     }}
                     className="input-premium mt-2 min-h-10 text-sm"
-                    placeholder="ornek@mail.com"
-                    type="email"
+                    placeholder="05xx xxx xx xx"
+                    inputMode="tel"
                   />
                 </label>
 
@@ -554,7 +554,9 @@ export default function GuestOrdersPageClient() {
                         {order.customerName}
                       </p>
 
-                      <p className="mt-1 text-sm text-muted">{order.email}</p>
+                      {order.email && (
+                        <p className="mt-1 text-sm text-muted">{order.email}</p>
+                      )}
                       <p className="mt-1 text-sm text-muted">{order.phone}</p>
                     </div>
 

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { Suspense } from "react";
+import { Suspense, useEffect, useState } from "react";
 import {
   ArrowLeft,
   CreditCard,
@@ -35,11 +35,65 @@ const PROVINCES = [
   ["81", "Düzce"],
 ] as const;
 
+type DeliveryAddressDraft = {
+  city: string;
+  district: string;
+  addressLine: string;
+  postCode: string;
+  phone: string;
+};
+
+function provinceCodeForCity(city: string) {
+  const normalized = city.trim().toLocaleLowerCase("tr-TR");
+  return PROVINCES.find(([, name]) =>
+    name.toLocaleLowerCase("tr-TR") === normalized
+  )?.[0] ?? "";
+}
+
 function KuveytTurkPaymentContent() {
   const searchParams = useSearchParams();
   const orderNumber = (searchParams.get("orderNumber") ?? "").trim();
-  const email = (searchParams.get("email") ?? "").trim().toLowerCase();
-  const canSubmit = Boolean(orderNumber && email);
+  const phone = (searchParams.get("phone") ?? "").replace(/\D/g, "");
+  const canSubmit = Boolean(orderNumber && phone);
+
+  const [deliveryAddress, setDeliveryAddress] =
+    useState<DeliveryAddressDraft | null>(null);
+  const [useDeliveryAddress, setUseDeliveryAddress] = useState(false);
+  const [billingCity, setBillingCity] = useState("");
+  const [billingState, setBillingState] = useState("");
+  const [billingAddressLine, setBillingAddressLine] = useState("");
+  const [billingPostCode, setBillingPostCode] = useState("");
+
+  useEffect(() => {
+    if (!orderNumber) return;
+
+    try {
+      const raw = sessionStorage.getItem(`mh-payment-address:${orderNumber}`);
+      if (!raw) return;
+
+      const parsed = JSON.parse(raw) as DeliveryAddressDraft;
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setDeliveryAddress(parsed);
+    } catch {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setDeliveryAddress(null);
+    }
+  }, [orderNumber]);
+
+  const handleUseDeliveryAddress = (checked: boolean) => {
+    setUseDeliveryAddress(checked);
+
+    if (!checked || !deliveryAddress) return;
+
+    setBillingCity(deliveryAddress.city);
+    setBillingState(provinceCodeForCity(deliveryAddress.city));
+    setBillingAddressLine(
+      [deliveryAddress.addressLine, deliveryAddress.district]
+        .filter(Boolean)
+        .join(" / ")
+    );
+    setBillingPostCode(deliveryAddress.postCode);
+  };
 
   return (
     <main className="page-shell">
@@ -47,8 +101,8 @@ function KuveytTurkPaymentContent() {
         <div className="mx-auto max-w-3xl">
           <Link
             href={
-              orderNumber
-                ? `/order-success?orderNumber=${encodeURIComponent(orderNumber)}&email=${encodeURIComponent(email)}`
+              orderNumber && phone
+                ? `/guest-orders?orderNumber=${encodeURIComponent(orderNumber)}&phone=${encodeURIComponent(phone)}`
                 : "/cart"
             }
             className="inline-flex min-h-9 items-center gap-2 rounded-xl border border-border-soft bg-panel/70 px-3 text-sm font-bold text-muted transition hover:bg-panel-3 hover:text-foreground"
@@ -79,8 +133,8 @@ function KuveytTurkPaymentContent() {
 
             {!canSubmit && (
               <div className="relative z-10 mt-5 rounded-2xl border border-danger/30 bg-danger/10 p-4 text-sm font-bold text-danger">
-                Ödeme bağlantısında sipariş numarası veya e-posta eksik. Sipariş
-                ekranından yeniden “Ödemeye Geç” seçeneğini kullan.
+                Ödeme bağlantısında sipariş numarası veya telefon bilgisi eksik.
+                Sipariş ekranından ödeme adımını yeniden başlat.
               </div>
             )}
 
@@ -89,7 +143,7 @@ function KuveytTurkPaymentContent() {
                 <span className="font-black text-foreground">Sipariş:</span>{" "}
                 {orderNumber}
                 <span className="mx-2 text-muted-2">•</span>
-                {email}
+                {phone}
               </div>
             )}
 
@@ -100,7 +154,7 @@ function KuveytTurkPaymentContent() {
               autoComplete="on"
             >
               <input type="hidden" name="OrderNumber" value={orderNumber} />
-              <input type="hidden" name="Email" value={email} />
+              <input type="hidden" name="Phone" value={phone} />
               <input type="hidden" name="Billing.CountryCode" value="792" />
 
               <section className="rounded-2xl border border-border-soft bg-panel/65 p-4">
@@ -134,11 +188,16 @@ function KuveytTurkPaymentContent() {
                       autoComplete="cc-number"
                       inputMode="numeric"
                       required
-                      pattern="[0-9]{16}"
-                      minLength={16}
-                      maxLength={16}
-                      className="input-premium mt-2"
-                      placeholder="16 haneli kart numarası"
+                      pattern="[0-9 ]{19}"
+                      minLength={19}
+                      maxLength={19}
+                      className="input-premium mt-2 font-mono tracking-[0.08em]"
+                      placeholder="0000 0000 0000 0000"
+                      onInput={(event) => {
+                        const input = event.currentTarget;
+                        const digits = input.value.replace(/\D/g, "").slice(0, 16);
+                        input.value = digits.replace(/(\d{4})(?=\d)/g, "$1 ");
+                      }}
                     />
                   </label>
 
@@ -200,8 +259,30 @@ function KuveytTurkPaymentContent() {
               <section className="rounded-2xl border border-border-soft bg-panel/65 p-4">
                 <h2 className="text-lg font-black text-foreground">Fatura adresi</h2>
                 <p className="mt-1 text-xs leading-5 text-muted">
-                  Banka güvenlik kontrolü için kart sahibinin fatura adresini gir.
+                  Banka güvenlik kontrolü için fatura adresi bilgisi gereklidir.
                 </p>
+
+                <label className="mt-4 flex cursor-pointer items-start gap-3 rounded-2xl border border-mhgreen/25 bg-mhgreen/10 p-3">
+                  <input
+                    type="checkbox"
+                    checked={useDeliveryAddress}
+                    disabled={!deliveryAddress}
+                    onChange={(event) =>
+                      handleUseDeliveryAddress(event.target.checked)
+                    }
+                    className="mt-1 h-4 w-4 shrink-0 accent-mhgreen disabled:opacity-50"
+                  />
+                  <span>
+                    <span className="block text-sm font-black text-foreground">
+                      Teslimat adresimle aynı
+                    </span>
+                    <span className="mt-0.5 block text-xs leading-5 text-muted">
+                      {deliveryAddress
+                        ? "Sipariş ekranında girdiğin adres bilgileri otomatik doldurulur."
+                        : "Bu ödeme bağlantısında teslimat adresi otomatik alınamadı; fatura adresini aşağıdan girebilirsin."}
+                    </span>
+                  </span>
+                </label>
 
                 <div className="mt-4 grid gap-3 sm:grid-cols-2">
                   <label>
@@ -213,6 +294,11 @@ function KuveytTurkPaymentContent() {
                       autoComplete="address-level1"
                       required
                       maxLength={50}
+                      value={billingCity}
+                      onChange={(event) => {
+                        setBillingCity(event.target.value);
+                        if (useDeliveryAddress) setUseDeliveryAddress(false);
+                      }}
                       className="input-premium mt-2"
                       placeholder="Çorum"
                     />
@@ -225,7 +311,11 @@ function KuveytTurkPaymentContent() {
                     <select
                       name="Billing.State"
                       required
-                      defaultValue=""
+                      value={billingState}
+                      onChange={(event) => {
+                        setBillingState(event.target.value);
+                        if (useDeliveryAddress) setUseDeliveryAddress(false);
+                      }}
                       className="input-premium mt-2"
                     >
                       <option value="" disabled>
@@ -248,6 +338,11 @@ function KuveytTurkPaymentContent() {
                       autoComplete="street-address"
                       required
                       maxLength={150}
+                      value={billingAddressLine}
+                      onChange={(event) => {
+                        setBillingAddressLine(event.target.value);
+                        if (useDeliveryAddress) setUseDeliveryAddress(false);
+                      }}
                       className="input-premium mt-2"
                       placeholder="Mahalle, cadde/sokak, bina ve daire"
                     />
@@ -265,6 +360,13 @@ function KuveytTurkPaymentContent() {
                       pattern="[0-9]{5}"
                       minLength={5}
                       maxLength={5}
+                      value={billingPostCode}
+                      onChange={(event) => {
+                        setBillingPostCode(
+                          event.target.value.replace(/\D/g, "").slice(0, 5)
+                        );
+                        if (useDeliveryAddress) setUseDeliveryAddress(false);
+                      }}
                       className="input-premium mt-2"
                       placeholder="19030"
                     />

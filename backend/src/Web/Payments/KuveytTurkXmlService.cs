@@ -34,7 +34,9 @@ public sealed class KuveytTurkXmlService
                     new XElement("BillAddrLine1", context.Billing.AddressLine1),
                     new XElement("BillAddrPostCode", context.Billing.PostCode),
                     new XElement("BillAddrState", context.Billing.State),
-                    new XElement("Email", context.Email),
+                    string.IsNullOrWhiteSpace(context.Email)
+                        ? null
+                        : new XElement("Email", context.Email),
                     new XElement("MobilePhone",
                         new XElement("Cc", context.PhoneCountryCode),
                         new XElement("Subscriber", context.PhoneSubscriber))),
