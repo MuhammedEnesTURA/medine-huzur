@@ -201,7 +201,7 @@ public PaymentsController(
         PaymentStartResult paymentResult;
         try
         {
-            var phone = ParseTurkishPhone(order.Phone);
+            var orderPhone = ParseTurkishPhone(order.Phone);
             paymentResult = await paymentProvider.StartAsync(
                 new PaymentStartContext
                 {
@@ -212,8 +212,8 @@ public PaymentsController(
                     CustomerName = order.CustomerName,
                     Total = order.Total,
                     ClientIp = ResolveClientIpv4(),
-                    PhoneCountryCode = phone.CountryCode,
-                    PhoneSubscriber = phone.Subscriber,
+                    PhoneCountryCode = orderPhone.CountryCode,
+                    PhoneSubscriber = orderPhone.Subscriber,
                     Card = NormalizeCard(request.Card ?? new KuveytTurkCardInput()),
                     Billing = NormalizeBilling(request.Billing ?? new KuveytTurkBillingInput())
                 },
