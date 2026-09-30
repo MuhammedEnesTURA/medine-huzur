@@ -277,7 +277,7 @@ export default function CheckoutPageClient() {
     normalizePhone(form.phone).length === 11 &&
     form.city.trim().length >= 2 &&
     form.district.trim().length >= 2 &&
-    /^\d{5}$/.test(form.postalCode.trim()) &&
+    (!form.postalCode.trim() || /^\d{5}$/.test(form.postalCode.trim())) &&
     form.addressLine.trim().length >= 10 &&
     legalConsents.preInformationAccepted &&
     legalConsents.distanceSalesAccepted;
@@ -738,7 +738,7 @@ export default function CheckoutPageClient() {
 
                   <label className="rounded-2xl border border-border-soft bg-panel/64 p-2.5">
                     <span className="text-[11px] font-black uppercase tracking-[0.12em] text-muted-2">
-                      Posta kodu <span className="text-danger">*</span>
+                      Posta kodu <span className="normal-case font-semibold text-muted">(opsiyonel)</span>
                     </span>
                     <input
                       value={form.postalCode}
@@ -750,7 +750,6 @@ export default function CheckoutPageClient() {
                       inputMode="numeric"
                       pattern="[0-9]{5}"
                       maxLength={5}
-                      required
                     />
                   </label>
 
