@@ -4,7 +4,6 @@ on:
   push:
     branches:
       - kuveytturk-integration-wip
-      - feat-kuveytturk-static-egress-proxy
   workflow_dispatch:
 
 permissions:
