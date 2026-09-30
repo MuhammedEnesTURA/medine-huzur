@@ -69,10 +69,13 @@ builder.Services.Configure<KuveytTurkOptions>(options =>
 });
 
 builder.Services.AddScoped<MockPaymentProvider>();
-builder.Services.AddHttpClient<KuveytTurkPaymentProvider>(client =>
-{
-    client.Timeout = TimeSpan.FromSeconds(120);
-});
+builder.Services
+    .AddHttpClient<KuveytTurkPaymentProvider>(client =>
+    {
+        client.Timeout = TimeSpan.FromSeconds(120);
+    })
+    .ConfigurePrimaryHttpMessageHandler(() =>
+        KuveytTurkHttpClientHandlerFactory.Create(configuration));
 builder.Services.AddScoped<IKuveytTurkGateway>(serviceProvider =>
     serviceProvider.GetRequiredService<KuveytTurkPaymentProvider>());
 builder.Services.AddSingleton<KuveytTurkHashService>();
