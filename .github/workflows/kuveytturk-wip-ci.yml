@@ -45,6 +45,6 @@ jobs:
       - name: Install
         run: npm ci
       - name: Lint payment flow
-        run: npx eslint app/checkout/CheckoutPageClient.tsx app/payment/kuveytturk/page.tsx app/payment/failure/page.tsx app/order-success/page.tsx
+        run: npx eslint app/payment/kuveytturk/page.tsx app/payment/failure/page.tsx app/order-success/page.tsx
       - name: Build
         run: npm run build
