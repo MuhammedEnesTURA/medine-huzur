@@ -72,8 +72,10 @@ function KuveytTurkPaymentContent() {
       if (!raw) return;
 
       const parsed = JSON.parse(raw) as DeliveryAddressDraft;
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setDeliveryAddress(parsed);
     } catch {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setDeliveryAddress(null);
     }
   }, [orderNumber]);
