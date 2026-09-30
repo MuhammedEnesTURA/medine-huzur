@@ -64,6 +64,7 @@ public PaymentsController(
         }
 
         var orderNumber = NormalizeText(request.OrderNumber).ToUpperInvariant();
+        var phone = NormalizeTurkishPhone(request.Phone);
         var email = NormalizeEmail(request.Email);
 
         if (string.IsNullOrWhiteSpace(orderNumber))
@@ -71,24 +72,33 @@ public PaymentsController(
             return BadRequest(new { message = "Sipariş numarası zorunludur." });
         }
 
-        if (renderBankHtml && string.IsNullOrWhiteSpace(email))
+        if (renderBankHtml && string.IsNullOrWhiteSpace(phone))
         {
-            return BadRequest(new { message = "Ödeme için sipariş e-posta adresi zorunludur." });
+            return BadRequest(new { message = "Ödeme için sipariş telefon numarası zorunludur." });
         }
 
-        var query = _db.Orders
+        var order = await _db.Orders
             .Include(x => x.Items)
             .Include(x => x.GiftPackageItems)
-            .AsQueryable();
+            .FirstOrDefaultAsync(
+                x => x.OrderNumber == orderNumber,
+                cancellationToken);
 
-        query = query.Where(x => x.OrderNumber == orderNumber);
-
-        if (!string.IsNullOrWhiteSpace(email))
+        if (order is not null && renderBankHtml &&
+            !string.Equals(
+                NormalizeTurkishPhone(order.Phone),
+                phone,
+                StringComparison.Ordinal))
         {
-            query = query.Where(x => x.Email == email);
+            order = null;
         }
 
-        var order = await query.FirstOrDefaultAsync(cancellationToken);
+        if (order is not null && !renderBankHtml &&
+            !string.IsNullOrWhiteSpace(email) &&
+            !string.Equals(order.Email, email, StringComparison.OrdinalIgnoreCase))
+        {
+            order = null;
+        }
 
         if (order is null)
         {
@@ -204,7 +214,7 @@ public PaymentsController(
                     ClientIp = ResolveClientIpv4(),
                     PhoneCountryCode = phone.CountryCode,
                     PhoneSubscriber = phone.Subscriber,
-                    Card = request.Card ?? new KuveytTurkCardInput(),
+                    Card = NormalizeCard(request.Card ?? new KuveytTurkCardInput()),
                     Billing = NormalizeBilling(request.Billing ?? new KuveytTurkBillingInput())
                 },
                 cancellationToken);
@@ -684,7 +694,8 @@ public async Task<ActionResult<CompleteMockPaymentResponse>> CompleteMock(
         var card = request.Card;
         var billing = request.Billing;
         if (card is null || billing is null) return "Kart ve fatura bilgileri zorunludur.";
-        if (card.CardNumber.Length != 16 || !card.CardNumber.All(char.IsDigit)) return "Kart numarası geçersiz.";
+        var cardNumber = DigitsOnly(card.CardNumber);
+        if (cardNumber.Length != 16) return "Kart numarası geçersiz.";
         if (card.Cvv.Length != 3 || !card.Cvv.All(char.IsDigit)) return "Kart güvenlik kodu geçersiz.";
         if (card.ExpireMonth.Length != 2 || !card.ExpireMonth.All(char.IsDigit) ||
             card.ExpireYear.Length != 2 || !card.ExpireYear.All(char.IsDigit)) return "Kart son kullanma tarihi geçersiz.";
@@ -713,6 +724,18 @@ public async Task<ActionResult<CompleteMockPaymentResponse>> CompleteMock(
         }
 
         return state.Length == 2 && state.All(char.IsDigit);
+    }
+
+    private static KuveytTurkCardInput NormalizeCard(KuveytTurkCardInput card)
+    {
+        return new KuveytTurkCardInput
+        {
+            CardNumber = DigitsOnly(card.CardNumber),
+            ExpireYear = DigitsOnly(card.ExpireYear),
+            ExpireMonth = DigitsOnly(card.ExpireMonth),
+            Cvv = DigitsOnly(card.Cvv),
+            CardHolderName = card.CardHolderName.Trim()
+        };
     }
 
     private static KuveytTurkBillingInput NormalizeBilling(KuveytTurkBillingInput billing)
@@ -746,11 +769,34 @@ public async Task<ActionResult<CompleteMockPaymentResponse>> CompleteMock(
     {
         return (email ?? string.Empty).Trim().ToLowerInvariant();
     }
+
+    private static string DigitsOnly(string? value) =>
+        new((value ?? string.Empty).Where(char.IsDigit).ToArray());
+
+    private static string NormalizeTurkishPhone(string? value)
+    {
+        var digits = DigitsOnly(value);
+
+        if (digits.StartsWith("90", StringComparison.Ordinal) && digits.Length == 12)
+        {
+            digits = $"0{digits[2..]}";
+        }
+        else if (digits.Length == 10 && digits.StartsWith('5'))
+        {
+            digits = $"0{digits}";
+        }
+
+        return digits.Length == 11 &&
+               digits.StartsWith("05", StringComparison.Ordinal)
+            ? digits
+            : string.Empty;
+    }
 }
 
 public sealed class StartPaymentRequest
 {
     public string OrderNumber { get; init; } = string.Empty;
+    public string? Phone { get; init; }
     public string? Email { get; init; }
     public KuveytTurkCardInput? Card { get; init; }
     public KuveytTurkBillingInput? Billing { get; init; }
