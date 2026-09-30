@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Suspense } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import {
   CheckCircle2,
@@ -35,12 +35,29 @@ function PaymentSuccessContent() {
 
   const orderNumber = searchParams.get("orderNumber") ?? "";
   const reference = searchParams.get("reference") ?? "";
+  const [phone, setPhone] = useState("");
+
+  useEffect(() => {
+    if (!orderNumber) return;
+
+    try {
+      const raw = sessionStorage.getItem(`mh-payment-address:${orderNumber}`);
+      if (!raw) return;
+
+      const parsed = JSON.parse(raw) as { phone?: string };
+      if (parsed.phone) setPhone(parsed.phone.replace(/\D/g, ""));
+    } catch {
+      setPhone("");
+    }
+  }, [orderNumber]);
 
   const trackingHref = isAuthenticated
     ? "/account/orders"
-    : orderNumber
-      ? `/guest-orders?orderNumber=${encodeURIComponent(orderNumber)}`
-      : "/guest-orders";
+    : orderNumber && phone
+      ? `/guest-orders?orderNumber=${encodeURIComponent(orderNumber)}&phone=${encodeURIComponent(phone)}`
+      : orderNumber
+        ? `/guest-orders?orderNumber=${encodeURIComponent(orderNumber)}`
+        : "/guest-orders";
 
   return (
     <main className="page-shell">

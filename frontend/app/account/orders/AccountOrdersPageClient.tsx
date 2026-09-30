@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import { apiUrl, authHeaders, readJsonOrThrow } from "../../../lib/api";
 import { useAuth } from "../../../context/AuthContext";
+import { usePaymentAvailability } from "../../../context/PaymentAvailabilityContext";
 
 type OrderSummaryDto = {
   id: string;
@@ -62,6 +63,7 @@ type OrderDetailDto = {
   status: string;
   subtotal: number;
   discountTotal: number;
+  shippingAmount: number;
   total: number;
   createdAtUtc: string;
   shippingCompany?: string | null;
@@ -238,6 +240,7 @@ function OrderLine({
 
 export default function AccountOrdersPageClient() {
   const router = useRouter();
+  const paymentActive = usePaymentAvailability();
   const { token, isReady, isAuthenticated } = useAuth();
 
   const [orders, setOrders] = useState<OrderSummaryDto[]>([]);
@@ -396,7 +399,7 @@ export default function AccountOrdersPageClient() {
   };
 
   const startPayment = async () => {
-    if (!detail) return;
+    if (!detail || !paymentActive) return;
 
     setIsStartingPayment(true);
     setNotice(null);
@@ -679,6 +682,7 @@ export default function AccountOrdersPageClient() {
                     <p className="mt-1 text-2xl font-black text-mhgreen">
                       {formatPrice(detail.total)}
                     </p>
+                    <p className="mt-1 text-xs text-muted">Ürünler: {formatPrice(detail.subtotal)} · Kargo: {detail.shippingAmount === 0 ? "Ücretsiz" : formatPrice(detail.shippingAmount)}</p>
                   </div>
 
                   <div className="rounded-2xl border border-border-soft bg-panel/65 p-4">
@@ -717,12 +721,14 @@ export default function AccountOrdersPageClient() {
 
                           <p className="mt-1 text-sm leading-6 text-muted">
                             Bu sipariş için ödeme tamamlanmamış görünüyor.
-                            Ödeme adımını tekrar başlatabilirsin.
+                            {paymentActive
+                              ? "Ödeme adımını tekrar başlatabilirsin."
+                              : "Kuveyt Türk Sanal POS henüz aktif değil; ödeme şu anda başlatılamaz."}
                           </p>
                         </div>
                       </div>
 
-                      <button
+                      {paymentActive && <button
                         type="button"
                         onClick={startPayment}
                         disabled={isStartingPayment}
@@ -739,7 +745,7 @@ export default function AccountOrdersPageClient() {
                             Ödemeye Geç
                           </>
                         )}
-                      </button>
+                      </button>}
                     </div>
                   </section>
                 )}

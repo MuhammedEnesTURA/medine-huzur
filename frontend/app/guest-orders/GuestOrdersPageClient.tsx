@@ -14,7 +14,8 @@ import {
   Truck,
   XCircle,
 } from "lucide-react";
-import { apiUrl, readJsonOrThrow } from "../../lib/api";
+import { apiUrl } from "../../lib/api";
+import { usePaymentAvailability } from "../../context/PaymentAvailabilityContext";
 
 type OrderLineDto = {
   id: string;
@@ -49,6 +50,7 @@ type OrderDetailDto = {
   status: string;
   subtotal: number;
   discountTotal: number;
+  shippingAmount: number;
   total: number;
   createdAtUtc: string;
   shippingCompany?: string | null;
@@ -214,7 +216,7 @@ function EmptyState() {
       </h1>
 
       <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-muted">
-        Sipariş numaranı ve siparişte kullandığın e-posta adresini girerek
+        Sipariş numaranı ve siparişte kullandığın telefon numarasını girerek
         sipariş durumunu görüntüleyebilirsin.
       </p>
     </div>
@@ -223,9 +225,10 @@ function EmptyState() {
 
 export default function GuestOrdersPageClient() {
   const router = useRouter();
+  const paymentActive = usePaymentAvailability();
 
   const [orderNumber, setOrderNumber] = useState("");
-  const [email, setEmail] = useState("");
+  const [phone, setPhone] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [isStartingPayment, setIsStartingPayment] = useState(false);
   const [result, setResult] = useState<ResultState>(null);
@@ -233,14 +236,14 @@ export default function GuestOrdersPageClient() {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const initialOrderNumber = params.get("orderNumber");
-    const initialEmail = params.get("email");
+    const initialPhone = params.get("phone");
 
     if (initialOrderNumber) {
       setOrderNumber(initialOrderNumber);
     }
 
-    if (initialEmail) {
-      setEmail(initialEmail);
+    if (initialPhone) {
+      setPhone(initialPhone);
     }
   }, []);
 
@@ -266,12 +269,12 @@ export default function GuestOrdersPageClient() {
     event.preventDefault();
 
     const normalizedOrderNumber = orderNumber.trim();
-    const normalizedEmail = email.trim().toLowerCase();
+    const normalizedPhone = phone.replace(/\D/g, "");
 
-    if (!normalizedOrderNumber || !normalizedEmail) {
+    if (!normalizedOrderNumber || !normalizedPhone) {
       setResult({
         type: "error",
-        message: "Sipariş numarası ve e-posta zorunludur.",
+        message: "Sipariş numarası ve telefon zorunludur.",
       });
       return;
     }
@@ -283,7 +286,7 @@ export default function GuestOrdersPageClient() {
       const url = apiUrl(
         `/api/orders/guest?orderNumber=${encodeURIComponent(
           normalizedOrderNumber
-        )}&email=${encodeURIComponent(normalizedEmail)}`
+        )}&phone=${encodeURIComponent(normalizedPhone)}`
       );
 
       const res = await fetch(url, {
@@ -318,46 +321,17 @@ export default function GuestOrdersPageClient() {
     }
   };
 
-  const startPayment = async () => {
-    if (!order) return;
+  const startPayment = () => {
+    if (!order || !paymentActive) return;
 
     setIsStartingPayment(true);
-    setResult({
-      type: "success",
-      order,
+
+    const params = new URLSearchParams({
+      orderNumber: order.orderNumber,
+      phone: order.phone.replace(/\D/g, ""),
     });
 
-    try {
-      const res = await fetch(apiUrl("/api/payments/start"), {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          orderNumber: order.orderNumber,
-          email: order.email,
-        }),
-      });
-
-      const data = await readJsonOrThrow<{
-        orderId: string;
-        orderNumber: string;
-        total: number;
-        paymentStatus: string;
-        paymentReference: string;
-        redirectUrl: string;
-      }>(res);
-
-      router.push(data.redirectUrl);
-    } catch (error) {
-      setResult({
-        type: "error",
-        message:
-          error instanceof Error ? error.message : "Ödeme başlatılamadı.",
-      });
-    } finally {
-      setIsStartingPayment(false);
-    }
+    router.push(`/payment/kuveytturk?${params.toString()}`);
   };
 
   return (
@@ -383,7 +357,7 @@ export default function GuestOrdersPageClient() {
               </h1>
 
               <p className="mt-2 text-sm leading-6 text-muted">
-                Sipariş numarası ve e-posta adresiyle misafir siparişlerini
+                Sipariş numarası ve telefon numarasıyla misafir siparişlerini
                 sorgulayabilirsin.
               </p>
 
@@ -406,18 +380,18 @@ export default function GuestOrdersPageClient() {
 
                 <label>
                   <span className="text-xs font-black uppercase tracking-[0.12em] text-muted-2">
-                    E-posta
+                    Telefon
                   </span>
 
                   <input
-                    value={email}
+                    value={phone}
                     onChange={(event) => {
-                      setEmail(event.target.value);
+                      setPhone(event.target.value);
                       setResult(null);
                     }}
                     className="input-premium mt-2 min-h-10 text-sm"
-                    placeholder="ornek@mail.com"
-                    type="email"
+                    placeholder="05xx xxx xx xx"
+                    inputMode="tel"
                   />
                 </label>
 
@@ -498,6 +472,7 @@ export default function GuestOrdersPageClient() {
                       <p className="mt-1 text-2xl font-black text-mhgreen">
                         {formatPrice(order.total)}
                       </p>
+                      <p className="mt-1 text-xs text-muted">Ürünler: {formatPrice(order.subtotal)} · Kargo: {order.shippingAmount === 0 ? "Ücretsiz" : formatPrice(order.shippingAmount)}</p>
                     </div>
 
                     <div className="rounded-2xl border border-border-soft bg-panel/65 p-4">
@@ -535,12 +510,14 @@ export default function GuestOrdersPageClient() {
 
                           <p className="mt-1 text-sm leading-6 text-muted">
                             Bu sipariş için ödeme tamamlanmamış görünüyor.
-                            Ödeme adımını tekrar başlatabilirsin.
+                            {paymentActive
+                              ? "Ödeme adımını tekrar başlatabilirsin."
+                              : "Kuveyt Türk Sanal POS henüz aktif değil; ödeme şu anda başlatılamaz."}
                           </p>
                         </div>
                       </div>
 
-                      <button
+                      {paymentActive && <button
                         type="button"
                         onClick={startPayment}
                         disabled={isStartingPayment}
@@ -557,7 +534,7 @@ export default function GuestOrdersPageClient() {
                             Ödemeye Geç
                           </>
                         )}
-                      </button>
+                      </button>}
                     </div>
                   </section>
                 )}
@@ -577,7 +554,9 @@ export default function GuestOrdersPageClient() {
                         {order.customerName}
                       </p>
 
-                      <p className="mt-1 text-sm text-muted">{order.email}</p>
+                      {order.email && (
+                        <p className="mt-1 text-sm text-muted">{order.email}</p>
+                      )}
                       <p className="mt-1 text-sm text-muted">{order.phone}</p>
                     </div>
 

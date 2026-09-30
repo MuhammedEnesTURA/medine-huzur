@@ -4,8 +4,14 @@ import {
   Cookie,
   FileText,
   Settings,
-  ShieldCheck,
 } from "lucide-react";
+import { createPageMetadata } from "../../../lib/seo";
+
+export const metadata = createPageMetadata({
+  title: "Çerez Politikası",
+  description: "Medine Huzur çerez kullanımına ilişkin bilgilendirmeyi inceleyin.",
+  path: "/legal/cookie-policy",
+});
 
 function Section({
   title,

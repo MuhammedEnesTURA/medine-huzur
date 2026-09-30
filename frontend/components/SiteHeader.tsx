@@ -3,7 +3,8 @@
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
+import type { MouseEvent } from "react";
 import {
   ChevronDown,
   LogOut,
@@ -28,6 +29,8 @@ type CategoryDto = {
   parentId?: string | null;
   sortOrder?: number;
 };
+
+type CategoryLoadState = "idle" | "loading" | "ready" | "error";
 
 function navLinkClass(active: boolean) {
   return `inline-flex h-10 items-center justify-center rounded-2xl px-4 text-[13px] font-extrabold tracking-[-0.015em] transition-all duration-200 whitespace-nowrap ${
@@ -61,47 +64,50 @@ export default function SiteHeader() {
 
   const [categories, setCategories] = useState<CategoryDto[]>([]);
   const [categoriesOpen, setCategoriesOpen] = useState(false);
+  const [categoryLoadState, setCategoryLoadState] =
+    useState<CategoryLoadState>("idle");
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [mounted, setMounted] = useState(false);
+  const categoriesRequestedRef = useRef(false);
 
-  useEffect(() => {
-    setMounted(true);
-  }, []);
+  const loadCategories = async () => {
+    if (categoriesRequestedRef.current) return;
 
-  useEffect(() => {
-    let ignore = false;
+    setCategoryLoadState("loading");
+    categoriesRequestedRef.current = true;
+    try {
+      const res = await fetch(apiUrl("/api/catalog/categories"));
 
-    async function loadCategories() {
-      try {
-        const res = await fetch(apiUrl("/api/catalog/categories"), {
-          cache: "no-store",
-        });
-
-        if (!res.ok) return;
-
-        const data = (await res.json()) as CategoryDto[];
-
-        if (!ignore && Array.isArray(data)) {
-          setCategories(data);
-        }
-      } catch {
-        // sessiz geç
+      if (!res.ok) {
+        categoriesRequestedRef.current = false;
+        setCategoryLoadState("error");
+        return;
       }
+
+      const data = (await res.json()) as CategoryDto[];
+
+      if (!Array.isArray(data)) {
+        categoriesRequestedRef.current = false;
+        setCategoryLoadState("error");
+        return;
+      }
+
+      setCategories(data);
+      setCategoryLoadState("ready");
+    } catch {
+      categoriesRequestedRef.current = false;
+      setCategoryLoadState("error");
     }
+  };
 
-    void loadCategories();
+  const toggleCategories = () => {
+    const opening = !categoriesOpen;
+    setCategoriesOpen(opening);
 
-    return () => {
-      ignore = true;
-    };
-  }, []);
-
-  useEffect(() => {
-    setCategoriesOpen(false);
-    setUserMenuOpen(false);
-    setMobileOpen(false);
-  }, [pathname]);
+    if (opening && categoryLoadState !== "ready") {
+      void loadCategories();
+    }
+  };
 
   const rootCategories = useMemo(
     () =>
@@ -151,34 +157,46 @@ export default function SiteHeader() {
     setUserMenuOpen(false);
   };
 
+  const onHeaderLinkClick = (event: MouseEvent<HTMLElement>) => {
+    if (!(event.target as HTMLElement).closest("a")) return;
+
+    setCategoriesOpen(false);
+    setUserMenuOpen(false);
+    setMobileOpen(false);
+  };
+
   return (
-    <header className="sticky top-0 z-50 bg-panel/92 shadow-[0_10px_34px_rgba(0,0,0,0.07)] backdrop-blur-2xl">
+    <header
+      onClickCapture={onHeaderLinkClick}
+      className="sticky top-0 z-50 bg-panel/92 shadow-[0_10px_34px_rgba(0,0,0,0.07)] backdrop-blur-2xl"
+    >
       <div className="pointer-events-none absolute inset-x-0 bottom-0 h-px bg-gradient-to-r from-transparent via-mhgreen/16 to-transparent" />
 
       <div className="page-container">
-        <div className="flex min-h-[58px] items-center gap-4 py-1.5 lg:min-h-[64px]">
+        <div className="flex min-h-[66px] items-center gap-4 py-1.5 lg:min-h-[72px]">
           <Link
             href="/"
             className="group flex shrink-0 items-center gap-2.5 pr-2"
             aria-label="Medine Huzur Ana Sayfa"
           >
-            <div className="relative h-[44px] w-[44px] shrink-0 transition duration-200 group-hover:scale-[1.035]">
+            {/* Logo boyutunu mobilde hafif kıstık ki yazılara yer açılsın */}
+            <div className="relative h-[44px] w-[44px] sm:h-[54px] sm:w-[54px] shrink-0 transition duration-200 group-hover:scale-[1.035]">
               <Image
-                src="/logo.png"
+                src="/images/medine-huzur-logo-v2.png"
                 alt="Medine Huzur"
                 fill
-                sizes="44px"
+                sizes="(max-width: 640px) 44px, 54px"
                 className="object-contain drop-shadow-[0_10px_18px_rgba(21,128,61,0.14)]"
-                priority
               />
             </div>
 
-            <div className="hidden min-w-0 leading-none sm:block">
-              <p className="truncate text-[10px] font-extrabold uppercase tracking-[0.32em] text-mhgreen">
+            {/* Yazı kısmını mobilde görünür yapıp fontları zarifleştirdik */}
+            <div className="flex flex-col justify-center min-w-0 leading-none">
+              <p className="truncate text-[8px] sm:text-[10px] font-extrabold uppercase tracking-[0.25em] sm:tracking-[0.32em] text-mhgreen">
                 ÇORUM/MERKEZ
               </p>
 
-              <p className="mt-1 truncate text-[22px] font-extrabold tracking-[-0.055em] text-foreground">
+              <p className="mt-0.5 sm:mt-1 truncate text-[17px] sm:text-[22px] font-extrabold tracking-[-0.04em] sm:tracking-[-0.055em] text-foreground">
                 Medine Huzur
               </p>
             </div>
@@ -192,7 +210,7 @@ export default function SiteHeader() {
 
               <button
                 type="button"
-                onClick={() => setCategoriesOpen((prev) => !prev)}
+                onClick={toggleCategories}
                 className={navLinkClass(categoriesOpen)}
               >
                 Kategoriler
@@ -242,7 +260,7 @@ export default function SiteHeader() {
             >
               <ShoppingCart className="h-5 w-5 text-foreground" />
 
-              {mounted && cartCount > 0 && (
+              {cartCount > 0 && (
                 <span className="absolute -right-1.5 -top-1.5 flex h-5 min-w-5 items-center justify-center rounded-full bg-danger px-1 text-[10px] font-extrabold text-white">
                   {cartCount > 99 ? "99+" : cartCount}
                 </span>
@@ -324,7 +342,7 @@ export default function SiteHeader() {
 
           <button
             type="button"
-            onClick={() => setCategoriesOpen((prev) => !prev)}
+            onClick={toggleCategories}
             className={mobilePillClass(categoriesOpen)}
           >
             Kategoriler
@@ -335,18 +353,55 @@ export default function SiteHeader() {
           </Link>
         </div>
 
+        {categoriesOpen && rootCategories.length === 0 && (
+          <div className="border-t border-border-soft/70 px-3 py-4 text-xs text-muted lg:hidden">
+            {categoryLoadState === "loading"
+              ? "Kategoriler yükleniyor..."
+              : categoryLoadState === "error"
+                ? "Kategori hizmetine şu anda erişilemiyor."
+                : "Kategori bulunamadı."}
+          </div>
+        )}
+
         {categoriesOpen && rootCategories.length > 0 && (
-          <div className="border-t border-border-soft/70 pb-2 pt-2 lg:hidden">
-            <div className="flex gap-2 overflow-x-auto pb-1">
-              {rootCategories.map((category) => (
-                <Link
-                  key={category.id}
-                  href={`/products?categoryId=${category.id}`}
-                  className="badge-soft shrink-0"
-                >
-                  {category.name}
-                </Link>
-              ))}
+          <div className="border-t border-border-soft/70 px-2 py-4 lg:hidden max-h-[65vh] overflow-y-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+            <div className="mb-3 flex items-center justify-between px-1">
+              <p className="text-[11px] font-black uppercase tracking-widest text-mhgreen">Kategoriler</p>
+              <Link href="/categories" className="text-[11px] font-bold text-muted hover:text-foreground">
+                Tümünü Gör →
+              </Link>
+            </div>
+            
+            <div className="grid gap-3">
+              {rootCategories.map((root) => {
+                const children = childCategoriesByParent[root.id] || [];
+                return (
+                  <div key={root.id} className="rounded-2xl border border-border-soft bg-panel-2/60 p-3.5">
+                    <Link
+                      href={`/categories/${encodeURIComponent(root.slug)}`}
+                      className="mb-2.5 block text-sm font-extrabold text-foreground"
+                    >
+                      {root.name}
+                    </Link>
+                    
+                    {children.length > 0 ? (
+                      <div className="flex flex-wrap gap-2">
+                        {children.map((child) => (
+                          <Link
+                            key={child.id}
+                            href={`/categories/${encodeURIComponent(child.slug)}`}
+                            className="inline-flex items-center justify-center rounded-xl border border-border-soft bg-panel px-3 py-1.5 text-xs font-semibold text-muted transition hover:bg-panel-3 hover:text-foreground"
+                          >
+                            {child.name}
+                          </Link>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-xs text-muted-2">Alt kategori yok</p>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           </div>
         )}
@@ -371,7 +426,15 @@ export default function SiteHeader() {
               </Link>
             </div>
 
-            {rootCategories.length === 0 ? (
+            {categoryLoadState === "loading" ? (
+              <div className="rounded-2xl border border-border-soft bg-panel-2/70 p-4 text-sm text-muted">
+                Kategoriler yükleniyor...
+              </div>
+            ) : categoryLoadState === "error" ? (
+              <div className="rounded-2xl border border-border-soft bg-panel-2/70 p-4 text-sm text-muted">
+                Kategori hizmetine şu anda erişilemiyor.
+              </div>
+            ) : rootCategories.length === 0 ? (
               <div className="rounded-2xl border border-border-soft bg-panel-2/70 p-4 text-sm text-muted">
                 Kategori bulunamadı.
               </div>
@@ -386,7 +449,7 @@ export default function SiteHeader() {
                       className="rounded-2xl border border-border-soft bg-panel-2/70 p-4 transition hover:border-border-strong hover:bg-panel-3/70"
                     >
                       <Link
-                        href={`/products?categoryId=${category.id}`}
+                        href={`/categories/${encodeURIComponent(category.slug)}`}
                         className="text-sm font-extrabold text-foreground transition hover:text-mhgreen"
                       >
                         {category.name}
@@ -397,7 +460,7 @@ export default function SiteHeader() {
                           children.slice(0, 4).map((child) => (
                             <Link
                               key={child.id}
-                              href={`/products?categoryId=${child.id}`}
+                              href={`/categories/${encodeURIComponent(child.slug)}`}
                               className="text-xs font-semibold text-muted transition hover:text-foreground"
                             >
                               {child.name}

@@ -1,5 +1,17 @@
 import Link from "next/link";
 import { ArrowLeft, ShieldCheck, Truck } from "lucide-react";
+import { createPageMetadata } from "../../../lib/seo";
+import { merchantConfig } from "../../../lib/merchant";
+import { formatShippingTry, shippingPolicy } from "../../../lib/shippingPolicy";
+
+const { FreeThresholdTry, FlatFeeTry, DispatchMinBusinessDays, DispatchMaxBusinessDays } = shippingPolicy;
+
+export const metadata = createPageMetadata({
+  title: "Teslimat ve Kargo Bilgileri",
+  description:
+    "Medine Huzur sipariş hazırlığı, kargo ve teslimat süreçlerini inceleyin.",
+  path: "/legal/delivery",
+});
 
 export default function DeliveryPage() {
   return (
@@ -26,7 +38,7 @@ export default function DeliveryPage() {
 
               <p className="mt-3 max-w-3xl text-sm leading-7 text-muted">
                 Siparişlerin hazırlanması, kargo süreci ve teslimat takibi
-                hakkında temel bilgilendirme.
+hakkında temel bilgilendirme. Medine Huzur markasının satıcısı {merchantConfig.sellerName}’dır.
               </p>
             </div>
 
@@ -43,9 +55,7 @@ export default function DeliveryPage() {
 
               <p className="mt-2 text-sm leading-7 text-muted">
                 Sipariş oluşturulduktan sonra ürün, stok ve ödeme durumu kontrol
-                edilir. Ödeme başarılı olduğunda sipariş hazırlanmaya alınır.
-                Hazırlık süresi ürün yoğunluğu ve özel paketleme durumuna göre
-                değişebilir.
+                edilir. Siparişler {DispatchMinBusinessDays}-{DispatchMaxBusinessDays} iş günü içerisinde kargoya teslim edilir.
               </p>
             </section>
 
@@ -54,6 +64,10 @@ export default function DeliveryPage() {
                 2. Kargo Süreci
               </h2>
 
+              <p className="mt-2 text-sm leading-7 text-muted">
+                {formatShippingTry(FreeThresholdTry)} TL ve üzeri siparişlerde kargo ücretsizdir.
+                Daha düşük tutarlı siparişlerde sabit {formatShippingTry(FlatFeeTry)} TL kargo ücreti uygulanır.
+              </p>
               <p className="mt-2 text-sm leading-7 text-muted">
                 Sipariş kargoya teslim edildiğinde kargo firması ve takip
                 numarası sipariş kaydına eklenir. Kullanıcılar sipariş numarası

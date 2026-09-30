@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import {
   AlertTriangle,
   CheckCircle2,
@@ -31,6 +31,15 @@ type AdminCategoryDto = {
   isActive: boolean;
   childCount: number;
   productCount: number;
+};
+
+type AdminCategoryOption = AdminCategoryDto & {
+  depth: number;
+  displayName: string;
+};
+
+type AdminCategoryTreeNode = AdminCategoryDto & {
+  children: AdminCategoryTreeNode[];
 };
 
 type ProductListItemDto = {
@@ -102,6 +111,7 @@ type ProductDetailDto = {
 };
 
 type ProductImageForm = {
+  id?: string | null; // Veritabanındaki çakışmayı önlemek için eklendi
   imageUrl: string;
   sortOrder: string;
   isPrimary: boolean;
@@ -131,6 +141,7 @@ type ProductForm = {
   categoryIds: string[];
   images: ProductImageForm[];
   variants: ProductVariantForm[];
+  updatedAtUtc?: string | null;
 };
 
 type Notice =
@@ -154,12 +165,13 @@ const emptyForm: ProductForm = {
   isGiftBoxEligible: true,
   categoryIds: [],
   images: [
-    { imageUrl: "", sortOrder: "1", isPrimary: true },
-    { imageUrl: "", sortOrder: "2", isPrimary: false },
-    { imageUrl: "", sortOrder: "3", isPrimary: false },
-    { imageUrl: "", sortOrder: "4", isPrimary: false },
+    { id: null, imageUrl: "", sortOrder: "1", isPrimary: true },
+    { id: null, imageUrl: "", sortOrder: "2", isPrimary: false },
+    { id: null, imageUrl: "", sortOrder: "3", isPrimary: false },
+    { id: null, imageUrl: "", sortOrder: "4", isPrimary: false },
   ],
   variants: [],
+  updatedAtUtc: null,
 };
 
 function slugify(value: string) {
@@ -173,6 +185,143 @@ function slugify(value: string) {
     .replace(/ç/g, "c")
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "");
+}
+
+function buildCategoryTree(
+  categories: AdminCategoryDto[]
+): AdminCategoryTreeNode[] {
+  const byId = new Map(categories.map((category) => [category.id, category]));
+  const childrenByParent = new Map<string, AdminCategoryDto[]>();
+  const roots: AdminCategoryDto[] = [];
+  const result: AdminCategoryTreeNode[] = [];
+  const visited = new Set<string>();
+  const sortCategories = (items: AdminCategoryDto[]) =>
+    items.sort(
+      (a, b) =>
+        a.sortOrder - b.sortOrder || a.name.localeCompare(b.name, "tr")
+    );
+
+  for (const category of categories) {
+    if (category.parentId && byId.has(category.parentId)) {
+      const siblings = childrenByParent.get(category.parentId) ?? [];
+      siblings.push(category);
+      childrenByParent.set(category.parentId, siblings);
+    } else {
+      roots.push(category);
+    }
+  }
+
+  const createNode = (
+    category: AdminCategoryDto
+  ): AdminCategoryTreeNode | null => {
+    if (visited.has(category.id)) return null;
+    visited.add(category.id);
+
+    const children = sortCategories([
+      ...(childrenByParent.get(category.id) ?? []),
+    ])
+      .map(createNode)
+      .filter((child): child is AdminCategoryTreeNode => child !== null);
+
+    return {
+      ...category,
+      children,
+    };
+  };
+
+  for (const root of sortCategories(roots)) {
+    const node = createNode(root);
+    if (node) result.push(node);
+  }
+
+  for (const category of sortCategories([...categories])) {
+    const node = createNode(category);
+    if (node) result.push(node);
+  }
+
+  return result;
+}
+
+function flattenCategoryTree(
+  nodes: AdminCategoryTreeNode[],
+  depth = 0
+): AdminCategoryOption[] {
+  return nodes.flatMap(({ children, ...category }) => {
+    const indentation = "\u00a0\u00a0".repeat(depth);
+
+    return [
+      {
+        ...category,
+        depth,
+        displayName:
+          depth === 0 ? category.name : `${indentation}↳ ${category.name}`,
+      },
+      ...flattenCategoryTree(children, depth + 1),
+    ];
+  });
+}
+
+function CategorySelectionNode({
+  node,
+  depth,
+  selectedCategoryIds,
+  onToggle,
+}: {
+  node: AdminCategoryTreeNode;
+  depth: number;
+  selectedCategoryIds: string[];
+  onToggle: (id: string) => void;
+}) {
+  const isSelected = selectedCategoryIds.includes(node.id);
+
+  return (
+    <div className="min-w-0">
+      <label
+        className={`flex min-w-0 cursor-pointer gap-3 rounded-xl border p-3 transition hover:border-border-strong ${
+          isSelected
+            ? "border-mhgreen/35 bg-mhgreen/10"
+            : depth === 0
+              ? "border-border-soft bg-panel-2/75"
+              : "border-border-soft bg-panel/70"
+        }`}
+      >
+        <input
+          type="checkbox"
+          checked={isSelected}
+          onChange={() => onToggle(node.id)}
+          className="mt-1 h-4 w-4 shrink-0 accent-mhgreen"
+        />
+
+        <span className="min-w-0">
+          <span className="block break-words text-sm font-black text-foreground">
+            {node.name}
+          </span>
+          <span className="mt-0.5 block break-all text-xs text-muted">
+            /{node.slug}
+          </span>
+        </span>
+      </label>
+
+      {node.children.length > 0 && (
+        <div className="ml-2 mt-2 space-y-2 border-l border-mhgreen/25 pl-3 sm:ml-3 sm:pl-4">
+          {node.children.map((child) => (
+            <div key={child.id} className="relative min-w-0">
+              <span
+                aria-hidden="true"
+                className="absolute -left-3 top-5 w-3 border-t border-mhgreen/25 sm:-left-4 sm:w-4"
+              />
+              <CategorySelectionNode
+                node={child}
+                depth={depth + 1}
+                selectedCategoryIds={selectedCategoryIds}
+                onToggle={onToggle}
+              />
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
 }
 
 function formatPrice(value: number) {
@@ -249,9 +398,10 @@ function attributesToJson(attributes: Record<string, string>) {
 }
 
 function buildFormFromProduct(product: ProductDetailDto): ProductForm {
-  const images = product.images
+  const images: ProductImageForm[] = product.images
     .sort((a, b) => a.sortOrder - b.sortOrder)
     .map((image) => ({
+      id: image.id,
       imageUrl: image.imageUrl,
       sortOrder: String(image.sortOrder),
       isPrimary: image.isPrimary,
@@ -259,6 +409,7 @@ function buildFormFromProduct(product: ProductDetailDto): ProductForm {
 
   while (images.length < 4) {
     images.push({
+      id: null,
       imageUrl: "",
       sortOrder: String(images.length + 1),
       isPrimary: images.length === 0,
@@ -287,12 +438,14 @@ function buildFormFromProduct(product: ProductDetailDto): ProductForm {
       stock: String(variant.stock),
       isActive: variant.isActive,
     })),
+    updatedAtUtc: product.updatedAtUtc,
   };
 }
 
 function buildPayload(form: ProductForm) {
   const images = form.images
     .map((image, index) => ({
+      id: image.id || null, // ID artık gönderiliyor ki EF Core çakışmasın
       imageUrl: image.imageUrl.trim(),
       sortOrder: toInteger(image.sortOrder) ?? index + 1,
       isPrimary: image.isPrimary,
@@ -332,6 +485,7 @@ function buildPayload(form: ProductForm) {
     categoryIds: form.categoryIds,
     images,
     variants,
+    updatedAtUtc: form.updatedAtUtc,
   };
 }
 
@@ -354,11 +508,15 @@ export default function AdminProductsPageClient() {
   const [isLoadingDetail, setIsLoadingDetail] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [notice, setNotice] = useState<Notice>(null);
+  const saveInFlightRef = useRef(false);
 
   const [uploadingImageIndex, setUploadingImageIndex] = useState<number | null>(
     null
   );
   const [isUploadingCoverImage, setIsUploadingCoverImage] = useState(false);
+
+  // Eğer arka planda bir görsel yükleniyorsa, formu kaydetmeyi engelliyoruz
+  const isFormLocked = isSaving || uploadingImageIndex !== null || isUploadingCoverImage;
 
   const canUseAdmin = isReady && isAuthenticated && isAdmin;
   const isEditing = Boolean(editingId);
@@ -377,13 +535,13 @@ export default function AdminProductsPageClient() {
     return params.toString();
   }, [query, categoryId, isActiveFilter, page]);
 
-  const activeCategoryOptions = useMemo(
-    () =>
-      [...categories].sort(
-        (a, b) =>
-          a.sortOrder - b.sortOrder || a.name.localeCompare(b.name, "tr")
-      ),
+  const activeCategoryTree = useMemo(
+    () => buildCategoryTree(categories),
     [categories]
+  );
+  const activeCategoryOptions = useMemo(
+    () => flattenCategoryTree(activeCategoryTree),
+    [activeCategoryTree]
   );
 
   const loadCategories = async () => {
@@ -434,7 +592,7 @@ export default function AdminProductsPageClient() {
   };
 
   const loadProductDetail = async (id: string) => {
-    if (!token || !canUseAdmin) return;
+    if (!token || !canUseAdmin) return null;
 
     setIsLoadingDetail(true);
     setNotice(null);
@@ -452,6 +610,7 @@ export default function AdminProductsPageClient() {
       setSelectedProduct(data);
       setEditingId(data.id);
       setForm(buildFormFromProduct(data));
+      return data;
     } catch (error) {
       setNotice({
         type: "error",
@@ -460,6 +619,7 @@ export default function AdminProductsPageClient() {
             ? error.message
             : "Ürün detayı alınırken hata oluştu.",
       });
+      return null;
     } finally {
       setIsLoadingDetail(false);
     }
@@ -468,6 +628,7 @@ export default function AdminProductsPageClient() {
   useEffect(() => {
     if (!canUseAdmin) return;
 
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     void loadCategories();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [canUseAdmin]);
@@ -475,6 +636,7 @@ export default function AdminProductsPageClient() {
   useEffect(() => {
     if (!canUseAdmin) return;
 
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     void loadProducts();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [canUseAdmin, queryString]);
@@ -517,7 +679,7 @@ export default function AdminProductsPageClient() {
 
   const updateImage = (
     index: number,
-    key: keyof ProductImageForm,
+    key: keyof Omit<ProductImageForm, "id">,
     value: string | boolean
   ) => {
     setForm((current) => ({
@@ -553,6 +715,7 @@ export default function AdminProductsPageClient() {
       images: [
         ...current.images,
         {
+          id: null,
           imageUrl: "",
           sortOrder: String(current.images.length + 1),
           isPrimary: current.images.length === 0,
@@ -682,6 +845,7 @@ export default function AdminProductsPageClient() {
               )
             : [
                 {
+                  id: null,
                   imageUrl: data.url,
                   sortOrder: "1",
                   isPrimary: true,
@@ -763,7 +927,6 @@ export default function AdminProductsPageClient() {
   };
 
   const validateForm = () => {
-    if (!form.sku.trim()) return "SKU zorunludur.";
     if (!form.name.trim()) return "Ürün adı zorunludur.";
 
     const basePrice = toNumber(form.basePrice);
@@ -803,6 +966,8 @@ export default function AdminProductsPageClient() {
     event.preventDefault();
 
     if (!token || !canUseAdmin) return;
+    
+    if (saveInFlightRef.current || isFormLocked) return;
 
     const validationError = validateForm();
 
@@ -814,20 +979,22 @@ export default function AdminProductsPageClient() {
       return;
     }
 
+    saveInFlightRef.current = true;
     setIsSaving(true);
     setNotice(null);
 
     try {
       const payload = buildPayload(form);
+      const productIdBeingEdited = editingId;
 
       const res = await fetch(
         apiUrl(
-          isEditing
-            ? `/api/admin/products/${editingId}`
+          productIdBeingEdited
+            ? `/api/admin/products/${productIdBeingEdited}`
             : "/api/admin/products"
         ),
         {
-          method: isEditing ? "PUT" : "POST",
+          method: productIdBeingEdited ? "PUT" : "POST",
           headers: {
             "Content-Type": "application/json",
             ...authHeaders(token),
@@ -835,6 +1002,28 @@ export default function AdminProductsPageClient() {
           body: JSON.stringify(payload),
         }
       );
+
+      if (res.status === 409 && productIdBeingEdited) {
+        const conflict = (await res
+          .clone()
+          .json()
+          .catch(() => null)) as {
+          code?: unknown;
+          message?: unknown;
+        } | null;
+
+        if (conflict?.code === "product_concurrency_conflict") {
+          await loadProductDetail(productIdBeingEdited);
+          setNotice({
+            type: "error",
+            message:
+              typeof conflict.message === "string"
+                ? conflict.message
+                : "Ürün başka bir işlem tarafından güncellendi. Güncel kayıt yeniden yüklendi.",
+          });
+          return;
+        }
+      }
 
       const data = await readJsonOrThrow<ProductDetailDto>(res);
 
@@ -844,7 +1033,7 @@ export default function AdminProductsPageClient() {
 
       setNotice({
         type: "success",
-        message: isEditing ? "Ürün güncellendi." : "Ürün oluşturuldu.",
+        message: productIdBeingEdited ? "Ürün güncellendi." : "Ürün oluşturuldu.",
       });
 
       await loadProducts();
@@ -858,6 +1047,7 @@ export default function AdminProductsPageClient() {
             : "Ürün kaydedilirken hata oluştu.",
       });
     } finally {
+      saveInFlightRef.current = false;
       setIsSaving(false);
     }
   };
@@ -1114,7 +1304,7 @@ export default function AdminProductsPageClient() {
 
                       {activeCategoryOptions.map((category) => (
                         <option key={category.id} value={category.id}>
-                          {category.name}
+                          {category.displayName}
                         </option>
                       ))}
                     </select>
@@ -1248,7 +1438,7 @@ export default function AdminProductsPageClient() {
                         <div className="mt-3 grid gap-2 sm:grid-cols-3">
                           <button
                             type="button"
-                            disabled={isSaving}
+                            disabled={isFormLocked}
                             onClick={() => toggleProductFlag(product, "active")}
                             className="rounded-xl border border-border-soft bg-panel/70 px-3 py-2 text-xs font-black text-foreground transition hover:bg-panel-3 disabled:opacity-50"
                           >
@@ -1257,7 +1447,7 @@ export default function AdminProductsPageClient() {
 
                           <button
                             type="button"
-                            disabled={isSaving}
+                            disabled={isFormLocked}
                             onClick={() => toggleProductFlag(product, "featured")}
                             className="rounded-xl border border-mhgreen/30 bg-mhgreen/10 px-3 py-2 text-xs font-black text-mhgreen transition hover:bg-mhgreen/15 disabled:opacity-50"
                           >
@@ -1266,7 +1456,7 @@ export default function AdminProductsPageClient() {
 
                           <button
                             type="button"
-                            disabled={isSaving}
+                            disabled={isFormLocked}
                             onClick={() => deleteProduct(product)}
                             className="rounded-xl border border-danger/30 bg-danger/10 px-3 py-2 text-xs font-black text-danger transition hover:bg-danger/15 disabled:opacity-50"
                           >
@@ -1382,7 +1572,7 @@ export default function AdminProductsPageClient() {
                         value={form.sku}
                         onChange={(event) => updateForm("sku", event.target.value)}
                         className="input-premium mt-2 min-h-10 text-sm"
-                        placeholder="URN-001"
+                        placeholder="Boş bırakırsan otomatik oluşturulur"
                       />
                     </label>
 
@@ -1408,7 +1598,7 @@ export default function AdminProductsPageClient() {
                         value={form.slug}
                         onChange={(event) => updateForm("slug", event.target.value)}
                         className="input-premium mt-2 min-h-10 text-sm"
-                        placeholder="kuka-tesbih"
+                        placeholder="Ürün adından otomatik oluşturulur"
                       />
                     </label>
 
@@ -1440,7 +1630,7 @@ export default function AdminProductsPageClient() {
                               type="file"
                               accept="image/jpeg,image/png,image/webp,image/gif"
                               className="hidden"
-                              disabled={isUploadingCoverImage || isSaving}
+                              disabled={isUploadingCoverImage || isFormLocked}
                               onChange={(event) => {
                                 const file = event.target.files?.[0];
                                 event.target.value = "";
@@ -1598,37 +1788,24 @@ export default function AdminProductsPageClient() {
                     </h3>
                   </div>
 
-                  <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-                    {activeCategoryOptions.length === 0 ? (
-                      <div className="rounded-2xl border border-border-soft bg-panel/70 p-4 text-sm text-muted sm:col-span-2 lg:col-span-3">
+                  <div className="mt-4 grid gap-3 md:grid-cols-2">
+                    {activeCategoryTree.length === 0 ? (
+                      <div className="rounded-2xl border border-border-soft bg-panel/70 p-4 text-sm text-muted md:col-span-2">
                         Henüz kategori yok. Önce admin kategori sayfasından kategori oluştur.
                       </div>
                     ) : (
-                      activeCategoryOptions.map((category) => (
-                        <label
+                      activeCategoryTree.map((category) => (
+                        <div
                           key={category.id}
-                          className={`flex cursor-pointer gap-3 rounded-2xl border p-3 transition hover:border-border-strong ${
-                            form.categoryIds.includes(category.id)
-                              ? "border-mhgreen/35 bg-mhgreen/10"
-                              : "border-border-soft bg-panel/70"
-                          }`}
+                          className="min-w-0 rounded-2xl border border-border-soft bg-panel/55 p-3 shadow-[0_10px_28px_rgba(0,0,0,0.05)]"
                         >
-                          <input
-                            type="checkbox"
-                            checked={form.categoryIds.includes(category.id)}
-                            onChange={() => toggleCategory(category.id)}
-                            className="mt-1 h-4 w-4 accent-mhgreen"
+                          <CategorySelectionNode
+                            node={category}
+                            depth={0}
+                            selectedCategoryIds={form.categoryIds}
+                            onToggle={toggleCategory}
                           />
-
-                          <span>
-                            <span className="block text-sm font-black text-foreground">
-                              {category.name}
-                            </span>
-                            <span className="mt-0.5 block text-xs text-muted">
-                              /{category.slug}
-                            </span>
-                          </span>
-                        </label>
+                        </div>
                       ))
                     )}
                   </div>
@@ -1682,7 +1859,7 @@ export default function AdminProductsPageClient() {
                                 type="file"
                                 accept="image/jpeg,image/png,image/webp,image/gif"
                                 className="hidden"
-                                disabled={uploadingImageIndex === index || isSaving}
+                                disabled={uploadingImageIndex === index || isFormLocked}
                                 onChange={(event) => {
                                   const file = event.target.files?.[0];
                                   event.target.value = "";
@@ -1913,8 +2090,8 @@ export default function AdminProductsPageClient() {
                     <button
                       type="button"
                       onClick={() => deleteProduct(selectedProduct)}
-                      disabled={isSaving}
-                      className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl border border-danger/30 bg-danger/10 px-5 text-sm font-black text-danger transition hover:bg-danger/15 disabled:opacity-50"
+                      disabled={isFormLocked}
+                      className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl border border-danger/30 bg-danger/10 px-5 text-sm font-black text-danger transition hover:bg-danger/15 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       <Trash2 className="h-4 w-4" />
                       Ürünü Sil
@@ -1924,7 +2101,8 @@ export default function AdminProductsPageClient() {
                   <button
                     type="button"
                     onClick={resetForm}
-                    className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl border border-border-soft bg-panel/70 px-5 text-sm font-black text-foreground transition hover:bg-panel-3"
+                    disabled={isFormLocked}
+                    className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl border border-border-soft bg-panel/70 px-5 text-sm font-black text-foreground transition hover:bg-panel-3 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     <X className="h-4 w-4" />
                     Temizle
@@ -1932,13 +2110,13 @@ export default function AdminProductsPageClient() {
 
                   <button
                     type="submit"
-                    disabled={isSaving}
-                    className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl bg-mhgreen px-5 text-sm font-black text-white shadow-[0_14px_30px_rgba(34,197,94,0.22)] transition hover:-translate-y-0.5 hover:bg-mhgreen-dark disabled:opacity-50"
+                    disabled={isFormLocked}
+                    className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl bg-mhgreen px-5 text-sm font-black text-white shadow-[0_14px_30px_rgba(34,197,94,0.22)] transition hover:-translate-y-0.5 hover:bg-mhgreen-dark disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    {isSaving ? (
+                    {isFormLocked ? (
                       <>
                         <Loader2 className="h-4 w-4 animate-spin" />
-                        Kaydediliyor
+                        İşlem Yapılıyor...
                       </>
                     ) : isEditing ? (
                       "Ürünü Güncelle"

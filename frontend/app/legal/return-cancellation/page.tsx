@@ -1,5 +1,13 @@
 import Link from "next/link";
 import { ArrowLeft, RotateCcw, ShieldCheck } from "lucide-react";
+import { createPageMetadata } from "../../../lib/seo";
+import { merchantConfig } from "../../../lib/merchant";
+
+export const metadata = createPageMetadata({
+  title: "İade ve İptal",
+  description: "Medine Huzur iade ve sipariş iptal koşullarını inceleyin.",
+  path: "/legal/return-cancellation",
+});
 
 export default function ReturnCancellationPage() {
   return (
@@ -26,7 +34,7 @@ export default function ReturnCancellationPage() {
 
               <p className="mt-3 max-w-3xl text-sm leading-7 text-muted">
                 Sipariş iptali, iade ve cayma hakkı süreçleri hakkında temel
-bilgilendirme.
+bilgilendirme. Medine Huzur markasının satıcısı {merchantConfig.sellerName}’dır.
               </p>
             </div>
 

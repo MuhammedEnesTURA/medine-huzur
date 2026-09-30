@@ -55,9 +55,27 @@ public class SmtpEmailService : IEmailService
         using var client = new SmtpClient(_settings.Host, _settings.Port)
         {
             EnableSsl = _settings.EnableSsl,
-            Credentials = new NetworkCredential(_settings.User, _settings.Password)
+            Credentials = new NetworkCredential(_settings.User, _settings.Password),
+            Timeout = 10000 // 10 saniye timeout (Sunucunun sonsuza kadar beklemesini engeller)
         };
 
-        await client.SendMailAsync(message, cancellationToken);
+        try
+        {
+            _logger.LogInformation("SMTP Bağlantısı deneniyor: {Host}:{Port} üzerinden {To} adresine...", _settings.Host, _settings.Port, to);
+            
+            await client.SendMailAsync(message, cancellationToken);
+            
+            _logger.LogInformation("E-posta başarıyla gönderildi: {To}", to);
+        }
+        catch (SmtpException ex)
+        {
+            _logger.LogError(ex, "SMTP Hatası! Durum Kodu: {StatusCode}. Mesaj: {Message}", ex.StatusCode, ex.Message);
+            throw; 
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "SMTP E-posta gönderiminde beklenmeyen hata: {Message}", ex.Message);
+            throw;
+        }
     }
 }

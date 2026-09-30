@@ -1,0 +1,48 @@
+name: Temporary bank review keepalive
+
+on:
+  schedule:
+    - cron: '3,13,23,33,43,53 8-19 * * *'
+      timezone: Europe/Istanbul
+    - cron: '7,37 8-19 * * *'
+      timezone: Europe/Istanbul
+    - cron: '0 20 24 9 *'
+      timezone: Europe/Istanbul
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: write
+
+jobs:
+  keepalive:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      GITHUB_TOKEN: ${{ github.token }}
+      EVENT_NAME: ${{ github.event_name }}
+      SCHEDULE: ${{ github.event.schedule }}
+    steps:
+      - name: Check expiry and health
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl_options=(--fail --max-time 120 --retry 3 --retry-delay 5 --retry-all-errors --silent --show-error --output /dev/null)
+          expires_at=$(date -d '2026-09-24T20:00:00+03:00' +%s)
+
+          if (( $(date +%s) >= expires_at )); then
+            curl "${curl_options[@]}" -X PUT \
+              -H 'Accept: application/vnd.github+json' \
+              -H "Authorization: Bearer ${GITHUB_TOKEN}" \
+              "${GITHUB_API_URL}/repos/${GITHUB_REPOSITORY}/actions/workflows/temporary-bank-review-keepalive.yml/disable"
+            exit 0
+          fi
+
+          health_failed=0
+          if [[ "$EVENT_NAME" == 'workflow_dispatch' || "$SCHEDULE" == '3,13,23,33,43,53 8-19 * * *' ]]; then
+            curl "${curl_options[@]}" 'https://api.medinehuzur.com/health/process' || health_failed=1
+          fi
+          if [[ "$EVENT_NAME" == 'workflow_dispatch' || "$SCHEDULE" == '7,37 8-19 * * *' ]]; then
+            curl "${curl_options[@]}" 'https://api.medinehuzur.com/health/database' || health_failed=1
+          fi
+          exit "$health_failed"

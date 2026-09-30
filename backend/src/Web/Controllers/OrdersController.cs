@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Net;
 using System.Security.Claims;
 using System.Security.Cryptography;
+using MedineHuzur.Domain;
 using MedineHuzur.Domain.Entities;
 using MedineHuzur.Infrastructure;
 using MedineHuzur.Web.Services;
@@ -21,17 +22,20 @@ public class OrdersController : ControllerBase
     private readonly IEmailService _emailService;
     private readonly IConfiguration _configuration;
     private readonly ILogger<OrdersController> _logger;
+    private readonly ShippingPolicy _shippingPolicy;
 
     public OrdersController(
         ECommerceContext db,
         IEmailService emailService,
         IConfiguration configuration,
-        ILogger<OrdersController> logger)
+        ILogger<OrdersController> logger,
+        ShippingPolicy shippingPolicy)
     {
         _db = db;
         _emailService = emailService;
         _configuration = configuration;
         _logger = logger;
+        _shippingPolicy = shippingPolicy;
     }
 
     [HttpPost("checkout")]
@@ -39,6 +43,11 @@ public class OrdersController : ControllerBase
         CheckoutRequest request,
         CancellationToken cancellationToken)
     {
+        if (!_configuration.GetValue<bool>("PAYMENT_PROVIDER_ACTIVE"))
+        {
+            return StatusCode(503, new { message = "Ödeme ve sipariş onayı şu anda kullanılamıyor." });
+        }
+
         var validationError = ValidateCheckoutRequest(request);
         if (validationError is not null)
         {
@@ -86,7 +95,7 @@ public class OrdersController : ControllerBase
                 UserId = userId,
                 CustomerName = NormalizeText(request.CustomerName),
                 Email = NormalizeEmail(request.Email),
-                Phone = NormalizeText(request.Phone),
+                Phone = NormalizeTurkishPhone(request.Phone),
                 AddressText = NormalizeText(request.Address),
                 PaymentMethod = NormalizeText(request.PaymentMethod) is { Length: > 0 } paymentMethod
                     ? paymentMethod
@@ -143,7 +152,8 @@ public class OrdersController : ControllerBase
             }
 
             order.Subtotal = subtotal;
-            order.Total = subtotal - order.DiscountTotal;
+            order.ShippingAmount = _shippingPolicy.CalculateShipping(subtotal);
+            order.Total = subtotal - order.DiscountTotal + order.ShippingAmount;
 
             order.StatusHistory.Add(new OrderStatusHistory
             {
@@ -162,12 +172,16 @@ public class OrdersController : ControllerBase
 
             await SendOrderCreatedEmailsAsync(order, cancellationToken);
 
+            var checkoutMessage = string.IsNullOrWhiteSpace(order.Email)
+                ? "Siparişiniz alınmıştır. Ödeme adımına geçebilirsiniz."
+                : "Siparişiniz alınmıştır. Sipariş bilgileriniz e-posta adresinize gönderildi.";
+
             return Ok(new CheckoutResponse(
                 order.Id,
                 order.OrderNumber,
                 order.Total,
                 !userId.HasValue,
-                "Siparişiniz alınmıştır. Sipariş bilgileriniz e-posta adresinize gönderildi."));
+                checkoutMessage));
         }
         catch (InvalidOperationException ex)
         {
@@ -251,16 +265,16 @@ public class OrdersController : ControllerBase
     [HttpGet("guest")]
     public async Task<ActionResult<OrderDetailDto>> GetGuestOrder(
         [FromQuery] string orderNumber,
-        [FromQuery] string email,
+        [FromQuery] string phone,
         CancellationToken cancellationToken)
     {
         var normalizedOrderNumber = NormalizeText(orderNumber).ToUpperInvariant();
-        var normalizedEmail = NormalizeEmail(email);
+        var normalizedPhone = NormalizeTurkishPhone(phone);
 
         if (string.IsNullOrWhiteSpace(normalizedOrderNumber) ||
-            string.IsNullOrWhiteSpace(normalizedEmail))
+            string.IsNullOrWhiteSpace(normalizedPhone))
         {
-            return BadRequest(new { message = "Sipariş numarası ve e-posta zorunludur." });
+            return BadRequest(new { message = "Sipariş numarası ve telefon zorunludur." });
         }
 
         var order = await _db.Orders
@@ -270,10 +284,14 @@ public class OrdersController : ControllerBase
             .Include(x => x.StatusHistory)
             .Include(x => x.PaymentTransactions)
             .FirstOrDefaultAsync(
-                x => x.OrderNumber == normalizedOrderNumber && x.Email == normalizedEmail,
+                x => x.OrderNumber == normalizedOrderNumber,
                 cancellationToken);
 
-        if (order is null)
+        if (order is null ||
+            !string.Equals(
+                NormalizeTurkishPhone(order.Phone),
+                normalizedPhone,
+                StringComparison.Ordinal))
         {
             return NotFound(new { message = "Sipariş bulunamadı." });
         }
@@ -376,13 +394,16 @@ public class OrdersController : ControllerBase
         Order order,
         CancellationToken cancellationToken)
     {
-        var customerHtml = BuildCustomerOrderCreatedHtml(order);
+        if (!string.IsNullOrWhiteSpace(order.Email))
+        {
+            var customerHtml = BuildCustomerOrderCreatedHtml(order);
 
-        await SafeSendEmailAsync(
-            order.Email,
-            $"Medine Huzur - Siparişiniz Alındı ({order.OrderNumber})",
-            customerHtml,
-            cancellationToken);
+            await SafeSendEmailAsync(
+                order.Email,
+                $"Medine Huzur - Siparişiniz Alındı ({order.OrderNumber})",
+                customerHtml,
+                cancellationToken);
+        }
 
         var adminEmail = GetAdminOrderNotificationEmail();
 
@@ -402,7 +423,7 @@ public class OrdersController : ControllerBase
     {
         var frontendBaseUrl = GetFrontendBaseUrl();
         var guestOrderUrl =
-            $"{frontendBaseUrl}/guest-orders?orderNumber={Uri.EscapeDataString(order.OrderNumber)}&email={Uri.EscapeDataString(order.Email)}";
+            $"{frontendBaseUrl}/guest-orders?orderNumber={Uri.EscapeDataString(order.OrderNumber)}&phone={Uri.EscapeDataString(order.Phone)}";
 
         var normalItemsHtml = BuildOrderLinesHtml(order.Items);
         var giftItemsHtml = BuildGiftOrderLinesHtml(order.GiftPackageItems, order.GiftPackageQuantity);
@@ -456,6 +477,8 @@ public class OrdersController : ControllerBase
                                         <td style="padding:8px 0;text-align:right;color:#111827;font-weight:700">{HtmlEncode(order.PaymentStatus.ToString())}</td>
                                     </tr>
                                     {giftPackageHtml}
+                                    <tr><td style="padding:8px 0;color:#4b5563">Ürünler Ara Toplamı</td><td style="padding:8px 0;text-align:right">{FormatMoney(order.Subtotal)}</td></tr>
+                                    <tr><td style="padding:8px 0;color:#4b5563">Kargo</td><td style="padding:8px 0;text-align:right">{FormatMoney(order.ShippingAmount)}</td></tr>
                                     <tr>
                                         <td style="padding:8px 0;color:#4b5563;border-top:1px solid #d8eadf">Toplam</td>
                                         <td style="padding:8px 0;text-align:right;color:#0f8a43;font-size:20px;font-weight:900;border-top:1px solid #d8eadf">{FormatMoney(order.Total)}</td>
@@ -534,6 +557,8 @@ public class OrdersController : ControllerBase
                                         <td style="padding:8px 0;color:#4b5563">Telefon</td>
                                         <td style="padding:8px 0;text-align:right;font-weight:700">{HtmlEncode(order.Phone)}</td>
                                     </tr>
+                                    <tr><td style="padding:8px 0;color:#4b5563">Ürünler Ara Toplamı</td><td style="padding:8px 0;text-align:right">{FormatMoney(order.Subtotal)}</td></tr>
+                                    <tr><td style="padding:8px 0;color:#4b5563">Kargo</td><td style="padding:8px 0;text-align:right">{FormatMoney(order.ShippingAmount)}</td></tr>
                                     <tr>
                                         <td style="padding:8px 0;color:#4b5563;border-top:1px solid #d8eadf">Toplam</td>
                                         <td style="padding:8px 0;text-align:right;color:#0f8a43;font-size:20px;font-weight:900;border-top:1px solid #d8eadf">{FormatMoney(order.Total)}</td>
@@ -906,14 +931,14 @@ public class OrdersController : ControllerBase
             return "Ad soyad zorunludur.";
         }
 
-        if (string.IsNullOrWhiteSpace(request.Email) || !request.Email.Contains('@'))
+        if (!string.IsNullOrWhiteSpace(request.Email) && !request.Email.Contains('@'))
         {
-            return "Geçerli bir e-posta adresi girin.";
+            return "E-posta adresi geçersiz.";
         }
 
-        if (string.IsNullOrWhiteSpace(request.Phone))
+        if (string.IsNullOrWhiteSpace(NormalizeTurkishPhone(request.Phone)))
         {
-            return "Telefon zorunludur.";
+            return "Geçerli bir telefon numarası girin.";
         }
 
         if (string.IsNullOrWhiteSpace(request.Address))
@@ -944,6 +969,7 @@ public class OrdersController : ControllerBase
             order.Status.ToString(),
             order.Subtotal,
             order.DiscountTotal,
+            order.ShippingAmount,
             order.Total,
             order.CreatedAtUtc,
             order.ShippingCompany,
@@ -1034,11 +1060,30 @@ public class OrdersController : ControllerBase
     {
         return (email ?? string.Empty).Trim().ToLowerInvariant();
     }
+
+    private static string NormalizeTurkishPhone(string? value)
+    {
+        var digits = new string((value ?? string.Empty).Where(char.IsDigit).ToArray());
+
+        if (digits.StartsWith("90", StringComparison.Ordinal) && digits.Length == 12)
+        {
+            digits = $"0{digits[2..]}";
+        }
+        else if (digits.Length == 10 && digits.StartsWith('5'))
+        {
+            digits = $"0{digits}";
+        }
+
+        return digits.Length == 11 &&
+               digits.StartsWith("05", StringComparison.Ordinal)
+            ? digits
+            : string.Empty;
+    }
 }
 
 public sealed record CheckoutRequest(
     string CustomerName,
-    string Email,
+    string? Email,
     string Phone,
     string Address,
     string PaymentMethod,
@@ -1101,6 +1146,7 @@ public sealed record OrderDetailDto(
     string Status,
     decimal Subtotal,
     decimal DiscountTotal,
+    decimal ShippingAmount,
     decimal Total,
     DateTime CreatedAtUtc,
     string? ShippingCompany,

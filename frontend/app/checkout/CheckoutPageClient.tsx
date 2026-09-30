@@ -16,6 +16,8 @@ import {
 } from "lucide-react";
 import { apiUrl, authHeaders, readJsonOrThrow } from "../../lib/api";
 import { useAuth } from "../../context/AuthContext";
+import { usePaymentAvailability } from "../../context/PaymentAvailabilityContext";
+import { useShippingQuote } from "../../lib/useShippingQuote";
 import {
   CartItem,
   getCartLineKey,
@@ -102,6 +104,24 @@ function toCheckoutItem(item: CartItem): CheckoutItemPayload {
     quantity: item.quantity,
     selectedAttributes: item.selectedAttributes ?? null,
   };
+}
+
+function normalizePhone(value: string) {
+  const digits = value.replace(/\D/g, "");
+  if (digits.startsWith("90") && digits.length === 12) return `0${digits.slice(2)}`;
+  if (digits.length === 10 && digits.startsWith("5")) return `0${digits}`;
+  return digits;
+}
+
+function formatPhoneInput(value: string) {
+  const digits = normalizePhone(value).slice(0, 11);
+  const parts = [
+    digits.slice(0, 4),
+    digits.slice(4, 7),
+    digits.slice(7, 9),
+    digits.slice(9, 11),
+  ].filter(Boolean);
+  return parts.join(" ");
 }
 
 function buildAddressText(form: CheckoutForm) {
@@ -197,6 +217,7 @@ function CheckoutLine({
 export default function CheckoutPageClient() {
   const router = useRouter();
   const { user, token } = useAuth();
+  const paymentActive = usePaymentAvailability();
   const {
     items,
     giftPackage,
@@ -206,6 +227,8 @@ export default function CheckoutPageClient() {
     total,
     clearCart,
   } = useCart();
+  const shippingState = useShippingQuote(total);
+  const shippingQuote = shippingState?.quote;
 
   const [form, setForm] = useState<CheckoutForm>({
     fullName: "",
@@ -216,7 +239,7 @@ export default function CheckoutPageClient() {
     addressLine: "",
     postalCode: "",
     orderNote: "",
-    paymentMethod: "CreditCard",
+    paymentMethod: paymentActive ? "CreditCard" : "",
   });
 
   const [legalConsents, setLegalConsents] = useState<LegalConsents>({
@@ -244,18 +267,34 @@ export default function CheckoutPageClient() {
   const isEmpty = items.length === 0 && giftPackage.items.length === 0;
   const missingAmount = Math.max(0, MIN_CART_TOTAL - total);
 
+  const checkoutIssues = [
+    ...(form.fullName.trim().length < 2 ? ["Ad soyad zorunlu"] : []),
+    ...(normalizePhone(form.phone).length !== 11
+      ? ["Telefon zorunlu ve 11 haneli olmalı"]
+      : []),
+    ...(form.email.trim() && !form.email.includes("@")
+      ? ["E-posta adresi geçersiz"]
+      : []),
+    ...(form.city.trim().length < 2 ? ["İl zorunlu"] : []),
+    ...(form.district.trim().length < 2 ? ["İlçe zorunlu"] : []),
+    ...(form.addressLine.trim().length < 10
+      ? ["Açık adres zorunlu"]
+      : []),
+    ...(!/^\d{5}$/.test(form.postalCode.trim())
+      ? ["Posta kodu zorunlu ve 5 haneli olmalı"]
+      : []),
+    ...(!legalConsents.preInformationAccepted ||
+    !legalConsents.distanceSalesAccepted
+      ? ["Yasal onaylar zorunlu"]
+      : []),
+  ];
+
   const canSubmit =
+    paymentActive &&
+    !!shippingQuote &&
     !isEmpty &&
     total >= MIN_CART_TOTAL &&
-    form.fullName.trim().length >= 2 &&
-    form.email.trim().length >= 5 &&
-    form.email.includes("@") &&
-    form.phone.trim().length >= 8 &&
-    form.city.trim().length >= 2 &&
-    form.district.trim().length >= 2 &&
-    form.addressLine.trim().length >= 10 &&
-    legalConsents.preInformationAccepted &&
-    legalConsents.distanceSalesAccepted;
+    checkoutIssues.length === 0;
 
   const applyAddressToForm = (address: AddressDto) => {
     setForm((current) => ({
@@ -366,7 +405,7 @@ export default function CheckoutPageClient() {
     const payload = {
       customerName: form.fullName.trim(),
       email: form.email.trim().toLowerCase(),
-      phone: form.phone.trim(),
+      phone: normalizePhone(form.phone),
       address: buildAddressText(form),
       paymentMethod: form.paymentMethod,
       items: normalItemsPayload,
@@ -410,22 +449,34 @@ export default function CheckoutPageClient() {
         return;
       }
 
-      clearCart();
-
       const orderNumber = data?.orderNumber ?? "";
-      const email = form.email.trim().toLowerCase();
-
-      const params = new URLSearchParams();
+      const phone = normalizePhone(form.phone);
 
       if (orderNumber) {
-        params.set("orderNumber", orderNumber);
+        try {
+          sessionStorage.setItem(
+            `mh-payment-address:${orderNumber}`,
+            JSON.stringify({
+              city: form.city.trim(),
+              district: form.district.trim(),
+              addressLine: form.addressLine.trim(),
+              postCode: form.postalCode.trim(),
+              phone,
+            })
+          );
+        } catch {
+          // Ödeme akışı sessionStorage olmadan da çalışır.
+        }
       }
 
-      if (email) {
-        params.set("email", email);
-      }
+      clearCart();
 
-      router.push(`/order-success?${params.toString()}`);
+      const params = new URLSearchParams({
+        orderNumber,
+        phone,
+      });
+
+      router.push(`/payment/kuveytturk?${params.toString()}`);
     } catch {
       setSubmitState({
         type: "error",
@@ -441,7 +492,7 @@ export default function CheckoutPageClient() {
     return (
       <main className="page-shell">
         <section className="page-container py-5 md:py-6">
-          <div className="concept-surface rounded-[1.45rem] border border-border-soft bg-panel/76 p-8 text-center shadow-[0_18px_50px_rgba(0,0,0,0.16)] backdrop-blur">
+          <div className="concept-surface rounded-[1.25rem] border border-border-soft bg-panel/76 p-8 text-center shadow-[0_14px_38px_rgba(0,0,0,0.10)] backdrop-blur">
             <div className="relative z-10 mx-auto flex h-16 w-16 items-center justify-center rounded-3xl border border-border-soft bg-panel-3">
               <ShoppingBag className="h-8 w-8 text-mhgreen" />
             </div>
@@ -479,19 +530,24 @@ export default function CheckoutPageClient() {
 
         <div className="mt-5 grid gap-5 lg:grid-cols-[1fr_390px]">
           <div className="space-y-5">
-            <section className="concept-surface rounded-[1.45rem] border border-border-soft bg-panel/76 p-4 shadow-[0_18px_50px_rgba(0,0,0,0.16)] backdrop-blur md:p-5">
+            <section className="concept-surface rounded-[1.25rem] border border-border-soft bg-panel/76 p-3.5 shadow-[0_14px_38px_rgba(0,0,0,0.10)] backdrop-blur md:p-4">
               <div className="relative z-10">
                 <p className="text-xs font-black uppercase tracking-[0.14em] text-mhgreen">
-                  Checkout
+                  Güvenli Sipariş
                 </p>
 
-                <h1 className="mt-2 text-2xl font-black tracking-[-0.03em] text-foreground md:text-3xl">
+                <h1 className="mt-2 text-[1.65rem] font-black tracking-[-0.03em] text-foreground md:text-[1.9rem]">
                   Sipariş bilgileri
                 </h1>
 
-                <p className="mt-2 max-w-2xl text-sm font-medium leading-6 text-muted">
-                  Teslimat ve iletişim bilgilerini doldur. Sipariş oluşturulduktan
-                  sonra güvenli ödeme adımına yönlendirileceksin.
+                <p className="mt-1 text-xs font-bold text-danger">
+                  Kırmızı “zorunlu” etiketi bulunan alanlar doldurulmalıdır.
+                </p>
+
+                <p className="mt-1.5 max-w-2xl text-[13px] font-medium leading-6 text-muted">
+                  {paymentActive
+                    ? "Teslimat ve iletişim bilgilerini doldur. Sipariş oluşturulduktan sonra güvenli ödeme adımına yönlendirileceksin."
+                    : "Teslimat ve iletişim bilgilerini inceleyebilirsin. Sanal POS henüz aktif olmadığından sipariş onayı kapalıdır."}
                 </p>
               </div>
 
@@ -550,51 +606,54 @@ export default function CheckoutPageClient() {
               )}
             </section>
 
-            <section className="concept-surface rounded-[1.45rem] border border-border-soft bg-panel/76 p-4 shadow-[0_18px_50px_rgba(0,0,0,0.16)] backdrop-blur md:p-5">
+            <section className="concept-surface rounded-[1.25rem] border border-border-soft bg-panel/76 p-3.5 shadow-[0_14px_38px_rgba(0,0,0,0.10)] backdrop-blur md:p-4">
               <div className="relative z-10">
-                <h2 className="text-xl font-black tracking-[-0.02em] text-foreground">
+                <h2 className="text-lg font-black tracking-[-0.02em] text-foreground">
                   Müşteri bilgileri
                 </h2>
 
-                <div className="mt-4 grid gap-3 md:grid-cols-2">
-                  <label className="rounded-2xl border border-border-soft bg-panel/64 p-3">
-                    <span className="text-xs font-black uppercase tracking-[0.12em] text-muted-2">
-                      Ad soyad
+                <div className="mt-3 grid gap-3 md:grid-cols-2">
+                  <label className="rounded-2xl border border-border-soft bg-panel/64 p-2.5">
+                    <span className="text-[11px] font-black uppercase tracking-[0.12em] text-muted-2">
+                      Ad soyad <span className="normal-case tracking-normal text-danger">(zorunlu)</span>
                     </span>
                     <input
                       value={form.fullName}
                       onChange={(event) =>
                         updateForm("fullName", event.target.value)
                       }
-                      className="input-premium mt-2 min-h-10 text-sm"
+                      className="input-premium mt-2 min-h-9 py-2 text-sm"
                       placeholder="Ad Soyad"
+                      required
                     />
                   </label>
 
-                  <label className="rounded-2xl border border-border-soft bg-panel/64 p-3">
-                    <span className="text-xs font-black uppercase tracking-[0.12em] text-muted-2">
-                      Telefon
+                  <label className="rounded-2xl border border-border-soft bg-panel/64 p-2.5">
+                    <span className="text-[11px] font-black uppercase tracking-[0.12em] text-muted-2">
+                      Telefon <span className="normal-case tracking-normal text-danger">(zorunlu)</span>
                     </span>
                     <input
                       value={form.phone}
                       onChange={(event) =>
-                        updateForm("phone", event.target.value)
+                        updateForm("phone", formatPhoneInput(event.target.value))
                       }
-                      className="input-premium mt-2 min-h-10 text-sm"
+                      className="input-premium mt-2 min-h-9 py-2 text-sm"
                       placeholder="05xx xxx xx xx"
+                      inputMode="tel"
+                      required
                     />
                   </label>
 
-                  <label className="rounded-2xl border border-border-soft bg-panel/64 p-3 md:col-span-2">
-                    <span className="text-xs font-black uppercase tracking-[0.12em] text-muted-2">
-                      E-posta
+                  <label className="rounded-2xl border border-border-soft bg-panel/64 p-2.5 md:col-span-2">
+                    <span className="text-[11px] font-black uppercase tracking-[0.12em] text-muted-2">
+                      E-posta <span className="normal-case tracking-normal text-muted">(opsiyonel)</span>
                     </span>
                     <input
                       value={form.email}
                       onChange={(event) =>
                         updateForm("email", event.target.value)
                       }
-                      className="input-premium mt-2 min-h-10 text-sm"
+                      className="input-premium mt-2 min-h-9 py-2 text-sm"
                       placeholder="ornek@mail.com"
                       type="email"
                     />
@@ -603,14 +662,14 @@ export default function CheckoutPageClient() {
               </div>
             </section>
 
-            <section className="concept-surface rounded-[1.45rem] border border-border-soft bg-panel/76 p-4 shadow-[0_18px_50px_rgba(0,0,0,0.16)] backdrop-blur md:p-5">
+            <section className="concept-surface rounded-[1.25rem] border border-border-soft bg-panel/76 p-3.5 shadow-[0_14px_38px_rgba(0,0,0,0.10)] backdrop-blur md:p-4">
               <div className="relative z-10">
-                <h2 className="text-xl font-black tracking-[-0.02em] text-foreground">
+                <h2 className="text-lg font-black tracking-[-0.02em] text-foreground">
                   Teslimat adresi
                 </h2>
 
                 {token && (
-                  <div className="mt-4 rounded-2xl border border-border-soft bg-panel/65 p-3">
+                  <div className="mt-3 rounded-2xl border border-border-soft bg-panel/65 p-3">
                     <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                       <div>
                         <p className="text-sm font-black text-foreground">
@@ -641,7 +700,7 @@ export default function CheckoutPageClient() {
                         onChange={(event) =>
                           handleSavedAddressChange(event.target.value)
                         }
-                        className="input-premium mt-3 min-h-10 text-sm"
+                        className="input-premium mt-3 min-h-9 py-2 text-sm"
                       >
                         <option value="">Adres seç</option>
 
@@ -662,65 +721,72 @@ export default function CheckoutPageClient() {
                   </div>
                 )}
 
-                <div className="mt-4 grid gap-3 md:grid-cols-2">
-                  <label className="rounded-2xl border border-border-soft bg-panel/64 p-3">
-                    <span className="text-xs font-black uppercase tracking-[0.12em] text-muted-2">
-                      İl
+                <div className="mt-3 grid gap-3 md:grid-cols-2">
+                  <label className="rounded-2xl border border-border-soft bg-panel/64 p-2.5">
+                    <span className="text-[11px] font-black uppercase tracking-[0.12em] text-muted-2">
+                      İl <span className="normal-case tracking-normal text-danger">(zorunlu)</span>
                     </span>
                     <input
                       value={form.city}
                       onChange={(event) => updateForm("city", event.target.value)}
-                      className="input-premium mt-2 min-h-10 text-sm"
+                      className="input-premium mt-2 min-h-9 py-2 text-sm"
                       placeholder="İstanbul"
+                      required
                     />
                   </label>
 
-                  <label className="rounded-2xl border border-border-soft bg-panel/64 p-3">
-                    <span className="text-xs font-black uppercase tracking-[0.12em] text-muted-2">
-                      İlçe
+                  <label className="rounded-2xl border border-border-soft bg-panel/64 p-2.5">
+                    <span className="text-[11px] font-black uppercase tracking-[0.12em] text-muted-2">
+                      İlçe <span className="normal-case tracking-normal text-danger">(zorunlu)</span>
                     </span>
                     <input
                       value={form.district}
                       onChange={(event) =>
                         updateForm("district", event.target.value)
                       }
-                      className="input-premium mt-2 min-h-10 text-sm"
+                      className="input-premium mt-2 min-h-9 py-2 text-sm"
                       placeholder="Üsküdar"
+                      required
                     />
                   </label>
 
-                  <label className="rounded-2xl border border-border-soft bg-panel/64 p-3">
-                    <span className="text-xs font-black uppercase tracking-[0.12em] text-muted-2">
-                      Posta kodu
+                  <label className="rounded-2xl border border-border-soft bg-panel/64 p-2.5">
+                    <span className="text-[11px] font-black uppercase tracking-[0.12em] text-muted-2">
+                      Posta kodu <span className="normal-case tracking-normal text-danger">(zorunlu)</span>
                     </span>
                     <input
                       value={form.postalCode}
                       onChange={(event) =>
                         updateForm("postalCode", event.target.value)
                       }
-                      className="input-premium mt-2 min-h-10 text-sm"
-                      placeholder="Opsiyonel"
+                      className="input-premium mt-2 min-h-9 py-2 text-sm"
+                      placeholder="19030"
+                      inputMode="numeric"
+                      pattern="[0-9]{5}"
+                      maxLength={5}
+                      required
                     />
                   </label>
 
-                  <label className="rounded-2xl border border-border-soft bg-panel/64 p-3 md:col-span-2">
-                    <span className="text-xs font-black uppercase tracking-[0.12em] text-muted-2">
-                      Açık adres
+                  <label className="rounded-2xl border border-border-soft bg-panel/64 p-2.5 md:col-span-2">
+                    <span className="text-[11px] font-black uppercase tracking-[0.12em] text-muted-2">
+                      Açık adres <span className="normal-case tracking-normal text-danger">(zorunlu)</span>
                     </span>
                     <textarea
                       value={form.addressLine}
                       onChange={(event) =>
                         updateForm("addressLine", event.target.value)
                       }
-                      className="input-premium mt-2 min-h-24 resize-none py-3 text-sm"
+                      className="input-premium mt-2 min-h-20 resize-none py-2.5 text-sm"
                       placeholder="Mahalle, cadde, sokak, bina, daire..."
+                      required
                     />
                   </label>
                 </div>
               </div>
             </section>
 
-            <section className="concept-surface rounded-[1.45rem] border border-border-soft bg-panel/76 p-4 shadow-[0_18px_50px_rgba(0,0,0,0.16)] backdrop-blur md:p-5">
+            <section className="concept-surface rounded-[1.25rem] border border-border-soft bg-panel/76 p-3.5 shadow-[0_14px_38px_rgba(0,0,0,0.10)] backdrop-blur md:p-4">
               <div className="relative z-10">
                 <div className="flex items-start gap-3">
                   <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-mhgreen/25 bg-mhgreen/10 text-mhgreen">
@@ -728,24 +794,26 @@ export default function CheckoutPageClient() {
                   </div>
 
                   <div>
-                    <h2 className="text-xl font-black tracking-[-0.02em] text-foreground">
+                    <h2 className="text-lg font-black tracking-[-0.02em] text-foreground">
                       Ödeme yöntemi
                     </h2>
 
-                    <p className="mt-1 text-sm font-medium leading-6 text-muted">
-                      Sipariş oluşturulduktan sonra güvenli ödeme adımına
-                      yönlendirileceksin.
+                    <p className="mt-1 text-[13px] font-medium leading-6 text-muted">
+                      {paymentActive
+                        ? "Sipariş oluşturulduktan sonra güvenli ödeme adımına yönlendirileceksin."
+                        : "Kuveyt Türk Sanal POS aktivasyonu sonrası kullanılacaktır."}
                     </p>
                   </div>
                 </div>
 
-                <div className="mt-4 grid gap-3">
-                  <label className="flex cursor-pointer gap-3 rounded-2xl border border-mhgreen/35 bg-mhgreen/10 p-4 transition hover:border-mhgreen/50">
+                <div className="mt-3 grid gap-3">
+                  <label className="flex gap-3 rounded-2xl border border-mhgreen/35 bg-mhgreen/10 p-3.5">
                     <input
                       type="radio"
                       name="paymentMethod"
                       checked={form.paymentMethod === "CreditCard"}
                       onChange={() => updateForm("paymentMethod", "CreditCard")}
+                      disabled={!paymentActive}
                       className="mt-1 h-4 w-4 accent-mhgreen"
                     />
 
@@ -761,13 +829,14 @@ export default function CheckoutPageClient() {
                       </span>
 
                       <span className="mt-1 block text-xs leading-5 text-muted">
-  Ödeme işlemi güvenli ödeme altyapısı üzerinden tamamlanır. Kart
-  bilgileri Medine Huzur tarafından saklanmaz.
+  {paymentActive
+    ? "Ödeme işlemi güvenli ödeme altyapısı üzerinden tamamlanır. Kart bilgileri Medine Huzur tarafından saklanmaz."
+    : "Kuveyt Türk Sanal POS aktivasyonu sonrası kullanılacaktır."}
 </span>
                     </span>
                   </label>
 
-                  <div className="rounded-2xl border border-border-soft bg-panel/65 p-4">
+                  {paymentActive && <div className="rounded-2xl border border-border-soft bg-panel/65 p-3.5">
                     <div className="flex gap-3">
                       <ShieldCheck className="mt-0.5 h-5 w-5 shrink-0 text-mhgreen" />
 
@@ -783,22 +852,22 @@ export default function CheckoutPageClient() {
                         </p>
                       </div>
                     </div>
-                  </div>
+                  </div>}
                 </div>
               </div>
             </section>
 
             {giftPackage.enabled && giftPackage.items.length > 0 && (
-              <section className="concept-surface rounded-[1.45rem] border border-mhgreen/25 bg-mhgreen/10 p-4 shadow-[0_18px_50px_rgba(0,0,0,0.12)] md:p-5">
+              <section className="concept-surface rounded-[1.25rem] border border-mhgreen/25 bg-mhgreen/10 p-3.5 shadow-[0_14px_38px_rgba(0,0,0,0.10)] md:p-4">
                 <div className="relative z-10 flex items-start gap-3">
                   <Gift className="mt-1 h-5 w-5 shrink-0 text-mhgreen" />
 
                   <div>
-                    <h2 className="text-lg font-black text-mhgreen">
+                    <h2 className="text-base font-black text-mhgreen">
                       Hediye kutusu bilgisi
                     </h2>
 
-                    <p className="mt-1 text-sm font-medium leading-6 text-muted">
+                    <p className="mt-1 text-[13px] font-medium leading-6 text-muted">
                       Seçtiğin kutu içeriği {Math.max(1, giftPackage.quantity || 1)}
                       adet aynı hediye kutusu olarak hazırlanacak.
                     </p>
@@ -827,9 +896,9 @@ export default function CheckoutPageClient() {
               </section>
             )}
 
-            <section className="concept-surface rounded-[1.45rem] border border-border-soft bg-panel/76 p-4 shadow-[0_18px_50px_rgba(0,0,0,0.16)] backdrop-blur md:p-5">
+            <section className="concept-surface rounded-[1.25rem] border border-border-soft bg-panel/76 p-3.5 shadow-[0_14px_38px_rgba(0,0,0,0.10)] backdrop-blur md:p-4">
               <div className="relative z-10">
-                <h2 className="text-xl font-black tracking-[-0.02em] text-foreground">
+                <h2 className="text-lg font-black tracking-[-0.02em] text-foreground">
                   Sipariş notu
                 </h2>
 
@@ -840,78 +909,16 @@ export default function CheckoutPageClient() {
                 <textarea
                   value={form.orderNote}
                   onChange={(event) => updateForm("orderNote", event.target.value)}
-                  className="input-premium mt-4 min-h-24 resize-none py-3 text-sm"
+                  className="input-premium mt-3 min-h-20 resize-none py-2.5 text-sm"
                   placeholder="Siparişle ilgili notun varsa yazabilirsin..."
                 />
               </div>
             </section>
 
-            <section className="concept-surface rounded-[1.45rem] border border-border-soft bg-panel/76 p-4 shadow-[0_18px_50px_rgba(0,0,0,0.16)] backdrop-blur md:p-5">
-              <div className="relative z-10">
-                <h2 className="text-xl font-black tracking-[-0.02em] text-foreground">
-                  Yasal onaylar
-                </h2>
-
-                <p className="mt-1 text-sm font-medium leading-6 text-muted">
-                  Siparişi oluşturmak için ön bilgilendirme ve mesafeli satış
-                  onayları zorunludur.
-                </p>
-
-                <div className="mt-4 grid gap-3">
-                  <label className="flex cursor-pointer gap-3 rounded-2xl border border-border-soft bg-panel/65 p-3 transition hover:border-border-strong">
-                    <input
-                      type="checkbox"
-                      checked={legalConsents.preInformationAccepted}
-                      onChange={(event) =>
-                        updateConsent(
-                          "preInformationAccepted",
-                          event.target.checked
-                        )
-                      }
-                      className="mt-1 h-4 w-4 accent-mhgreen"
-                    />
-
-                    <span className="text-sm leading-6 text-muted">
-                      <Link
-                        href="/legal/pre-information"
-                        className="font-black text-mhgreen transition hover:text-mhgreen-dark"
-                      >
-                        Ön bilgilendirme formunu
-                      </Link>{" "}
-                      okudum ve kabul ediyorum.
-                    </span>
-                  </label>
-
-                  <label className="flex cursor-pointer gap-3 rounded-2xl border border-border-soft bg-panel/65 p-3 transition hover:border-border-strong">
-                    <input
-                      type="checkbox"
-                      checked={legalConsents.distanceSalesAccepted}
-                      onChange={(event) =>
-                        updateConsent(
-                          "distanceSalesAccepted",
-                          event.target.checked
-                        )
-                      }
-                      className="mt-1 h-4 w-4 accent-mhgreen"
-                    />
-
-                    <span className="text-sm leading-6 text-muted">
-                      <Link
-                        href="/legal/distance-sales"
-                        className="font-black text-mhgreen transition hover:text-mhgreen-dark"
-                      >
-                        Mesafeli satış sözleşmesini
-                      </Link>{" "}
-                      okudum ve kabul ediyorum.
-                    </span>
-                  </label>
-                </div>
-              </div>
-            </section>
           </div>
 
           <aside className="space-y-4 lg:self-start">
-            <section className="concept-surface rounded-[1.45rem] border border-border-soft bg-panel/76 p-4 shadow-[0_18px_50px_rgba(0,0,0,0.16)] backdrop-blur md:p-5">
+            <section className="concept-surface rounded-[1.25rem] border border-border-soft bg-panel/76 p-3.5 shadow-[0_14px_38px_rgba(0,0,0,0.10)] backdrop-blur md:p-4">
               <div className="relative z-10 flex items-center gap-2">
                 <PackageCheck className="h-5 w-5 text-mhgreen" />
 
@@ -968,13 +975,35 @@ export default function CheckoutPageClient() {
                   </span>
                 </div>
 
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-muted">Ürünler Ara Toplamı</span>
+                  <span className="font-black text-foreground">{formatPrice(total)}</span>
+                </div>
+
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-muted">Kargo</span>
+                  <span className="font-black text-foreground">
+                    {shippingQuote ? (shippingQuote.shippingAmount === 0 ? "Ücretsiz" : formatPrice(shippingQuote.shippingAmount)) : shippingState?.error ? "Hesaplanamadı" : "Hesaplanıyor"}
+                  </span>
+                </div>
+
+                {shippingState?.error && (
+                  <p className="text-xs leading-5 text-danger">Kargo tutarı şu anda hesaplanamıyor. Lütfen tekrar deneyin.</p>
+                )}
+                {shippingQuote && shippingQuote.amountUntilFreeShipping > 0 && (
+                  <p className="text-xs leading-5 text-muted">Ücretsiz kargo için {formatPrice(shippingQuote.amountUntilFreeShipping)} daha ekleyin.</p>
+                )}
+                {shippingQuote && (
+                  <p className="text-xs leading-5 text-muted">Siparişler {shippingQuote.dispatchMinBusinessDays}-{shippingQuote.dispatchMaxBusinessDays} iş günü içerisinde kargoya teslim edilir.</p>
+                )}
+
                 <div className="flex items-center justify-between border-t border-border-soft pt-3">
                   <span className="text-sm font-black text-foreground">
-                    Toplam
+                    Genel Toplam
                   </span>
 
-                  <span className="text-2xl font-black tracking-[-0.03em] text-mhgreen">
-                    {formatPrice(total)}
+                  <span className="text-xl font-black tracking-[-0.03em] text-mhgreen">
+                    {shippingQuote ? formatPrice(shippingQuote.total) : "—"}
                   </span>
                 </div>
               </div>
@@ -986,19 +1015,87 @@ export default function CheckoutPageClient() {
                 </div>
               )}
 
-              {!legalConsents.preInformationAccepted ||
-              !legalConsents.distanceSalesAccepted ? (
-                <div className="relative z-10 mt-4 rounded-2xl border border-border-soft bg-panel/65 p-3 text-xs font-bold leading-5 text-muted">
-                  Siparişi oluşturmak için yasal onayları işaretlemelisin.
-                </div>
-              ) : null}
+              <div className="relative z-10 mt-4 rounded-2xl border border-border-soft bg-panel/65 p-3">
+  <p className="text-sm font-black text-foreground">
+    Yasal onaylar <span className="text-xs text-danger">(zorunlu)</span>
+  </p>
 
-              <button
-                type="button"
-                disabled={!canSubmit || isSubmitting}
-                onClick={handleSubmit}
-                className="relative z-10 mt-4 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-2xl bg-mhgreen px-4 text-sm font-black text-white shadow-[0_14px_30px_rgba(34,197,94,0.22)] transition hover:-translate-y-0.5 hover:bg-mhgreen-dark active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-45"
-              >
+  <p className="mt-1 text-xs font-medium leading-5 text-muted">
+    Siparişi oluşturmak için ön bilgilendirme formu ve mesafeli satış
+    sözleşmesi onaylanmalıdır.
+  </p>
+
+  <div className="mt-3 grid gap-2">
+    <label className="flex cursor-pointer gap-2.5 rounded-xl border border-border-soft bg-panel/70 p-2.5 transition hover:border-border-strong">
+      <input
+        type="checkbox"
+        checked={legalConsents.preInformationAccepted}
+        onChange={(event) =>
+          updateConsent(
+            "preInformationAccepted",
+            event.target.checked
+          )
+        }
+        className="mt-1 h-4 w-4 shrink-0 accent-mhgreen"
+      />
+
+      <span className="text-xs leading-5 text-muted">
+        <Link
+          href="/legal/pre-information"
+          className="font-black text-mhgreen transition hover:text-mhgreen-dark"
+        >
+          Ön bilgilendirme formunu
+        </Link>{" "}
+        okudum ve kabul ediyorum.
+      </span>
+    </label>
+
+    <label className="flex cursor-pointer gap-2.5 rounded-xl border border-border-soft bg-panel/70 p-2.5 transition hover:border-border-strong">
+      <input
+        type="checkbox"
+        checked={legalConsents.distanceSalesAccepted}
+        onChange={(event) =>
+          updateConsent(
+            "distanceSalesAccepted",
+            event.target.checked
+          )
+        }
+        className="mt-1 h-4 w-4 shrink-0 accent-mhgreen"
+      />
+
+      <span className="text-xs leading-5 text-muted">
+        <Link
+          href="/legal/distance-sales"
+          className="font-black text-mhgreen transition hover:text-mhgreen-dark"
+        >
+          Mesafeli satış sözleşmesini
+        </Link>{" "}
+        okudum ve kabul ediyorum.
+      </span>
+    </label>
+  </div>
+</div>
+
+{checkoutIssues.length > 0 ? (
+  <div className="relative z-10 mt-3 rounded-2xl border border-danger/30 bg-danger/10 p-3">
+    <p className="text-sm font-black text-danger">
+      Siparişi onaylamak için eksik bilgileri tamamla
+    </p>
+    <p className="mt-1 text-xs font-bold leading-5 text-danger">
+      {checkoutIssues.join(" • ")}
+    </p>
+    <p className="mt-1 text-xs font-semibold leading-5 text-muted">
+      Tüm zorunlu alanlar tamamlandığında “Siparişi Onayla” butonu aktif olur.
+    </p>
+  </div>
+) : null}
+
+<button
+  type="button"
+  disabled={!canSubmit || isSubmitting}
+  onClick={handleSubmit}
+  className="relative z-10 mt-4 inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-xl bg-mhgreen px-4 text-sm font-black text-white shadow-[0_12px_26px_rgba(34,197,94,0.20)] transition hover:-translate-y-0.5 hover:bg-mhgreen-dark active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-45"
+>
                 {isSubmitting ? (
                   <>
                     <Loader2 className="h-4 w-4 animate-spin" />
@@ -1011,7 +1108,7 @@ export default function CheckoutPageClient() {
             </section>
 
             <section className="grid gap-3">
-              <div className="concept-corner rounded-2xl border border-border-soft bg-panel/70 p-4">
+              <div className="concept-corner rounded-2xl border border-border-soft bg-panel/70 p-3.5">
                 <ShieldCheck className="relative z-10 h-5 w-5 text-mhgreen" />
 
                 <p className="relative z-10 mt-2 text-sm font-black text-foreground">
@@ -1019,12 +1116,13 @@ export default function CheckoutPageClient() {
                 </p>
 
                 <p className="relative z-10 mt-1 text-xs leading-5 text-muted">
-                  Sipariş oluşturulduktan sonra güvenli ödeme adımına
-                  yönlendirileceksin. Kart bilgileri Medine Huzur tarafından saklanmaz.
+                  {paymentActive
+                    ? "Sipariş oluşturulduktan sonra güvenli ödeme adımına yönlendirileceksin. Kart bilgileri Medine Huzur tarafından saklanmaz."
+                    : "Sanal POS henüz aktif değildir. Bu ekrandan kartla ödeme veya sipariş onayı yapılamaz."}
                 </p>
               </div>
 
-              <div className="concept-corner rounded-2xl border border-border-soft bg-panel/70 p-4">
+              <div className="concept-corner rounded-2xl border border-border-soft bg-panel/70 p-3.5">
                 <Truck className="relative z-10 h-5 w-5 text-mhgreen" />
 
                 <p className="relative z-10 mt-2 text-sm font-black text-foreground">
@@ -1032,8 +1130,7 @@ export default function CheckoutPageClient() {
                 </p>
 
                 <p className="relative z-10 mt-1 text-xs leading-5 text-muted">
-  Kargo bilgileri siparişe eklendiğinde sipariş sorgulama ekranından
-                  takip edilebilir.
+  Kargo bilgileri siparişe eklendiğinde sipariş sorgulama ekranından takip edilebilir.
 </p>
               </div>
             </section>

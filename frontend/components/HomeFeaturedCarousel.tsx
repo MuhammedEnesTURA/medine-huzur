@@ -1,6 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { Eye, Gift, ShoppingBag, Sparkles } from "lucide-react";
+import { optimizedCloudinaryUrl } from "../lib/cloudinary";
 
 type Product = {
   id: string;
@@ -50,13 +51,17 @@ export default function HomeFeaturedCarousel({
             key={product.id}
             className="concept-corner group min-w-[78%] snap-start overflow-hidden rounded-[1.35rem] border border-border-soft bg-panel/78 p-2.5 shadow-[0_16px_42px_rgba(0,0,0,0.14)] transition duration-200 hover:-translate-y-1 hover:border-mhgreen/30 hover:bg-panel/90 sm:min-w-[42%] lg:min-w-[24%]"
           >
-            <Link href={`/product/${product.slug}`} className="block">
+            <Link
+              href={`/product/${product.slug}`}
+              prefetch={false}
+              className="block"
+            >
               <div className="relative flex aspect-[4/3] items-center justify-center overflow-hidden rounded-3xl border border-border-soft bg-panel-3/86">
                 <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_0%,rgba(34,197,94,0.13),transparent_36%)] opacity-80 transition group-hover:opacity-100" />
 
                 {image ? (
                   <Image
-                    src={image}
+                    src={optimizedCloudinaryUrl(image, 640)}
                     alt={product.name}
                     fill
                     sizes="(max-width: 640px) 78vw, (max-width: 1024px) 42vw, 25vw"
@@ -116,6 +121,7 @@ export default function HomeFeaturedCarousel({
             <div className="mt-3 grid grid-cols-1 gap-2 px-2 pb-2 xl:grid-cols-2">
               <Link
                 href={`/product/${product.slug}`}
+                prefetch={false}
                 className="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-xl border border-border-soft bg-panel-2/82 px-2 text-xs font-black text-foreground transition hover:-translate-y-0.5 hover:border-mhgreen/35 hover:bg-panel-3 hover:text-mhgreen"
               >
                 <Eye className="h-3.5 w-3.5" />
@@ -124,6 +130,7 @@ export default function HomeFeaturedCarousel({
 
               <Link
                 href={`/product/${product.slug}?gift=1`}
+                prefetch={false}
                 className="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-xl bg-mhgreen px-2 text-xs font-black text-white shadow-[0_10px_24px_rgba(34,197,94,0.20)] transition hover:-translate-y-0.5 hover:bg-mhgreen-dark"
               >
                 <Gift className="h-3.5 w-3.5" />

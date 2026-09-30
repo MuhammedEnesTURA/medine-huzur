@@ -31,7 +31,8 @@ export default function SearchBand() {
   };
 
   return (
-    <section className="search-band page-container">
+    // DİKKAT: "-mt-3 mb-4 sm:mt-0 sm:mb-0" ile mobilde o gereksiz boşluğu yok edip yukarı çektik!
+    <section className="search-band page-container -mt-3 mb-4 sm:mt-0 sm:mb-0">
       <form
         onSubmit={onSubmit}
         className="mx-auto max-w-[700px] rounded-[1rem] border border-border-soft bg-panel/82 p-1.5 shadow-[0_8px_22px_rgba(0,0,0,0.06)] backdrop-blur-xl"

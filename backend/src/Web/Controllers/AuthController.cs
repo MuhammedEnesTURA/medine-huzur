@@ -71,7 +71,8 @@ public class AuthController : ControllerBase
         _db.Users.Add(user);
         await _db.SaveChangesAsync(cancellationToken);
 
-        await SendConfirmationEmailAsync(user, cancellationToken);
+        // Kullanıcıyı bekletmeden arka planda mail atıyoruz
+        SendConfirmationEmailInBackground(user);
 
         var token = _jwtTokenService.CreateToken(user);
 
@@ -167,7 +168,9 @@ public class AuthController : ControllerBase
         user.EmailConfirmationTokenExpiresAtUtc = DateTime.UtcNow.AddDays(2);
 
         await _db.SaveChangesAsync(cancellationToken);
-        await SendConfirmationEmailAsync(user, cancellationToken);
+        
+        // Arka planda mail at
+        SendConfirmationEmailInBackground(user);
 
         return Ok(new { message = "Doğrulama e-postası tekrar gönderildi." });
     }
@@ -215,7 +218,6 @@ public class AuthController : ControllerBase
 
         var user = await _db.Users.FirstOrDefaultAsync(x => x.Email == email, cancellationToken);
 
-        // Güvenlik için kullanıcı yoksa da aynı cevabı dönüyoruz.
         if (user is null)
         {
             return Ok(new { message = "Şifre sıfırlama bağlantısı gönderildiyse e-postanızı kontrol edin." });
@@ -225,7 +227,9 @@ public class AuthController : ControllerBase
         user.PasswordResetTokenExpiresAtUtc = DateTime.UtcNow.AddHours(1);
 
         await _db.SaveChangesAsync(cancellationToken);
-        await SendPasswordResetEmailAsync(user, cancellationToken);
+        
+        // Arka planda mail at
+        SendPasswordResetEmailInBackground(user);
 
         return Ok(new { message = "Şifre sıfırlama bağlantısı gönderildiyse e-postanızı kontrol edin." });
     }
@@ -283,12 +287,9 @@ public class AuthController : ControllerBase
         return null;
     }
 
-    private async Task SendConfirmationEmailAsync(User user, CancellationToken cancellationToken)
+    private void SendConfirmationEmailInBackground(User user)
     {
-        if (string.IsNullOrWhiteSpace(user.EmailConfirmationToken))
-        {
-            return;
-        }
+        if (string.IsNullOrWhiteSpace(user.EmailConfirmationToken)) return;
 
         var frontendBaseUrl = GetFrontendBaseUrl();
         var link = $"{frontendBaseUrl}/confirm-email?token={Uri.EscapeDataString(user.EmailConfirmationToken)}";
@@ -307,15 +308,12 @@ public class AuthController : ControllerBase
             </div>
             """;
 
-        await SafeSendEmailAsync(user.Email, "Medine Huzur - E-posta Doğrulama", html, cancellationToken);
+        SafeSendEmailInBackground(user.Email, "Medine Huzur - E-posta Doğrulama", html);
     }
 
-    private async Task SendPasswordResetEmailAsync(User user, CancellationToken cancellationToken)
+    private void SendPasswordResetEmailInBackground(User user)
     {
-        if (string.IsNullOrWhiteSpace(user.PasswordResetToken))
-        {
-            return;
-        }
+        if (string.IsNullOrWhiteSpace(user.PasswordResetToken)) return;
 
         var frontendBaseUrl = GetFrontendBaseUrl();
         var link = $"{frontendBaseUrl}/reset-password?token={Uri.EscapeDataString(user.PasswordResetToken)}";
@@ -335,23 +333,24 @@ public class AuthController : ControllerBase
             </div>
             """;
 
-        await SafeSendEmailAsync(user.Email, "Medine Huzur - Şifre Sıfırlama", html, cancellationToken);
+        SafeSendEmailInBackground(user.Email, "Medine Huzur - Şifre Sıfırlama", html);
     }
 
-    private async Task SafeSendEmailAsync(
-        string to,
-        string subject,
-        string html,
-        CancellationToken cancellationToken)
+    private void SafeSendEmailInBackground(string to, string subject, string html)
     {
-        try
+        // İstek sonlansa bile mail gönderimi arka planda devam eder
+        _ = Task.Run(async () =>
         {
-            await _emailService.SendAsync(to, subject, html, cancellationToken);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Email could not be sent. To: {To}, Subject: {Subject}", to, subject);
-        }
+            try
+            {
+                // CancellationToken.None kullanarak HTTP isteği bitse bile Task'ın iptal edilmesini önlüyoruz.
+                await _emailService.SendAsync(to, subject, html, CancellationToken.None);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Arka planda e-posta gönderimi başarısız oldu. Hata: {Error}. To: {To}, Subject: {Subject}", ex.Message, to, subject);
+            }
+        });
     }
 
     private string GetFrontendBaseUrl()

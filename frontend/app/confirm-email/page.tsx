@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useEffect, useState, useRef } from "react";
 import { useSearchParams } from "next/navigation";
 import {
   AlertTriangle,
@@ -61,6 +61,9 @@ function ConfirmEmailContent() {
     message: "E-posta doğrulama bağlantısı kontrol ediliyor...",
   });
 
+  // KİLİT: Çift tetiklemeyi (Double Render) engellemek için useRef kullanıyoruz.
+  const processedTokenRef = useRef<string | null>(null);
+
   useEffect(() => {
     const token = searchParams.get("token");
 
@@ -71,6 +74,12 @@ function ConfirmEmailContent() {
       });
       return;
     }
+
+    // Eğer bu token zaten işleme alındıysa (yani ikinci render ise) durdur!
+    if (processedTokenRef.current === token) {
+      return;
+    }
+    processedTokenRef.current = token;
 
     let cancelled = false;
 

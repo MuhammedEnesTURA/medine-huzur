@@ -202,6 +202,9 @@ public class ECommerceContext : DbContext
             entity.Property(x => x.CreatedAtUtc)
                 .HasDefaultValueSql("SYSUTCDATETIME()");
 
+            entity.Property(x => x.UpdatedAtUtc)
+                .IsConcurrencyToken();
+
             entity.HasMany(x => x.Variants)
                 .WithOne(x => x.Product)
                 .HasForeignKey(x => x.ProductId)
@@ -354,6 +357,10 @@ entity.HasIndex(x => x.OrderNumber)
 
             entity.Property(x => x.DiscountTotal)
                 .HasPrecision(18, 2);
+
+            entity.Property(x => x.ShippingAmount)
+                .HasPrecision(18, 2)
+                .HasDefaultValue(0m);
 
             entity.Property(x => x.Total)
                 .HasPrecision(18, 2);
@@ -554,6 +561,23 @@ entity.HasIndex(x => x.OrderNumber)
             .HasMaxLength(180)
             .IsRequired();
 
+        entity.Property(x => x.MerchantOrderId).HasMaxLength(180);
+        entity.Property(x => x.BankOrderId).HasMaxLength(180);
+        entity.Property(x => x.ProvisionNumber).HasMaxLength(80);
+        entity.Property(x => x.Rrn).HasMaxLength(80);
+        entity.Property(x => x.Stan).HasMaxLength(80);
+        entity.Property(x => x.ResponseCode).HasMaxLength(32);
+        entity.Property(x => x.ResponseMessage).HasMaxLength(500);
+        entity.Property(x => x.BusinessKey).HasMaxLength(180);
+
+        entity.Property(x => x.State)
+            .HasConversion<string>()
+            .HasMaxLength(32)
+            .HasDefaultValue(PaymentTransactionState.Created)
+            .IsRequired();
+
+        entity.Property(x => x.RowVersion).IsRowVersion();
+
         entity.Property(x => x.Amount)
             .HasPrecision(18, 2);
 
@@ -578,6 +602,9 @@ entity.HasIndex(x => x.OrderNumber)
 
         entity.HasIndex(x => x.OrderId);
         entity.HasIndex(x => x.PaymentReference);
+        entity.HasIndex(x => x.MerchantOrderId)
+            .IsUnique()
+            .HasFilter("[MerchantOrderId] IS NOT NULL");
         entity.HasIndex(x => x.Provider);
         entity.HasIndex(x => x.Status);
         entity.HasIndex(x => x.CreatedAtUtc);

@@ -7,6 +7,18 @@ import {
   MapPin,
   Phone,
 } from "lucide-react";
+import {
+  businessConfig,
+  createPageMetadata,
+  siteConfig,
+} from "../../../lib/seo";
+import { merchantConfig, warnIncompleteMerchantConfig } from "../../../lib/merchant";
+
+export const metadata = createPageMetadata({
+  title: "Ticari Bilgiler",
+  description: "Medine Huzur satıcı, iletişim ve mağaza bilgilerini inceleyin.",
+  path: "/legal/merchant-info",
+});
 
 function InfoRow({
   label,
@@ -44,6 +56,8 @@ function QuickLink({
 }
 
 export default function MerchantInfoPage() {
+  warnIncompleteMerchantConfig();
+
   return (
     <main className="page-shell">
       <section className="page-container py-5 md:py-8">
@@ -79,16 +93,35 @@ gösterilir.
           </div>
 
           <div className="mt-8 grid gap-4 md:grid-cols-2">
-            <InfoRow label="Site / Marka" value="Medine Huzur" />
-<InfoRow label="Ticari Unvan" value="Medine Huzur" />
-<InfoRow label="Vergi Dairesi" value="Çorum Vergi Dairesi" />
-<InfoRow label="Vergi / TCKN No" value="Resmi işlem ve başvuru süreçlerinde paylaşılır." />
-<InfoRow label="Telefon" value="0 (545) 616 45 33" />
-<InfoRow label="WhatsApp" value="0 (531) 161 01 55" />
-<InfoRow label="E-posta" value="corum.medinehuzur@gmail.com" />
+            <InfoRow label="Site / Marka" value={siteConfig.name} />
+<InfoRow label="Resmî Satıcı / İşletme Unvanı" value={merchantConfig.legalName} />
+{merchantConfig.status === "esnaf" && (
+  <InfoRow label="İşletme Türü" value="Esnaf" />
+)}
+{merchantConfig.status === "tacir" && merchantConfig.mersisNumber && (
+  <InfoRow label="MERSİS Numarası" value={merchantConfig.mersisNumber} />
+)}
+{merchantConfig.status === "esnaf" && merchantConfig.ownerName && (
+  <InfoRow label="İşletme Sahibi" value={merchantConfig.ownerName} />
+)}
+{merchantConfig.status === "esnaf" && merchantConfig.taxNumber && (
+  <InfoRow label="Vergi Kimlik Numarası" value={merchantConfig.taxNumber} />
+)}
+{merchantConfig.taxOffice && (
+  <InfoRow label="Vergi Dairesi" value={merchantConfig.taxOffice} />
+)}
+{merchantConfig.registeredAddress && (
+  <InfoRow label="Merkez Adresi" value={merchantConfig.registeredAddress} />
+)}
+{merchantConfig.kepAddress && (
+  <InfoRow label="KEP Adresi" value={merchantConfig.kepAddress} />
+)}
+<InfoRow label="Telefon" value={businessConfig.phone.display} />
+<InfoRow label="WhatsApp" value={businessConfig.whatsapp.display} />
+<InfoRow label="E-posta" value={businessConfig.email} />
 <InfoRow
   label="Adres"
-  value="Üçtutlar Mah. Osmancık Cad. 10/A, Ulu Camii karşısı, Medine Huzur, Çorum/Merkez"
+  value={businessConfig.address.display}
 />
           </div>
 
@@ -102,7 +135,7 @@ gösterilir.
                 </h2>
 
                 <p className="mt-2 text-sm leading-7 text-muted">
-                  Üçtutlar Mah. Osmancık Cad. 10/A, Ulu Camii karşısı, Medine Huzur, Çorum/Merkez
+                  {businessConfig.address.display}
                 </p>
               </div>
             </div>
@@ -125,12 +158,12 @@ gösterilir.
                 <div className="mt-3 grid gap-2 sm:grid-cols-2">
                   <div className="flex items-center gap-2 rounded-xl border border-border-soft bg-panel/70 p-3 text-sm text-muted">
                     <Phone className="h-4 w-4 text-mhgreen" />
-                    0 (545) 616 45 33
+                    {businessConfig.phone.display}
                   </div>
 
                   <div className="flex items-center gap-2 rounded-xl border border-border-soft bg-panel/70 p-3 text-sm text-muted">
                     <Mail className="h-4 w-4 text-mhgreen" />
-                    corum.medinehuzur@gmail.com
+                    {businessConfig.email}
                   </div>
                 </div>
               </div>
