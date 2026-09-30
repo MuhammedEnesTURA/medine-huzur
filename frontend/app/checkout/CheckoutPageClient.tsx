@@ -280,8 +280,8 @@ export default function CheckoutPageClient() {
     ...(form.addressLine.trim().length < 10
       ? ["Açık adres zorunlu"]
       : []),
-    ...(form.postalCode.trim() && !/^\d{5}$/.test(form.postalCode.trim())
-      ? ["Posta kodu yazılırsa 5 haneli olmalı"]
+    ...(!/^\d{5}$/.test(form.postalCode.trim())
+      ? ["Posta kodu zorunlu ve 5 haneli olmalı"]
       : []),
     ...(!legalConsents.preInformationAccepted ||
     !legalConsents.distanceSalesAccepted
@@ -752,7 +752,7 @@ export default function CheckoutPageClient() {
 
                   <label className="rounded-2xl border border-border-soft bg-panel/64 p-2.5">
                     <span className="text-[11px] font-black uppercase tracking-[0.12em] text-muted-2">
-                      Posta kodu <span className="normal-case font-semibold text-muted">(opsiyonel)</span>
+                      Posta kodu <span className="normal-case tracking-normal text-danger">(zorunlu)</span>
                     </span>
                     <input
                       value={form.postalCode}
@@ -764,6 +764,7 @@ export default function CheckoutPageClient() {
                       inputMode="numeric"
                       pattern="[0-9]{5}"
                       maxLength={5}
+                      required
                     />
                   </label>
 
