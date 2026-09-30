@@ -267,20 +267,34 @@ export default function CheckoutPageClient() {
   const isEmpty = items.length === 0 && giftPackage.items.length === 0;
   const missingAmount = Math.max(0, MIN_CART_TOTAL - total);
 
+  const checkoutIssues = [
+    ...(form.fullName.trim().length < 2 ? ["Ad soyad zorunlu"] : []),
+    ...(normalizePhone(form.phone).length !== 11
+      ? ["Telefon zorunlu ve 11 haneli olmalı"]
+      : []),
+    ...(form.email.trim() && !form.email.includes("@")
+      ? ["E-posta adresi geçersiz"]
+      : []),
+    ...(form.city.trim().length < 2 ? ["İl zorunlu"] : []),
+    ...(form.district.trim().length < 2 ? ["İlçe zorunlu"] : []),
+    ...(form.addressLine.trim().length < 10
+      ? ["Açık adres zorunlu"]
+      : []),
+    ...(form.postalCode.trim() && !/^\d{5}$/.test(form.postalCode.trim())
+      ? ["Posta kodu yazılırsa 5 haneli olmalı"]
+      : []),
+    ...(!legalConsents.preInformationAccepted ||
+    !legalConsents.distanceSalesAccepted
+      ? ["Yasal onaylar zorunlu"]
+      : []),
+  ];
+
   const canSubmit =
     paymentActive &&
     !!shippingQuote &&
     !isEmpty &&
     total >= MIN_CART_TOTAL &&
-    form.fullName.trim().length >= 2 &&
-    (!form.email.trim() || form.email.includes("@")) &&
-    normalizePhone(form.phone).length === 11 &&
-    form.city.trim().length >= 2 &&
-    form.district.trim().length >= 2 &&
-    (!form.postalCode.trim() || /^\d{5}$/.test(form.postalCode.trim())) &&
-    form.addressLine.trim().length >= 10 &&
-    legalConsents.preInformationAccepted &&
-    legalConsents.distanceSalesAccepted;
+    checkoutIssues.length === 0;
 
   const applyAddressToForm = (address: AddressDto) => {
     setForm((current) => ({
@@ -527,7 +541,7 @@ export default function CheckoutPageClient() {
                 </h1>
 
                 <p className="mt-1 text-xs font-bold text-danger">
-                  * işaretli alanlar zorunludur.
+                  Kırmızı “zorunlu” etiketi bulunan alanlar doldurulmalıdır.
                 </p>
 
                 <p className="mt-1.5 max-w-2xl text-[13px] font-medium leading-6 text-muted">
@@ -601,7 +615,7 @@ export default function CheckoutPageClient() {
                 <div className="mt-3 grid gap-3 md:grid-cols-2">
                   <label className="rounded-2xl border border-border-soft bg-panel/64 p-2.5">
                     <span className="text-[11px] font-black uppercase tracking-[0.12em] text-muted-2">
-                      Ad soyad <span className="text-danger">*</span>
+                      Ad soyad <span className="normal-case tracking-normal text-danger">(zorunlu)</span>
                     </span>
                     <input
                       value={form.fullName}
@@ -616,7 +630,7 @@ export default function CheckoutPageClient() {
 
                   <label className="rounded-2xl border border-border-soft bg-panel/64 p-2.5">
                     <span className="text-[11px] font-black uppercase tracking-[0.12em] text-muted-2">
-                      Telefon <span className="text-danger">*</span>
+                      Telefon <span className="normal-case tracking-normal text-danger">(zorunlu)</span>
                     </span>
                     <input
                       value={form.phone}
@@ -710,7 +724,7 @@ export default function CheckoutPageClient() {
                 <div className="mt-3 grid gap-3 md:grid-cols-2">
                   <label className="rounded-2xl border border-border-soft bg-panel/64 p-2.5">
                     <span className="text-[11px] font-black uppercase tracking-[0.12em] text-muted-2">
-                      İl <span className="text-danger">*</span>
+                      İl <span className="normal-case tracking-normal text-danger">(zorunlu)</span>
                     </span>
                     <input
                       value={form.city}
@@ -723,7 +737,7 @@ export default function CheckoutPageClient() {
 
                   <label className="rounded-2xl border border-border-soft bg-panel/64 p-2.5">
                     <span className="text-[11px] font-black uppercase tracking-[0.12em] text-muted-2">
-                      İlçe <span className="text-danger">*</span>
+                      İlçe <span className="normal-case tracking-normal text-danger">(zorunlu)</span>
                     </span>
                     <input
                       value={form.district}
@@ -755,7 +769,7 @@ export default function CheckoutPageClient() {
 
                   <label className="rounded-2xl border border-border-soft bg-panel/64 p-2.5 md:col-span-2">
                     <span className="text-[11px] font-black uppercase tracking-[0.12em] text-muted-2">
-                      Açık adres <span className="text-danger">*</span>
+                      Açık adres <span className="normal-case tracking-normal text-danger">(zorunlu)</span>
                     </span>
                     <textarea
                       value={form.addressLine}
@@ -1002,7 +1016,7 @@ export default function CheckoutPageClient() {
 
               <div className="relative z-10 mt-4 rounded-2xl border border-border-soft bg-panel/65 p-3">
   <p className="text-sm font-black text-foreground">
-    Yasal onaylar
+    Yasal onaylar <span className="text-xs text-danger">(zorunlu)</span>
   </p>
 
   <p className="mt-1 text-xs font-medium leading-5 text-muted">
@@ -1061,10 +1075,17 @@ export default function CheckoutPageClient() {
   </div>
 </div>
 
-{!legalConsents.preInformationAccepted ||
-!legalConsents.distanceSalesAccepted ? (
-  <div className="relative z-10 mt-3 rounded-2xl border border-border-soft bg-panel/65 p-3 text-xs font-bold leading-5 text-muted">
-    Siparişi oluşturmak için yasal onayları işaretlemelisin.
+{checkoutIssues.length > 0 ? (
+  <div className="relative z-10 mt-3 rounded-2xl border border-danger/30 bg-danger/10 p-3">
+    <p className="text-sm font-black text-danger">
+      Siparişi onaylamak için eksik bilgileri tamamla
+    </p>
+    <p className="mt-1 text-xs font-bold leading-5 text-danger">
+      {checkoutIssues.join(" • ")}
+    </p>
+    <p className="mt-1 text-xs font-semibold leading-5 text-muted">
+      Tüm zorunlu alanlar tamamlandığında “Siparişi Onayla” butonu aktif olur.
+    </p>
   </div>
 ) : null}
 
