@@ -4,7 +4,6 @@ on:
   push:
     branches:
       - kuveytturk-integration-wip
-      - checkout-optional-postal-code
   workflow_dispatch:
 
 permissions:
